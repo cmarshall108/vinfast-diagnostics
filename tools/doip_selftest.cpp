@@ -87,6 +87,67 @@ int main(int argc, char** argv) {
               data.has_value() && !data->empty(), data ? "" : err);
     }
 
+    // 7. Full UDS reprogramming sequence on the VCU (0x1010). Validates the
+    //    flash flow and the four acceptance criteria: correct positive
+    //    responses, proper block sequence counter, no unexpected NRC, and a
+    //    successful application start after the closing ECU reset.
+    {
+        UDSClient uds(client, 0x0E80);
+        const uint16_t vcu = 0x1010;
+        bool seq_ok = true;
+
+        // (1) enter programming session (0x10 02)
+        bool s1 = uds.diagnosticSessionControl(vcu, UdsSession::Programming, err);
+        check("flash: programming session (0x10 02)", s1, s1 ? "" : err);
+        seq_ok &= s1;
+
+        // (2) security access (0x27): seed then key (test transform key=seed^0xFF)
+        auto seed = uds.requestSeed(vcu, 0x01, err);
+        bool s2a = seed.has_value() && !seed->empty();
+        check("flash: requestSeed (0x27 01)", s2a, s2a ? "" : err);
+        bool s2b = false;
+        if (s2a) {
+            std::vector<uint8_t> key;
+            for (uint8_t b : *seed) key.push_back(b ^ 0xFF);
+            s2b = uds.sendKey(vcu, 0x01, key, err);
+        }
+        check("flash: sendKey (0x27 02)", s2b, s2b ? "" : err);
+        seq_ok &= s2a && s2b;
+
+        // (3) erase memory via RoutineControl (0x31 01)
+        std::vector<uint8_t> rstat;
+        bool s3 = uds.routineControl(vcu, RoutineCtrl::Start, 0xFF00, {}, rstat, err);
+        check("flash: erase routine (0x31 01 FF00)", s3, s3 ? "" : err);
+        seq_ok &= s3;
+
+        // (4-6) download a multi-block image -> RequestDownload/TransferData/
+        //       RequestTransferExit. 3000 bytes over a 1024-byte block size is
+        //       three blocks, exercising the block-sequence counter (1,2,3).
+        std::vector<uint8_t> image(3000);
+        for (size_t i = 0; i < image.size(); ++i) image[i] = (uint8_t)(i & 0xFF);
+        size_t lastDone = 0;
+        bool s4 = uds.downloadBlock(vcu, 0xA0000000, image, 4, 4, 0x00,
+            [&](size_t done, size_t /*total*/) { lastDone = done; }, err);
+        check("flash: downloadBlock (0x34/0x36/0x37)", s4, s4 ? "" : err);
+        check("flash: all bytes transferred", s4 && lastDone == image.size(),
+              std::to_string(lastDone) + "/" + std::to_string(image.size()));
+        seq_ok &= s4 && lastDone == image.size();
+
+        // (7) ECU reset (0x11 01)
+        bool s7 = uds.ecuReset(vcu, EcuResetType::HardReset, err);
+        check("flash: ECU reset (0x11 01)", s7, s7 ? "" : err);
+        seq_ok &= s7;
+
+        // verify the application started after reset (running-software DID
+        // 0xF1A0 reports 0x01 = application once a flash has completed).
+        auto app = uds.readDataByIdentifier(vcu, 0xF1A0, err);
+        bool started = app.has_value() && !app->empty() && app->front() == 0x01;
+        check("flash: application started after reset (DID F1A0=01)", started,
+              app ? "" : err);
+
+        check("flash: full sequence ok (no unexpected NRC)", seq_ok && started);
+    }
+
     client.disconnect();
     std::printf("\nResult: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail == 0 ? 0 : 1;

@@ -135,15 +135,30 @@ def diag_message(ecu, tester, uds):
     return hdr(PT_DIAG, struct.pack(">HH", ecu, tester) + uds)
 
 
-def uds_response_for(ecu, uds):
-    """Return the UDS response bytes for a given ECU, or None for no-reply."""
+def uds_response_for(ecu, uds, flash=None):
+    """Return the UDS response bytes for a given ECU, or None for no-reply.
+
+    The VCU (0x1010) implements a stateful ISO 14229 reprogramming sequence
+    (0x10/0x27/0x31/0x34/0x36/0x37/0x11) so the self-test can validate a full
+    flash run end to end. `flash` is a per-connection dict holding that state.
+    """
     if not uds:
         return None
     sid = uds[0]
+
+    # VCU stateful reprogramming services take precedence for the flash SIDs.
+    if ecu == 0x1010 and flash is not None:
+        r = vcu_flash_response(uds, flash)
+        if r is not None:
+            return r
+
     if sid == 0x3E:  # TesterPresent -> positive 0x7E
         return bytes([0x7E, 0x00])
     if sid == 0x22 and len(uds) >= 3:  # ReadDataByIdentifier
         did = (uds[1] << 8) | uds[2]
+        # VCU running-software state DID: 0x01 application, 0x00 bootloader.
+        if ecu == 0x1010 and did == 0xF1A0 and flash is not None:
+            return bytes([0x62, uds[1], uds[2], 0x01 if flash.get("app") else 0x00])
         if did in DIDS:
             return bytes([0x62, uds[1], uds[2]]) + DIDS[did]
         return bytes([0x7F, 0x22, 0x31])  # requestOutOfRange -> not present
@@ -151,11 +166,89 @@ def uds_response_for(ecu, uds):
     return bytes([0x7F, sid, 0x11])
 
 
+def vcu_flash_response(uds, flash):
+    """ISO 14229 flash state machine for the VCU (0x1010). Returns the UDS
+    response bytes for a flash SID, or None to fall through to the generic
+    handler (e.g. for 0x22 / 0x3E). Enforces session/security ordering and the
+    TransferData block-sequence-counter so the client side can be validated."""
+    sid = uds[0]
+
+    if sid == 0x10 and len(uds) >= 2:            # DiagnosticSessionControl
+        sub = uds[1]
+        flash["session"] = sub
+        if sub == 0x02:                          # entering programming session
+            flash["unlocked"] = False
+            flash["download"] = False
+        # 0x50 <sub> + P2/P2* timing (4 bytes)
+        return bytes([0x50, sub, 0x00, 0x32, 0x01, 0xF4])
+
+    if sid == 0x27 and len(uds) >= 2:            # SecurityAccess
+        sub = uds[1]
+        if sub % 2 == 1:                         # requestSeed (odd sub-function)
+            if flash.get("session") != 0x02:
+                return bytes([0x7F, 0x27, 0x22])  # conditionsNotCorrect
+            flash["seed"] = bytes([0x11, 0x22, 0x33, 0x44])
+            return bytes([0x67, sub]) + flash["seed"]
+        # sendKey (even sub-function): agreed test transform key = seed XOR 0xFF.
+        seed = flash.get("seed", b"")
+        expect = bytes(b ^ 0xFF for b in seed)
+        if bytes(uds[2:]) != expect:
+            return bytes([0x7F, 0x27, 0x35])      # invalidKey
+        flash["unlocked"] = True
+        return bytes([0x67, sub])
+
+    if sid == 0x31 and len(uds) >= 4:            # RoutineControl (erase memory)
+        if not flash.get("unlocked"):
+            return bytes([0x7F, 0x31, 0x33])      # securityAccessDenied
+        # 0x71 <sub> <RID hi lo> <routineStatusRecord 0x00 = finished OK>
+        return bytes([0x71, uds[1], uds[2], uds[3], 0x00])
+
+    if sid == 0x34:                              # RequestDownload
+        if not flash.get("unlocked"):
+            return bytes([0x7F, 0x34, 0x33])      # securityAccessDenied
+        flash["download"] = True
+        flash["expected_bsc"] = 0x01
+        flash["received"] = 0
+        # 0x74 <LFID: hi nibble = maxBlockLength width 2> <maxBlockLength 0x0402>
+        return bytes([0x74, 0x20, 0x04, 0x02])    # 1026 -> 1024 usable payload
+
+    if sid == 0x36 and len(uds) >= 2:            # TransferData
+        if not flash.get("download"):
+            return bytes([0x7F, 0x36, 0x24])      # requestSequenceError
+        bsc = uds[1]
+        expected = flash.get("expected_bsc", 0x01)
+        if bsc != expected:
+            return bytes([0x7F, 0x36, 0x73])      # wrongBlockSequenceCounter
+        flash["received"] += len(uds) - 2
+        flash["expected_bsc"] = (expected + 1) & 0xFF   # wraps 0xFF -> 0x00
+        return bytes([0x76, bsc])
+
+    if sid == 0x37:                              # RequestTransferExit
+        if not flash.get("download"):
+            return bytes([0x7F, 0x37, 0x24])      # requestSequenceError
+        flash["download"] = False
+        flash["flashed"] = True
+        return bytes([0x77])                      # optional checksum omitted
+
+    if sid == 0x11 and len(uds) >= 2:            # ECUReset
+        # A completed flash validates the application image; after the reset the
+        # ECU "boots" the application (running-software DID 0xF1A0 -> 0x01).
+        if flash.get("flashed"):
+            flash["app"] = True
+        flash["session"] = 0x01
+        flash["unlocked"] = False
+        return bytes([0x51, uds[1]])
+
+    return None
+
+
+
 def handle_conn(conn, addr, require_oem, nack_state):
     print(f"[tcp] connection from {addr}")
     conn.settimeout(30)
     tester = 0x0E80
     buf = b""
+    flash = {}   # per-connection VCU reprogramming state
     try:
         while True:
             chunk = conn.recv(4096)
@@ -168,7 +261,7 @@ def handle_conn(conn, addr, require_oem, nack_state):
                     break
                 payload = buf[8:8 + plen]
                 buf = buf[8 + plen:]
-                _dispatch(conn, ptype, payload, require_oem, nack_state, lambda t: t)
+                _dispatch(conn, ptype, payload, require_oem, nack_state, flash)
     except (socket.timeout, ConnectionError):
         pass
     finally:
@@ -176,7 +269,7 @@ def handle_conn(conn, addr, require_oem, nack_state):
         conn.close()
 
 
-def _dispatch(conn, ptype, payload, require_oem, nack_state, _):
+def _dispatch(conn, ptype, payload, require_oem, nack_state, flash):
     if ptype == PT_ROUTING_REQ:
         tester = struct.unpack(">H", payload[:2])[0] if len(payload) >= 2 else 0x0E80
         has_oem = len(payload) >= 11  # 2+1+4 reserved + 4 OEM
@@ -219,7 +312,7 @@ def _dispatch(conn, ptype, payload, require_oem, nack_state, _):
             for _ in range(3):
                 conn.sendall(diag_message(target, tester, bytes([0x7F, 0x22, 0x78])))
                 time.sleep(0.2)
-        r = uds_response_for(target, uds)
+        r = uds_response_for(target, uds, flash)
         if r is not None:
             conn.sendall(diag_message(target, tester, r))
     else:
