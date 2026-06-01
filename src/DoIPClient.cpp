@@ -49,6 +49,20 @@ static const char* genericNackText(uint8_t c) {
     }
 }
 
+// ISO 13400-2 diagnostic-message negative-acknowledge codes (payload 0x8003).
+static const char* diagNackText(uint8_t c) {
+    switch (c) {
+        case 0x02: return "invalid source address";
+        case 0x03: return "unknown target address";
+        case 0x04: return "diagnostic message too large";
+        case 0x05: return "out of memory";
+        case 0x06: return "target unreachable";
+        case 0x07: return "unknown network";
+        case 0x08: return "transport protocol error";
+        default:   return "reserved";
+    }
+}
+
 // Trims a VIN read off the wire to printable ASCII so a non-conforming gateway
 // cannot inject NULs/control characters into logs or the UI.
 static std::string sanitizeVin(const char* p, size_t len) {
@@ -575,7 +589,8 @@ bool Client::sendDiagnostic(uint16_t source, uint16_t target,
         if (type == DiagnosticPositiveAck) continue;
         if (type == DiagnosticNegativeAck) {
             uint8_t nack = resp.size() >= 5 ? resp[4] : 0xFF;
-            err = "DoIP diagnostic negative ack (code 0x" + byteHex(nack) + ")";
+            err = "DoIP diagnostic negative ack (code 0x" + byteHex(nack) + ": " +
+                  diagNackText(nack) + ")";
             return false;
         }
         if (type == AliveCheckRequest) {
