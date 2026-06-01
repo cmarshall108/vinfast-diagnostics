@@ -8,6 +8,7 @@
 #include <curl/curl.h>
 
 #include <array>
+#include <algorithm>
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
@@ -558,18 +559,23 @@ bool CloudClient::requestTelemetry(std::string& bodyOut, std::string& err) {
     CloudRegion reg; std::string vinc;
     { std::lock_guard<std::mutex> g(mutex_); reg = cloudRegion(regionCode_); vinc = vin_; }
 
-    // A small, useful resource set: SOC, range, odometer, charge status/power.
-    static const char* want[] = {
-        "34180_00001_00011", "34180_00001_00007", "34199_00000_00000",
-        "34183_00000_00001", "34183_00000_00012", "34193_00001_00012",
-    };
+    // Subscribe to the full VF8 resource map (the community OMA-LWM2M dictionary
+    // mirrored in kVF8Telemetry), de-duplicated by object/instance/resource so
+    // codes that share a triplet are only requested once.
     std::string arr = "[";
-    for (size_t i = 0; i < sizeof(want)/sizeof(want[0]); ++i) {
-        std::string c = want[i];
+    std::vector<std::string> seen;
+    size_t emitted = 0;
+    for (const auto& t : kVF8Telemetry) {
+        std::string c = t.code;
+        if (c.size() != 17) continue;                 // expect NNNNN_NNNNN_NNNNN
         int oid = std::atoi(c.substr(0,5).c_str());
         int iid = std::atoi(c.substr(6,5).c_str());
         int rid = std::atoi(c.substr(12,5).c_str());
-        if (i) arr += ",";
+        std::string key = std::to_string(oid) + "/" + std::to_string(iid) +
+                          "/" + std::to_string(rid);
+        if (std::find(seen.begin(), seen.end(), key) != seen.end()) continue;
+        seen.push_back(key);
+        if (emitted++) arr += ",";
         arr += "{\"objectId\":" + std::to_string(oid) +
                ",\"instanceId\":" + std::to_string(iid) +
                ",\"resourceId\":" + std::to_string(rid) + "}";
@@ -578,7 +584,8 @@ bool CloudClient::requestTelemetry(std::string& bodyOut, std::string& err) {
 
     std::string path = "ccaraccessmgmt/api/v1/telemetry/" + vinc + "/list_resource";
     std::string url  = std::string(reg.apiBase) + "/" + path;
-    Logger::instance().tx("Cloud: telemetry list_resource");
+    Logger::instance().tx("Cloud: telemetry list_resource (" +
+                          std::to_string(emitted) + " resources)");
     HttpResult r;
     if (!httpRequest("POST", url, signedHeaders("POST", path, true), arr, r, err)) return false;
     bodyOut = r.body;
