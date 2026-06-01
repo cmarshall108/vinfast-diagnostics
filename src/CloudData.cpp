@@ -114,6 +114,53 @@ const std::vector<TelemetryResource> kVF8Telemetry = {
     {"34213_00003_00003", "Window motor status",      ""},
     {"34213_00002_00003", "Trunk motor status",       ""},
     {"34213_00004_00003", "Headlight flash status",   ""},
+
+    // ---- Additional resources from the VinFast Companion APK alias map -------
+    // (tahung9x/VF-DB, decompiled from the official app v1.10.3 / static
+    // alias map). These extend the community HA set with safety, BMS-detail,
+    // seat, lighting, GNSS and ECU-version resources. requestTelemetry streams
+    // the whole table, so each is subscribed automatically.
+
+    // GNSS extras (LOCATION object 6)
+    {"00006_00001_00004", "GNSS velocity",            "km/h"},
+    {"00006_00001_00011", "GNSS heading",             "deg"},
+    {"00006_00001_00010", "GNSS status",              ""},
+
+    // BMS detail / safety (34220)
+    {"34220_00001_00111", "Battery serial number",    ""},
+    {"34220_00001_00112", "Battery manufacture date", ""},
+    {"34220_00001_00050", "Thermal runaway warning",  ""},
+
+    // Crash / occupant safety (34185, instance 1)
+    {"34185_00001_00001", "Crash: left side",         ""},
+    {"34185_00001_00002", "Crash: rear",              ""},
+    {"34185_00001_00003", "Crash: right side",        ""},
+    {"34185_00001_00004", "Crash: front",             ""},
+    {"34185_00001_00005", "Crash: rollover",          ""},
+    {"34185_00001_00007", "Airbag deployed",          ""},
+    {"34185_00001_00008", "E-Call activated",         ""},
+
+    // Climate target temps & seat comfort (34184)
+    {"34184_00001_00006", "Driver target temperature",   "C"},
+    {"34184_00001_00007", "Passenger target temperature","C"},
+    {"34184_00001_00028", "Driver seat heating",         ""},
+    {"34184_00001_00029", "Passenger seat heating",      ""},
+    {"34184_00001_00030", "Driver seat ventilation",     ""},
+    {"34184_00001_00037", "Driver seat cooling",         ""},
+    {"34184_00001_00033", "Rear-left seat heating",      ""},
+    {"34184_00001_00034", "Rear-right seat heating",     ""},
+
+    // Exterior / interior lighting (10350)
+    {"10350_00001_00002", "Front fog lights",         ""},
+    {"10350_00004_00002", "Low beam",                 ""},
+    {"10350_00007_00002", "High beam",                ""},
+    {"10350_00006_00002", "Turn signals",             ""},
+    {"10350_00003_00002", "Interior lights",          ""},
+    {"10350_00010_00002", "Daytime running lights",   ""},
+
+    // ECU / firmware versions
+    {"34201_00000_00000", "Firmware package version", ""},
+    {"34200_00000_00000", "T-Box software version",   ""},
 };
 
 std::string telemetryName(const std::string& code) {
