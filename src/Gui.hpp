@@ -10,6 +10,7 @@
 #include "DoIPClient.hpp"
 #include "UDSClient.hpp"
 #include "CloudClient.hpp"
+#include "SovdClient.hpp"
 
 #include <QMainWindow>
 
@@ -54,6 +55,7 @@ private:
         std::string idInfo;
         std::vector<Dtc> dtcs;
         int         reachable = -1;   // -1 unknown, 0 no, 1 yes (from probe)
+        std::string sovdId;           // SOVD component id used for the REST backup path ("" = derive from name)
     };
 
     // A live-data watch item: a DID polled repeatedly from one ECU.
@@ -135,6 +137,11 @@ private:
     void stopLivePoll();
     void syncSettingsFromUi();
 
+    // SOVD (REST) backup path: derive a component id from an ECU name and probe
+    // reachability over SOVD when low-level UDS/DoIP does not answer.
+    static std::string deriveSovdId(const std::string& ecuName);
+    bool sovdProbe(const std::string& componentId, std::string& detail);
+
     static uint16_t parseHex16(const QString& s, uint16_t def);
 
 private slots:
@@ -143,6 +150,7 @@ private slots:
 private:
     // --- network ---
     doip::Client client_;
+    sovd::SovdClient sovd_;   // REST backup diagnostic path (used when UDS fails)
 
     // --- settings (synced from widgets via syncSettingsFromUi) ---
     std::string broadcastIp_ = "255.255.255.255";
@@ -166,6 +174,11 @@ private:
     bool sweepAddDiscovered_ = true;
 
     int  livePollMs_ = 500;
+    bool liveBundle_ = false;   // bundle all live signals into one dynamic DID (0x2C) per cycle
+
+    // SOVD backup endpoint (empty base URL = disabled)
+    std::string sovdBaseUrl_;
+    std::string sovdToken_;
 
     // service-discovery settings
     int  svcTarget_       = 0x1003;
@@ -228,6 +241,8 @@ private:
     QLineEdit* edSweepEnd_  = nullptr;
     QCheckBox* cbSweepAdd_  = nullptr;
     QLineEdit* edEnumFunc_  = nullptr;
+    QLineEdit* edSovdUrl_   = nullptr;
+    QLineEdit* edSovdToken_ = nullptr;
 
     // ecu page
     QWidget*     ecuTileHost_  = nullptr;
@@ -241,6 +256,7 @@ private:
     QLineEdit*    edLiveInterval_ = nullptr;
     QPushButton*  livePollBtn_    = nullptr;
     QTableWidget* liveTable_      = nullptr;
+    QCheckBox*    cbLiveBundle_   = nullptr;
 
     // service page
     QLineEdit*    edSvcTarget_ = nullptr;
@@ -269,6 +285,10 @@ private:
     QLineEdit*      edProtoCommType_   = nullptr;
     QLineEdit*      edProtoDtc_        = nullptr;
     QLineEdit*      edProtoDtcRec_     = nullptr;
+    QComboBox*      cbProtoPeriodicMode_ = nullptr;
+    QLineEdit*      edProtoPdid_       = nullptr;
+    QLineEdit*      edProtoDddid_      = nullptr;
+    QLineEdit*      edProtoDddSrc_     = nullptr;
     QPlainTextEdit* protoView_         = nullptr;
     size_t          protoViewRev_      = (size_t)-1;
 

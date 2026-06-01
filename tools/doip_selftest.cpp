@@ -148,6 +148,47 @@ int main(int argc, char** argv) {
         check("flash: full sequence ok (no unexpected NRC)", seq_ok && started);
     }
 
+    // 8. AUTOSAR DCM live-data services: 0x2A ReadDataByPeriodicIdentifier and
+    //    0x2C DynamicallyDefineDataIdentifier on the BMS (0x1003).
+    {
+        UDSClient uds(client, 0x0E80);
+        const uint16_t bms = 0x1003;
+        std::string err;
+
+        // 0x2A: schedule then stop a periodic identifier.
+        bool p1 = uds.readDataByPeriodicIdentifier(bms, PeriodicMode::SlowRate,
+                                                    {0x90}, err);
+        check("periodic: schedule 0x2A (slow rate)", p1, p1 ? "" : err);
+        bool p2 = uds.readDataByPeriodicIdentifier(bms, PeriodicMode::StopSending,
+                                                    {}, err);
+        check("periodic: stop 0x2A", p2, p2 ? "" : err);
+
+        // 0x2C: define a dynamic DID 0xF300 from two source DIDs, then read it
+        // back with one 0x22 and confirm the bytes were assembled from sources.
+        // VIN (0xF190) bytes 1-3 = "RP8" and SW version (0xF195) bytes 1-2.
+        std::vector<DddSource> srcs = {
+            {0xF190, 1, 3},   // "RP8"
+            {0xF195, 1, 2},   // 0x01 0x02
+        };
+        bool d1 = uds.defineDynamicDataIdentifier(bms, 0xF300, srcs, err);
+        check("dynamic: define 0x2C DDDID F300", d1, d1 ? "" : err);
+
+        auto val = uds.readDataByIdentifier(bms, 0xF300, err);
+        bool assembled = val.has_value() && val->size() == 5 &&
+                         (*val)[0] == 'R' && (*val)[1] == 'P' && (*val)[2] == '8' &&
+                         (*val)[3] == 0x01 && (*val)[4] == 0x02;
+        check("dynamic: read assembled DDDID (0x22 F300)", assembled,
+              val ? "" : err);
+
+        bool d2 = uds.clearDynamicDataIdentifier(bms, 0xF300, err);
+        check("dynamic: clear 0x2C DDDID F300", d2, d2 ? "" : err);
+
+        // After clearing, the dynamic DID must no longer resolve.
+        std::string e2;
+        auto gone = uds.readDataByIdentifier(bms, 0xF300, e2);
+        check("dynamic: cleared DDDID no longer reads", !gone.has_value());
+    }
+
     client.disconnect();
     std::printf("\nResult: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail == 0 ? 0 : 1;

@@ -26,10 +26,12 @@ Point the app at it:
 """
 
 import argparse
+import json
 import socket
 import struct
 import threading
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PROTO_VER = 0x02
 
@@ -159,9 +161,46 @@ def uds_response_for(ecu, uds, flash=None):
         # VCU running-software state DID: 0x01 application, 0x00 bootloader.
         if ecu == 0x1010 and did == 0xF1A0 and flash is not None:
             return bytes([0x62, uds[1], uds[2], 0x01 if flash.get("app") else 0x00])
+        # Dynamically defined DID (0x2C): assemble from its source DIDs.
+        ddd = flash.get("ddd", {}) if flash is not None else {}
+        if did in ddd:
+            out = bytearray([0x62, uds[1], uds[2]])
+            for src_did, pos, size in ddd[did]:
+                base = DIDS.get(src_did, b"")
+                seg = base[pos - 1: pos - 1 + size]
+                seg = seg + bytes(size - len(seg))  # zero-pad if source too short
+                out += seg
+            return bytes(out)
         if did in DIDS:
             return bytes([0x62, uds[1], uds[2]]) + DIDS[did]
         return bytes([0x7F, 0x22, 0x31])  # requestOutOfRange -> not present
+    if sid == 0x2A and len(uds) >= 2:  # ReadDataByPeriodicIdentifier
+        mode = uds[1]
+        if mode not in (0x01, 0x02, 0x03, 0x04):
+            return bytes([0x7F, 0x2A, 0x31])  # requestOutOfRange
+        if mode != 0x04 and len(uds) < 3:
+            return bytes([0x7F, 0x2A, 0x13])  # incorrectMessageLength
+        return bytes([0x6A])  # scheduling acknowledged
+    if sid == 0x2C and len(uds) >= 2 and flash is not None:  # DynamicallyDefineDID
+        sub = uds[1]
+        ddd = flash.setdefault("ddd", {})
+        if sub == 0x01 and len(uds) >= 8:        # defineByIdentifier
+            dddid = (uds[2] << 8) | uds[3]
+            sources, i = [], 4
+            while i + 4 <= len(uds):
+                src = (uds[i] << 8) | uds[i + 1]
+                sources.append((src, uds[i + 2], uds[i + 3]))
+                i += 4
+            ddd[dddid] = sources
+            return bytes([0x6C, 0x01, uds[2], uds[3]])
+        if sub == 0x03:                          # clearDynamicallyDefinedDID
+            if len(uds) >= 4:
+                dddid = (uds[2] << 8) | uds[3]
+                ddd.pop(dddid, None)
+                return bytes([0x6C, 0x03, uds[2], uds[3]])
+            ddd.clear()
+            return bytes([0x6C, 0x03])
+        return bytes([0x7F, 0x2C, 0x31])         # requestOutOfRange
     # Unknown service: serviceNotSupported
     return bytes([0x7F, sid, 0x11])
 
@@ -333,6 +372,114 @@ def tcp_server(host, port, require_oem):
                          daemon=True).start()
 
 
+# ----------------------------------------------------------------------------
+# SOVD (Service-Oriented Vehicle Diagnostics, ISO 20078) REST mock.
+#
+# Exposes the same diagnostic data as the DoIP/UDS side over a JSON/HTTP API so
+# the SovdClient "backup path" can be validated end to end. Resource model:
+#   GET  /vehicle/v1/components
+#   GET  /vehicle/v1/components/{id}/data/{resource}
+#   GET  /vehicle/v1/components/{id}/faults
+#   POST /vehicle/v1/components/{id}/operations/{op}/executions
+# ----------------------------------------------------------------------------
+SOVD_BASE = "/vehicle/v1"
+
+SOVD_COMPONENTS = [
+    {"id": "gateway", "name": "Gateway (XGW)"},
+    {"id": "bms",     "name": "Battery Management System"},
+    {"id": "vcu",     "name": "Vehicle Control Unit"},
+]
+
+# Per-component data resources (mirrors the UDS identification DIDs).
+SOVD_DATA = {
+    "bms": {
+        "vin":                  {"id": "vin", "value": "RP8AB1AB1PE000123"},
+        "ecu_serial_number":    {"id": "ecu_serial_number", "value": "ECU-SN-0001"},
+        "ecu_software_version": {"id": "ecu_software_version", "value": "01.02"},
+        "active_software":      {"id": "active_software", "value": "application"},
+    },
+    "vcu": {
+        "vin":             {"id": "vin", "value": "RP8AB1AB1PE000123"},
+        "active_software": {"id": "active_software", "value": "application"},
+    },
+    "gateway": {
+        "vin": {"id": "vin", "value": "RP8AB1AB1PE000123"},
+    },
+}
+
+# Per-component fault lists (mirrors ReadDTCInformation).
+SOVD_FAULTS = {
+    "bms": [
+        {"code": "P0A80", "status": {"testFailed": True, "confirmed": True},
+         "severity": "high"},
+        {"code": "P0AFA", "status": {"testFailed": False, "confirmed": True},
+         "severity": "medium"},
+    ],
+    "vcu": [],
+    "gateway": [],
+}
+
+
+class SovdHandler(BaseHTTPRequestHandler):
+    def log_message(self, fmt, *a):
+        print("[sovd] " + (fmt % a))
+
+    def _send(self, code, obj):
+        body = json.dumps(obj).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _parts(self):
+        path = self.path.split("?", 1)[0]
+        if not path.startswith(SOVD_BASE):
+            return None
+        rest = path[len(SOVD_BASE):].strip("/")
+        return rest.split("/") if rest else []
+
+    def do_GET(self):
+        p = self._parts()
+        if p is None:
+            return self._send(404, {"error": "not found"})
+        # /components
+        if p == ["components"]:
+            return self._send(200, {"items": SOVD_COMPONENTS})
+        # /components/{id}/data/{resource}
+        if len(p) == 4 and p[0] == "components" and p[2] == "data":
+            comp, res = p[1], p[3]
+            data = SOVD_DATA.get(comp, {}).get(res)
+            if data is None:
+                return self._send(404, {"error": "resource not found"})
+            return self._send(200, data)
+        # /components/{id}/faults
+        if len(p) == 3 and p[0] == "components" and p[2] == "faults":
+            comp = p[1]
+            if comp not in SOVD_FAULTS:
+                return self._send(404, {"error": "component not found"})
+            return self._send(200, {"items": SOVD_FAULTS[comp]})
+        return self._send(404, {"error": "unsupported path", "path": self.path})
+
+    def do_POST(self):
+        p = self._parts()
+        if p is None:
+            return self._send(404, {"error": "not found"})
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        _ = self.rfile.read(length) if length else b""
+        # /components/{id}/operations/{op}/executions
+        if len(p) == 5 and p[0] == "components" and p[2] == "operations" and p[4] == "executions":
+            comp, op = p[1], p[3]
+            return self._send(201, {"id": f"exec-{comp}-{op}-1", "status": "running"})
+        return self._send(404, {"error": "unsupported path", "path": self.path})
+
+
+def sovd_server(host, port):
+    httpd = ThreadingHTTPServer((host, port), SovdHandler)
+    print(f"[sovd] listening on http://{host}:{port}{SOVD_BASE}")
+    httpd.serve_forever()
+
+
 def main():
     ap = argparse.ArgumentParser(description="Local DoIP simulator for vinfast_scanner")
     ap.add_argument("--host", default="0.0.0.0")
@@ -341,15 +488,24 @@ def main():
                     help="Reject routing activation without a 4-byte OEM field")
     ap.add_argument("--dirty-vin", action="store_true",
                     help="Return a VIN with control bytes (sanitization test)")
+    ap.add_argument("--sovd", action="store_true",
+                    help="Also serve a SOVD (REST/JSON) backup endpoint")
+    ap.add_argument("--sovd-port", type=int, default=13401,
+                    help="Port for the SOVD HTTP endpoint (default 13401)")
     args = ap.parse_args()
 
     print("DoIP simulator")
     print(f"  ECUs: " + ", ".join(f"0x{a:04X} {n}" for a, n in ECUS.items()))
     print(f"  Functional group: 0x{FUNCTIONAL:04X}")
     print(f"  require-oem={args.require_oem} dirty-vin={args.dirty_vin}")
+    if args.sovd:
+        print(f"  SOVD endpoint: http://{args.host}:{args.sovd_port}/vehicle/v1")
 
     threading.Thread(target=udp_server, args=(args.host, args.port, args.dirty_vin),
                      daemon=True).start()
+    if args.sovd:
+        threading.Thread(target=sovd_server, args=(args.host, args.sovd_port),
+                         daemon=True).start()
     try:
         tcp_server(args.host, args.port, args.require_oem)
     except KeyboardInterrupt:

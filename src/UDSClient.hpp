@@ -11,6 +11,8 @@
 //   0x23 ReadMemoryByAddress
 //   0x27 SecurityAccess (request seed / send key)
 //   0x28 CommunicationControl
+//   0x2A ReadDataByPeriodicIdentifier (schedule / stop)
+//   0x2C DynamicallyDefineDataIdentifier (define by id / clear)
 //   0x2E WriteDataByIdentifier
 //   0x2F InputOutputControlByIdentifier (returnControlToECU)
 //   0x31 RoutineControl (start / stop / requestResults)
@@ -60,6 +62,22 @@ enum class CommCtrl : uint8_t {
     EnableRxDisableTx    = 0x01,
     DisableRxEnableTx    = 0x02,
     DisableRxTx          = 0x03,  // silence the bus (used before flashing)
+};
+
+// ISO 14229-1 ReadDataByPeriodicIdentifier (0x2A) transmission modes.
+enum class PeriodicMode : uint8_t {
+    SlowRate   = 0x01,
+    MediumRate = 0x02,
+    FastRate   = 0x03,
+    StopSending = 0x04,
+};
+
+// One source element of a DynamicallyDefineDataIdentifier (0x2C, defineByIdentifier):
+// take `size` bytes starting at 1-based `position` from the response of `sourceDid`.
+struct DddSource {
+    uint16_t sourceDid = 0;
+    uint8_t  position  = 1;   // 1-based byte position in the source DID's data
+    uint8_t  size      = 1;   // number of bytes to copy
 };
 
 
@@ -201,6 +219,29 @@ public:
     // 0x03 both). Disabling is commonly required before reprogramming.
     bool communicationControl(uint16_t target, CommCtrl control, uint8_t commType,
                               std::string& err);
+
+    // 0x2A ReadDataByPeriodicIdentifier - schedules the ECU to transmit one or
+    // more periodic data identifiers (PDIDs, the low byte of the 0xF2xx range)
+    // at the requested rate, or stops them (PeriodicMode::StopSending). The
+    // positive response (0x6A) only acknowledges scheduling; the recurring data
+    // is then pushed by the ECU. `pdids` are the 1-byte periodic identifiers.
+    bool readDataByPeriodicIdentifier(uint16_t target, PeriodicMode mode,
+                                      const std::vector<uint8_t>& pdids,
+                                      std::string& err);
+
+    // 0x2C / 0x01 DynamicallyDefineDataIdentifier (defineByIdentifier) - builds
+    // a composite dynamic DID (`dddid`, typically 0xF200-0xF2FF) by packing
+    // selected byte ranges from other source DIDs. Once defined, the dynamic
+    // DID can be read in a single 0x22 (ReadDataByIdentifier), collapsing many
+    // round-trips into one - the AUTOSAR DCM way to stream a bundle of signals.
+    bool defineDynamicDataIdentifier(uint16_t target, uint16_t dddid,
+                                     const std::vector<DddSource>& sources,
+                                     std::string& err);
+
+    // 0x2C / 0x03 clearDynamicallyDefinedDataIdentifier - clears one dynamic
+    // DID, or every dynamic DID when `dddid` is 0x0000.
+    bool clearDynamicDataIdentifier(uint16_t target, uint16_t dddid,
+                                    std::string& err);
 
     // -------------------------------------------------------------------
     // Reprogramming / block transfer (ISO 14229 services 0x34/0x36/0x37).

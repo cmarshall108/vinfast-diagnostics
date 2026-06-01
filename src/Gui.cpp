@@ -42,6 +42,7 @@
 #include <cstring>
 #include <cstdio>
 #include <ctime>
+#include <set>
 #include <thread>
 #include <vector>
 
@@ -422,6 +423,22 @@ QWidget* Gui::buildConnectionPage() {
         "fastest way to find the real VF8 ECU addresses.</i>"));
     lay->addWidget(disc);
 
+    // --- SOVD backup (REST/HTTP fallback when UDS does not answer) ---
+    auto* sovd = card("SOVD Backup  (REST fallback when UDS fails)");
+    auto* svf = new QFormLayout(sovd);
+    edSovdUrl_ = new QLineEdit(QString::fromStdString(sovdBaseUrl_));
+    edSovdUrl_->setPlaceholderText("http://host:13401/vehicle/v1  (blank = disabled)");
+    edSovdToken_ = new QLineEdit(QString::fromStdString(sovdToken_));
+    edSovdToken_->setPlaceholderText("OAuth2 bearer token (optional)");
+    edSovdToken_->setEchoMode(QLineEdit::Password);
+    svf->addRow("SOVD base URL", edSovdUrl_);
+    svf->addRow("Bearer token", edSovdToken_);
+    svf->addRow(new QLabel(
+        "<i>When an ECU does not respond to UDS/DoIP, Probe falls back to this "
+        "SOVD endpoint and marks the module reachable if its component is "
+        "listed.</i>"));
+    lay->addWidget(sovd);
+
     lay->addStretch(1);
 
     // ---- wiring ----
@@ -634,8 +651,10 @@ QWidget* Gui::buildEcuPage() {
             size_t count; { std::lock_guard<std::mutex> g(mutex_); count = ecus_.size(); }
             int reachable = 0;
             for (size_t i = 0; i < count; ++i) {
-                uint16_t addr, alt;
-                { std::lock_guard<std::mutex> g(mutex_); addr = ecus_[i].logicalAddr; alt = ecus_[i].altAddr; }
+                uint16_t addr, alt; std::string name, sovdId;
+                { std::lock_guard<std::mutex> g(mutex_);
+                  addr = ecus_[i].logicalAddr; alt = ecus_[i].altAddr;
+                  name = ecus_[i].name; sovdId = ecus_[i].sovdId; }
                 std::string e; bool ok = uds.probe(addr, e);
                 if (!ok && alt != 0 && alt != addr) {
                     std::string e2;
@@ -647,6 +666,19 @@ QWidget* Gui::buildEcuPage() {
                         std::snprintf(buf, sizeof buf, "reachable via alt 0x%04X", alt);
                         ecus_[i].statusMsg = buf;
                         ++reachable;
+                        continue;
+                    }
+                }
+                if (!ok && sovd_.configured()) {
+                    std::string cid = sovdId.empty() ? deriveSovdId(name) : sovdId;
+                    std::string detail;
+                    if (sovdProbe(cid, detail)) {
+                        std::lock_guard<std::mutex> g(mutex_);
+                        ecus_[i].reachable = 1;
+                        ecus_[i].sovdId = cid;            // remember the working component id
+                        ecus_[i].statusMsg = "reachable " + detail;  // "reachable via SOVD (...)"
+                        ++reachable;
+                        Logger::instance().info(name + ": UDS silent, reachable over SOVD backup (" + cid + ")");
                         continue;
                     }
                 }
@@ -708,9 +740,16 @@ QWidget* Gui::buildLivePage() {
     interval->setValue(livePollMs_); interval->setSuffix(" ms");
     auto* addSig = new QPushButton("Add signal");
     auto* rmSig  = new QPushButton("Remove selected");
+    cbLiveBundle_ = new QCheckBox("Bundle (0x2C)");
+    cbLiveBundle_->setToolTip(
+        "Define one dynamic DID (0x2C) covering every signal on each ECU and "
+        "read the whole bundle with a single 0x22 per cycle, instead of one "
+        "request per signal. Falls back to per-signal reads if unsupported.");
+    cbLiveBundle_->setChecked(liveBundle_);
     bar->addWidget(livePollBtn_);
     bar->addWidget(new QLabel("Interval"));
     bar->addWidget(interval);
+    bar->addWidget(cbLiveBundle_);
     bar->addStretch(1);
     bar->addWidget(addSig);
     bar->addWidget(rmSig);
@@ -730,6 +769,7 @@ QWidget* Gui::buildLivePage() {
 
     connect(interval, qOverload<int>(&QSpinBox::valueChanged), this,
             [this](int v) { livePollMs_ = v; });
+    connect(cbLiveBundle_, &QCheckBox::toggled, this, [this](bool on) { liveBundle_ = on; });
     connect(livePollBtn_, &QPushButton::clicked, this, [this] {
         if (liveRun_.load()) { stopLivePoll(); return; }
         syncSettingsFromUi();
@@ -1060,6 +1100,42 @@ QWidget* Gui::buildProtocolPage() {
     xl->addLayout(xr2);
     outer->addWidget(crashCard);
 
+    // ---- Periodic / dynamic data (0x2A / 0x2C) -------------------------
+    auto* dynCard = card("Periodic & dynamic data (0x2A / 0x2C)");
+    auto* dyl = new QVBoxLayout(dynCard);
+    auto* dynIntro = new QLabel(
+        "ReadDataByPeriodicIdentifier (0x2A) asks the ECU to push a DID on a "
+        "schedule; DynamicallyDefineDataIdentifier (0x2C) packs several source "
+        "DIDs into one identifier you can read with a single 0x22. The live "
+        "page uses 0x2C automatically when \"Bundle\" is ticked.");
+    dynIntro->setWordWrap(true);
+    dyl->addWidget(dynIntro);
+
+    cbProtoPeriodicMode_ = new QComboBox;
+    cbProtoPeriodicMode_->addItems({"Slow (01)", "Medium (02)", "Fast (03)", "Stop (04)"});
+    edProtoPdid_ = new QLineEdit; edProtoPdid_->setPlaceholderText("periodic DIDs, e.g. 90 91");
+    edProtoPdid_->setText("90");
+    auto* perRow = new QHBoxLayout;
+    perRow->addWidget(new QLabel("Mode")); perRow->addWidget(cbProtoPeriodicMode_);
+    perRow->addWidget(new QLabel("PDID(s)")); perRow->addWidget(edProtoPdid_, 1);
+    auto* perBtn = new QPushButton("Schedule (0x2A)");
+    perRow->addWidget(perBtn);
+    dyl->addLayout(perRow);
+
+    edProtoDddid_  = hexEdit("F300", 4);
+    edProtoDddSrc_ = new QLineEdit;
+    edProtoDddSrc_->setPlaceholderText("sources: DID:pos:size, e.g. F190:1:3 F195:1:2");
+    edProtoDddSrc_->setText("F190:1:3 F195:1:2");
+    auto* dddRow = new QHBoxLayout;
+    dddRow->addWidget(new QLabel("DDDID")); dddRow->addWidget(edProtoDddid_);
+    dddRow->addWidget(edProtoDddSrc_, 1);
+    auto* defBtn  = new QPushButton("Define (0x2C 01)");
+    auto* rdBtn   = new QPushButton("Read (0x22)");
+    auto* clrBtn  = new QPushButton("Clear (0x2C 03)");
+    dddRow->addWidget(defBtn); dddRow->addWidget(rdBtn); dddRow->addWidget(clrBtn);
+    dyl->addLayout(dddRow);
+    outer->addWidget(dynCard);
+
     protoView_ = new QPlainTextEdit;
     protoView_->setReadOnly(true);
     protoView_->setMaximumHeight(150);
@@ -1343,6 +1419,81 @@ QWidget* Gui::buildProtocolPage() {
                               " confirmed DTC(s) still present (cycle ignition / re-check).");
             }
             protoLine("Crash reset: sequence complete.");
+        });
+    });
+
+    // ---- Periodic (0x2A) ----
+    connect(perBtn, &QPushButton::clicked, this, [this] {
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        int modeIdx = cbProtoPeriodicMode_->currentIndex();
+        std::vector<uint8_t> pdids;
+        for (const QString& tok : edProtoPdid_->text().split(' ', Qt::SkipEmptyParts)) {
+            bool ok = false; uint v = tok.toUInt(&ok, 16);
+            if (ok && v <= 0xFF) pdids.push_back((uint8_t)v);
+        }
+        startWorker([this, tgt, modeIdx, pdids] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("Periodic: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            auto mode = (PeriodicMode)(modeIdx + 1);  // combo 0..3 -> 0x01..0x04
+            if (uds.readDataByPeriodicIdentifier(tgt, mode, pdids, err)) {
+                if (mode == PeriodicMode::StopSending)
+                    protoLine("Periodic: stopped scheduled transmission.");
+                else
+                    protoLine("Periodic: scheduled " + std::to_string(pdids.size()) +
+                              " PDID(s) at rate 0x0" + std::to_string(modeIdx + 1) + ".");
+            } else protoLine("Periodic: " + err);
+        });
+    });
+
+    // ---- Dynamically define (0x2C) ----
+    connect(defBtn, &QPushButton::clicked, this, [this] {
+        uint16_t tgt   = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t dddid = parseHex16(edProtoDddid_->text(), 0xF300);
+        std::vector<DddSource> srcs;
+        for (const QString& tok : edProtoDddSrc_->text().split(' ', Qt::SkipEmptyParts)) {
+            QStringList p = tok.split(':');
+            if (p.isEmpty()) continue;
+            bool okd = false; uint did = p[0].toUInt(&okd, 16);
+            if (!okd) continue;
+            uint pos = (p.size() > 1) ? p[1].toUInt(nullptr, 10) : 1;
+            uint sz  = (p.size() > 2) ? p[2].toUInt(nullptr, 10) : 1;
+            if (pos < 1) pos = 1; if (sz < 1) sz = 1;
+            srcs.push_back({(uint16_t)did, (uint8_t)pos, (uint8_t)sz});
+        }
+        startWorker([this, tgt, dddid, srcs] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("Define DDDID: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            if (uds.defineDynamicDataIdentifier(tgt, dddid, srcs, err))
+                protoLine("Define DDDID 0x" + byteHex((dddid>>8)&0xFF) + byteHex(dddid&0xFF) +
+                          ": OK (" + std::to_string(srcs.size()) + " source DID(s)).");
+            else protoLine("Define DDDID: " + err);
+        });
+    });
+    connect(rdBtn, &QPushButton::clicked, this, [this] {
+        uint16_t tgt   = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t dddid = parseHex16(edProtoDddid_->text(), 0xF300);
+        startWorker([this, tgt, dddid] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("Read DDDID: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            auto v = uds.readDataByIdentifier(tgt, dddid, err);
+            if (v) protoLine("Read DDDID 0x" + byteHex((dddid>>8)&0xFF) + byteHex(dddid&0xFF) +
+                             ": " + toHex(v->data(), v->size()));
+            else protoLine("Read DDDID: " + err);
+        });
+    });
+    connect(clrBtn, &QPushButton::clicked, this, [this] {
+        uint16_t tgt   = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t dddid = parseHex16(edProtoDddid_->text(), 0xF300);
+        startWorker([this, tgt, dddid] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("Clear DDDID: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            if (uds.clearDynamicDataIdentifier(tgt, dddid, err))
+                protoLine("Clear DDDID 0x" + byteHex((dddid>>8)&0xFF) + byteHex(dddid&0xFF) + ": OK.");
+            else protoLine("Clear DDDID: " + err);
         });
     });
 
@@ -2403,7 +2554,46 @@ void Gui::syncSettingsFromUi() {
     if (cbSvcSuspend_) svcSuspendDTC_= cbSvcSuspend_->isChecked();
     if (cbSvcExt_)     svcExtendedSess_ = cbSvcExt_->isChecked();
     if (cbSvcRestore_) svcRestoreAfter_ = cbSvcRestore_->isChecked();
+    if (edSovdUrl_)    sovdBaseUrl_  = edSovdUrl_->text().toStdString();
+    if (edSovdToken_)  sovdToken_    = edSovdToken_->text().toStdString();
+    sovd_.setBaseUrl(sovdBaseUrl_);
+    sovd_.setBearerToken(sovdToken_);
 }
+
+// Derive a SOVD component id from a free-text ECU name. SOVD uses lowercase
+// string ids (e.g. "bms") where DoIP uses 16-bit logical addresses, so map the
+// common VinFast modules and fall back to a sanitized first word.
+std::string Gui::deriveSovdId(const std::string& ecuName) {
+    std::string low;
+    for (char c : ecuName) low += (char)std::tolower((unsigned char)c);
+    auto has = [&](const char* s) { return low.find(s) != std::string::npos; };
+    if (has("bms") || has("battery"))            return "bms";
+    if (has("vcu") || has("vehicle control"))    return "vcu";
+    if (has("gateway") || has("xgw") || has("gw")) return "gateway";
+    // Fallback: first alphanumeric token, lowercased.
+    std::string id;
+    for (char c : low) {
+        if (std::isalnum((unsigned char)c)) id += c;
+        else if (!id.empty()) break;
+    }
+    return id;
+}
+
+// Probe an ECU's reachability over the SOVD backup endpoint by confirming the
+// component is listed. Returns true and sets `detail` (e.g. "via SOVD (...)")
+// when reachable. Runs on the worker thread; libcurl I/O is synchronous.
+bool Gui::sovdProbe(const std::string& componentId, std::string& detail) {
+    if (!sovd_.configured()) { detail = "SOVD not configured"; return false; }
+    if (componentId.empty()) { detail = "no SOVD component id"; return false; }
+    std::vector<sovd::Component> comps;
+    std::string e;
+    if (!sovd_.listComponents(comps, e)) { detail = "SOVD unreachable: " + e; return false; }
+    for (const auto& c : comps)
+        if (c.id == componentId) { detail = "via SOVD (" + c.name + ")"; return true; }
+    detail = "SOVD endpoint has no component '" + componentId + "'";
+    return false;
+}
+
 
 void Gui::startKeepAlive() {
     if (keepAliveRun_) return;
@@ -2430,8 +2620,94 @@ void Gui::stopKeepAlive() {
 void Gui::startLivePoll() {
     if (liveRun_) return;
     liveRun_ = true;
-    liveThread_ = std::thread([this] {
+    bool bundle = liveBundle_;
+    liveThread_ = std::thread([this, bundle] {
+        // Each live signal maps to a slice [off, off+len) of its target's
+        // dynamic-DID response when bundling is active.
+        struct SigRef { size_t idx; uint16_t target; uint16_t did; size_t off; size_t len; };
+        struct TargetBundle { uint16_t target; uint16_t dddid; bool active; std::vector<SigRef> sigs; size_t total; };
+        std::vector<TargetBundle> bundles;
+        const uint16_t kDddBase = 0xF300;
+
+        // ---- setup: define one dynamic DID per target (0x2C) ----
+        if (bundle && client_.isConnected()) {
+            std::vector<std::tuple<size_t, uint16_t, uint16_t>> snap;
+            {
+                std::lock_guard<std::mutex> g(mutex_);
+                for (size_t i = 0; i < liveSignals_.size(); ++i)
+                    snap.emplace_back(i, liveSignals_[i].target, liveSignals_[i].did);
+            }
+            std::lock_guard<std::mutex> n(netMutex_);
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            for (auto& [idx, tgt, did] : snap) {
+                TargetBundle* tb = nullptr;
+                for (auto& b : bundles) if (b.target == tgt) { tb = &b; break; }
+                if (!tb) {
+                    bundles.push_back({tgt, (uint16_t)(kDddBase + bundles.size()), false, {}, 0});
+                    tb = &bundles.back();
+                }
+                // Learn each signal's byte length with a one-off 0x22.
+                std::string e;
+                auto r = uds.readDataByIdentifier(tgt, did, e);
+                size_t len = r ? r->size() : 0;
+                if (len == 0 || len > 0xFF) continue;
+                tb->sigs.push_back({idx, tgt, did, tb->total, len});
+                tb->total += len;
+            }
+            for (auto& b : bundles) {
+                if (b.sigs.empty() || b.total == 0 || b.total > 0xFF) continue;
+                std::vector<DddSource> srcs;
+                for (auto& s : b.sigs) srcs.push_back({s.did, 1, (uint8_t)s.len});
+                std::string e;
+                std::string tgtHex = byteHex((b.target >> 8) & 0xFF) + byteHex(b.target & 0xFF);
+                std::string didHex = byteHex((b.dddid >> 8) & 0xFF) + byteHex(b.dddid & 0xFF);
+                if (uds.defineDynamicDataIdentifier(b.target, b.dddid, srcs, e)) {
+                    b.active = true;
+                    Logger::instance().info("Live: bundled " + std::to_string(b.sigs.size()) +
+                        " signal(s) on 0x" + tgtHex + " into dynamic DID 0x" + didHex +
+                        " (" + std::to_string(b.total) + " bytes/cycle)");
+                } else {
+                    Logger::instance().warn("Live: dynamic-DID bundle on 0x" + tgtHex +
+                        " unavailable (" + e + "); using per-signal reads");
+                }
+            }
+        }
+
         while (liveRun_) {
+            if (!client_.isConnected() || busy_) {
+                for (int i = 0; i < livePollMs_ / 20 + 1 && liveRun_; ++i)
+                    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                continue;
+            }
+
+            // 1) Active bundles: one 0x22 reads the whole bundle, then split.
+            std::set<size_t> covered;
+            for (auto& b : bundles) {
+                if (!b.active || !liveRun_) continue;
+                std::vector<uint8_t> data; bool ok = false;
+                {
+                    std::lock_guard<std::mutex> n(netMutex_);
+                    UDSClient uds(client_, (uint16_t)testerAddr_);
+                    std::string err;
+                    auto r = uds.readDataByIdentifier(b.target, b.dddid, err);
+                    if (r) { data = std::move(*r); ok = true; }
+                }
+                std::lock_guard<std::mutex> g(mutex_);
+                for (auto& s : b.sigs) {
+                    covered.insert(s.idx);
+                    if (s.idx >= liveSignals_.size()) continue;
+                    LiveSignal& sig = liveSignals_[s.idx];
+                    if (sig.target != s.target || sig.did != s.did) continue;
+                    if (ok && data.size() >= s.off + s.len) {
+                        std::vector<uint8_t> slice(data.begin() + s.off, data.begin() + s.off + s.len);
+                        sig.rawHex = toHex(slice.data(), slice.size());
+                        sig.value  = decodeLiveValue(slice, sig.interp, sig.scale, sig.offset, sig.unit);
+                        sig.ok = 1;
+                    } else sig.ok = 0;
+                }
+            }
+
+            // 2) Remaining (unbundled) signals: per-signal 0x22.
             std::vector<std::pair<uint16_t, uint16_t>> items;
             {
                 std::lock_guard<std::mutex> g(mutex_);
@@ -2439,6 +2715,7 @@ void Gui::startLivePoll() {
                 for (const auto& s : liveSignals_) items.emplace_back(s.target, s.did);
             }
             for (size_t i = 0; i < items.size() && liveRun_; ++i) {
+                if (covered.count(i)) continue;
                 if (!client_.isConnected() || busy_) break;
                 std::vector<uint8_t> data; bool ok = false;
                 {
@@ -2458,8 +2735,20 @@ void Gui::startLivePoll() {
                     s.ok = 1;
                 } else s.ok = 0;
             }
+
             for (int i = 0; i < livePollMs_ / 20 + 1 && liveRun_; ++i)
                 std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+
+        // ---- teardown: release the dynamic DIDs we defined ----
+        if (client_.isConnected()) {
+            std::lock_guard<std::mutex> n(netMutex_);
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            for (auto& b : bundles) {
+                if (!b.active) continue;
+                std::string e;
+                uds.clearDynamicDataIdentifier(b.target, b.dddid, e);
+            }
         }
     });
 }

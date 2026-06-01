@@ -19,6 +19,8 @@ static const char* udsServiceName(uint8_t sid) {
         case 0x28: return "CommunicationControl";
         case 0x2E: return "WriteDataByIdentifier";
         case 0x2F: return "InputOutputControlByIdentifier";
+        case 0x2A: return "ReadDataByPeriodicIdentifier";
+        case 0x2C: return "DynamicallyDefineDataIdentifier";
         case 0x31: return "RoutineControl";
         case 0x34: return "RequestDownload";
         case 0x36: return "TransferData";
@@ -481,6 +483,65 @@ bool UDSClient::communicationControl(uint16_t target, CommCtrl control,
     Logger::instance().log(LogLevel::Info,
         "CommunicationControl 0x" + addr16(target) + " control 0x" +
         byteHex((uint8_t)control) + " commType 0x" + byteHex(commType) + " accepted");
+    return true;
+}
+
+bool UDSClient::readDataByPeriodicIdentifier(uint16_t target, PeriodicMode mode,
+                                             const std::vector<uint8_t>& pdids,
+                                             std::string& err) {
+    if (mode != PeriodicMode::StopSending && pdids.empty()) {
+        err = "ReadDataByPeriodicIdentifier needs at least one PDID"; return false;
+    }
+    // Request: 0x2A <transmissionMode> <periodicDataIdentifier...>
+    std::vector<uint8_t> req = {0x2A, (uint8_t)mode};
+    req.insert(req.end(), pdids.begin(), pdids.end());
+    std::vector<uint8_t> resp;
+    if (!request(target, req, resp, err)) return false;
+    // Positive: 0x6A (scheduling acknowledged; recurring data pushed separately).
+    Logger::instance().log(LogLevel::Info,
+        "ReadDataByPeriodicIdentifier 0x" + addr16(target) + " mode 0x" +
+        byteHex((uint8_t)mode) + " (" + std::to_string(pdids.size()) +
+        " PDID) scheduled");
+    return true;
+}
+
+bool UDSClient::defineDynamicDataIdentifier(uint16_t target, uint16_t dddid,
+                                            const std::vector<DddSource>& sources,
+                                            std::string& err) {
+    if (sources.empty()) { err = "defineDynamicDataIdentifier needs >=1 source"; return false; }
+    // Request: 0x2C 0x01 <DDDID_hi DDDID_lo>
+    //          [ sourceDID_hi sourceDID_lo position size ]...
+    std::vector<uint8_t> req = {0x2C, 0x01,
+                                (uint8_t)((dddid >> 8) & 0xFF), (uint8_t)(dddid & 0xFF)};
+    for (const auto& s : sources) {
+        if (s.position < 1 || s.size < 1) { err = "DddSource position/size must be >=1"; return false; }
+        req.push_back((uint8_t)((s.sourceDid >> 8) & 0xFF));
+        req.push_back((uint8_t)(s.sourceDid & 0xFF));
+        req.push_back(s.position);
+        req.push_back(s.size);
+    }
+    std::vector<uint8_t> resp;
+    if (!request(target, req, resp, err)) return false;
+    // Positive: 0x6C 0x01 <DDDID_hi DDDID_lo>
+    Logger::instance().log(LogLevel::Info,
+        "DynamicallyDefineDataIdentifier 0x" + addr16(target) + " DDDID 0x" +
+        addr16(dddid) + " defined from " + std::to_string(sources.size()) + " source(s)");
+    return true;
+}
+
+bool UDSClient::clearDynamicDataIdentifier(uint16_t target, uint16_t dddid,
+                                           std::string& err) {
+    // Request: 0x2C 0x03 [DDDID_hi DDDID_lo]. Omitting the DID clears all.
+    std::vector<uint8_t> req = {0x2C, 0x03};
+    if (dddid != 0x0000) {
+        req.push_back((uint8_t)((dddid >> 8) & 0xFF));
+        req.push_back((uint8_t)(dddid & 0xFF));
+    }
+    std::vector<uint8_t> resp;
+    if (!request(target, req, resp, err)) return false;
+    Logger::instance().log(LogLevel::Info,
+        "DynamicallyDefineDataIdentifier 0x" + addr16(target) + " cleared " +
+        (dddid == 0x0000 ? std::string("ALL dynamic DIDs") : "DDDID 0x" + addr16(dddid)));
     return true;
 }
 

@@ -43,6 +43,7 @@ set(_app_sources
   src/VF8Data.cpp
   src/CloudData.cpp
   src/CloudClient.cpp
+  src/SovdClient.cpp
   src/Gui.cpp
 )
 if(APPLE AND EXISTS "${_app_macos_icon}")
@@ -91,4 +92,13 @@ if(BUILD_DOIP_SELFTEST)
   if(WIN32)
     target_link_libraries(doip_selftest PRIVATE ws2_32 iphlpapi)
   endif()
+
+  # SOVD (REST/JSON backup path) self-test. Links libcurl since SovdClient is
+  # HTTP-based. Run against the SOVD mock in tools/doip_simulator.py.
+  add_executable(sovd_selftest
+    tools/sovd_selftest.cpp
+    src/Logger.cpp
+    src/SovdClient.cpp)
+  target_include_directories(sovd_selftest PRIVATE src)
+  target_link_libraries(sovd_selftest PRIVATE CURL::libcurl)
 endif()
