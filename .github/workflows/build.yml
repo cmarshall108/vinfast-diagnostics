@@ -12,6 +12,10 @@ jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    # The `secrets` context is not allowed in step-level `if:` conditions, so
+    # surface a presence flag here for the macOS signing steps to test.
+    env:
+      HAS_MACOS_CERT: ${{ secrets.MACOS_CERTIFICATE != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -141,7 +145,7 @@ jobs:
       # All signing/notarization steps are skipped automatically when the
       # MACOS_CERTIFICATE secret is not configured, so forks still build.
       - name: Import signing certificate (macOS)
-        if: ${{ runner.os == 'macOS' && secrets.MACOS_CERTIFICATE != '' }}
+        if: ${{ runner.os == 'macOS' && env.HAS_MACOS_CERT == 'true' }}
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
@@ -160,7 +164,7 @@ jobs:
           rm -f "$RUNNER_TEMP/cert.p12"
 
       - name: Sign app (macOS)
-        if: ${{ runner.os == 'macOS' && secrets.MACOS_CERTIFICATE != '' }}
+        if: ${{ runner.os == 'macOS' && env.HAS_MACOS_CERT == 'true' }}
         env:
           MACOS_CERT_IDENTITY: ${{ secrets.MACOS_CERT_IDENTITY }}
         run: |
@@ -177,7 +181,7 @@ jobs:
             -ov -format UDZO dist/VinFast_Scanner.dmg
 
       - name: Notarize & staple (macOS)
-        if: ${{ runner.os == 'macOS' && secrets.MACOS_CERTIFICATE != '' }}
+        if: ${{ runner.os == 'macOS' && env.HAS_MACOS_CERT == 'true' }}
         env:
           MACOS_NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
           MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
