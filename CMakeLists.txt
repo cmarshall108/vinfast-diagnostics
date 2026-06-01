@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(vinfast_scanner LANGUAGES CXX)
+project(vinfast_scanner VERSION 1.0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -71,8 +71,8 @@ if(APPLE)
   set_target_properties(vinfast_scanner PROPERTIES
     MACOSX_BUNDLE_BUNDLE_NAME "VinFast Scanner"
     MACOSX_BUNDLE_GUI_IDENTIFIER "com.vinfast.diagnostics.scanner"
-    MACOSX_BUNDLE_BUNDLE_VERSION "1.0.0"
-    MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0.0")
+    MACOSX_BUNDLE_BUNDLE_VERSION "1.0.1"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0.1")
 endif()
 
 # -------------------------------------------------------------------

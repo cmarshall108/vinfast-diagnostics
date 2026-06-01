@@ -1,4 +1,4 @@
-# VinFast VF8 DoIP/UDS Diagnostic Scanner
+# VinFast VF8 and VF9 US DoIP/UDS Diagnostic Scanner
 
 A modular **C++20 / Qt6** diagnostic application that connects to a vehicle over
 **DoIP (ISO 13400-2)** using a standard DoIP Ethernet interface such as the
