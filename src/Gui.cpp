@@ -122,6 +122,7 @@ Gui::Gui() {
         EcuRow r;
         r.name = std::string(d.code) + " - " + d.name;
         r.logicalAddr = d.placeholderAddr;
+        r.altAddr = d.altAddr;
         r.statusMsg = "idle";
         ecus_.push_back(std::move(r));
     }
@@ -633,8 +634,22 @@ QWidget* Gui::buildEcuPage() {
             size_t count; { std::lock_guard<std::mutex> g(mutex_); count = ecus_.size(); }
             int reachable = 0;
             for (size_t i = 0; i < count; ++i) {
-                uint16_t addr; { std::lock_guard<std::mutex> g(mutex_); addr = ecus_[i].logicalAddr; }
+                uint16_t addr, alt;
+                { std::lock_guard<std::mutex> g(mutex_); addr = ecus_[i].logicalAddr; alt = ecus_[i].altAddr; }
                 std::string e; bool ok = uds.probe(addr, e);
+                if (!ok && alt != 0 && alt != addr) {
+                    std::string e2;
+                    if (uds.probe(alt, e2)) {
+                        std::lock_guard<std::mutex> g(mutex_);
+                        ecus_[i].logicalAddr = alt;   // adopt the working alternative address
+                        ecus_[i].reachable = 1;
+                        char buf[48];
+                        std::snprintf(buf, sizeof buf, "reachable via alt 0x%04X", alt);
+                        ecus_[i].statusMsg = buf;
+                        ++reachable;
+                        continue;
+                    }
+                }
                 std::lock_guard<std::mutex> g(mutex_);
                 ecus_[i].reachable = ok ? 1 : 0;
                 ecus_[i].statusMsg = ok ? "reachable" : ("no response: " + e);

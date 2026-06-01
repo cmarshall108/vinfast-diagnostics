@@ -38,6 +38,10 @@ struct VF8Ecu {
     uint16_t    placeholderAddr; // PLACEHOLDER DoIP logical address (configure!)
     const char* hwPart;          // HW part number from engineering ECUs menu ("" if n/a)
     const char* swPart;          // SW part number from engineering ECUs menu ("" if n/a)
+    uint16_t    altAddr = 0;     // alternative DoIP logical-address candidate to try if the
+                                 // primary fails. Derived from the VinFast ECU-identifier byte
+                                 // surfaced by the connected-car telemetry (object 34220, see
+                                 // tahung9x/VF-DB). 0 = no alternative known.
 };
 
 // Combined list of diagnostic systems (Autel) and engineering controllers.

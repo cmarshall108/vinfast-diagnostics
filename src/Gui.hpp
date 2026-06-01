@@ -49,6 +49,7 @@ private:
     struct EcuRow {
         std::string name;
         uint16_t    logicalAddr = 0;
+        uint16_t    altAddr = 0;      // alternative address to try if logicalAddr fails (0 = none)
         std::string statusMsg;
         std::string idInfo;
         std::vector<Dtc> dtcs;
