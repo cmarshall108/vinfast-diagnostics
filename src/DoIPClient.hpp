@@ -28,7 +28,10 @@ constexpr uint8_t  kProtocolVersion  = 0x02;   // ISO 13400-2:2012
 
 // DoIP payload types (ISO 13400-2, table of payload type values).
 enum PayloadType : uint16_t {
+    GenericHeaderNack        = 0x0000,
     VehicleIdentRequest      = 0x0001,
+    VehicleIdentReqEID       = 0x0002,   // targeted by Entity ID
+    VehicleIdentReqVIN       = 0x0003,   // targeted by VIN
     VehicleIdentResponse     = 0x0004,
     RoutingActivationRequest = 0x0005,
     RoutingActivationResponse= 0x0006,
@@ -78,6 +81,16 @@ public:
     bool discover(const std::string& broadcastIp, uint16_t port, int timeoutMs,
                   std::vector<Entity>& out, std::string& err);
 
+    // Targeted Vehicle Identification (0x0003 by VIN / 0x0002 by EID). Lets a
+    // tester wake/identify one specific vehicle on a shared segment instead of
+    // every entity that answers the plain broadcast.
+    bool discoverByVin(const std::string& broadcastIp, uint16_t port, int timeoutMs,
+                       const std::string& vin, std::vector<Entity>& out,
+                       std::string& err);
+    bool discoverByEid(const std::string& broadcastIp, uint16_t port, int timeoutMs,
+                       const std::array<uint8_t, 6>& eid, std::vector<Entity>& out,
+                       std::string& err);
+
     // DoIP Entity Status (0x4001/0x4002, UDP). Asks an entity how many TCP
     // sockets it supports / has open and its max diagnostic message size -
     // useful to confirm a gateway is reachable and has capacity before a
@@ -93,21 +106,30 @@ public:
                              uint8_t& mode, std::string& err);
 
     // --- Session (TCP) --------------------------------------------------
-    bool connectTcp(const std::string& ip, uint16_t port, std::string& err);
+    // connectTimeoutMs bounds the TCP handshake; rcvTimeoutMs is the default
+    // per-read socket timeout applied after connecting.
+    bool connectTcp(const std::string& ip, uint16_t port, std::string& err,
+                    int connectTimeoutMs = 3000, int rcvTimeoutMs = 2000);
     bool isConnected() const { return tcp_ != invalidSocket(); }
     void disconnect();
 
     // Routing activation must succeed before any diagnostic exchange.
     // activationType: 0x00 = default, 0x01 = WWH-OBD, 0xE0 = central security.
+    // oemSpecific, when 4 bytes, is appended as the ISO-optional OEM field that
+    // some gateways require.
     bool routingActivation(uint16_t sourceAddr, uint8_t activationType,
-                           std::string& err);
+                           std::string& err,
+                           const std::vector<uint8_t>& oemSpecific = {});
 
     // Sends a UDS request to `target` and returns the raw UDS response bytes
-    // (DoIP header and address fields stripped).
+    // (DoIP header and address fields stripped). timeoutMs is the response
+    // budget; each UDS "response pending" (NRC 0x78) extends it. When
+    // functional is true, `target` is treated as a functional address and the
+    // strict "addressed to our tester" reply check is relaxed.
     bool sendDiagnostic(uint16_t source, uint16_t target,
                         const std::vector<uint8_t>& uds,
                         std::vector<uint8_t>& response, int timeoutMs,
-                        std::string& err);
+                        std::string& err, bool functional = false);
 
     uint16_t testerAddress() const { return testerAddr_; }
 
@@ -115,6 +137,11 @@ public:
     static socket_t invalidSocketValue();
 
 private:
+    // Shared implementation for broadcast and targeted Vehicle Identification.
+    bool discoverImpl(const std::string& broadcastIp, uint16_t port, int timeoutMs,
+                      uint16_t reqType, const std::vector<uint8_t>& reqPayload,
+                      std::vector<Entity>& out, std::string& err);
+
     static socket_t invalidSocket();
     bool sendAll(socket_t s, const uint8_t* data, size_t len);
     bool recvAll(socket_t s, uint8_t* data, size_t len, int timeoutMs);
