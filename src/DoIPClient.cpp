@@ -627,4 +627,77 @@ bool Client::sendDiagnostic(uint16_t source, uint16_t target,
     return false;
 }
 
+bool Client::sendDiagnosticMulti(uint16_t source, uint16_t target,
+                                 const std::vector<uint8_t>& uds,
+                                 std::vector<DiagResponse>& responses,
+                                 int collectMs, std::string& err) {
+    if (!isConnected()) { err = "Not connected"; return false; }
+
+    std::vector<uint8_t> pl;
+    pl.push_back((source >> 8) & 0xFF);
+    pl.push_back(source & 0xFF);
+    pl.push_back((target >> 8) & 0xFF);
+    pl.push_back(target & 0xFF);
+    pl.insert(pl.end(), uds.begin(), uds.end());
+
+    auto msg = buildHeader(DiagnosticMessage, (uint32_t)pl.size());
+    msg.insert(msg.end(), pl.begin(), pl.end());
+    Logger::instance().hexDump(LogLevel::Tx, "TCP TX DiagnosticMessage (functional)",
+                               msg.data(), msg.size());
+    if (!sendAll(tcp_, msg.data(), msg.size())) {
+        err = "send functional diagnostic failed"; return false;
+    }
+
+    // Collect for the whole window; multiple ECUs in the functional group may
+    // each answer, so never return on the first reply.
+    using clock = std::chrono::steady_clock;
+    auto deadline = clock::now() + std::chrono::milliseconds(collectMs);
+    while (true) {
+        auto now = clock::now();
+        if (now >= deadline) break;
+        int remaining = (int)std::chrono::duration_cast<std::chrono::milliseconds>(
+                            deadline - now).count();
+        if (remaining <= 0) break;
+
+        uint16_t type;
+        std::vector<uint8_t> resp;
+        std::string rerr;
+        if (!readDoIPMessage(tcp_, type, resp, remaining, rerr)) break;  // window elapsed
+
+        if (type == DiagnosticPositiveAck || type == DiagnosticNegativeAck) continue;
+        if (type == AliveCheckRequest) {
+            std::vector<uint8_t> apl = {(uint8_t)((source >> 8) & 0xFF),
+                                        (uint8_t)(source & 0xFF)};
+            auto ack = buildHeader(AliveCheckResponse, 2);
+            ack.insert(ack.end(), apl.begin(), apl.end());
+            sendAll(tcp_, ack.data(), ack.size());
+            continue;
+        }
+        if (type != DiagnosticMessage) continue;
+        if (resp.size() < 4) continue;
+
+        uint16_t respSource = (resp[0] << 8) | resp[1];
+        uint16_t respTarget = (resp[2] << 8) | resp[3];
+        if (respTarget != source) continue;  // not addressed to our tester
+
+        std::vector<uint8_t> ud(resp.begin() + 4, resp.end());
+        // Skip "response pending" placeholders; wait for the real reply.
+        if (ud.size() >= 3 && ud[0] == kUdsNegativeResponse &&
+            ud[2] == kNrcResponsePending)
+            continue;
+
+        bool dup = false;
+        for (auto& r : responses)
+            if (r.source == respSource) { dup = true; break; }
+        if (!dup) {
+            responses.push_back({respSource, ud});
+            Logger::instance().info("Functional response from ECU 0x" +
+                byteHex((respSource >> 8) & 0xFF) + byteHex(respSource & 0xFF));
+        }
+    }
+
+    if (responses.empty()) { err = "No ECUs responded to functional request"; return false; }
+    return true;
+}
+
 } // namespace doip

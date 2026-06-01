@@ -409,6 +409,13 @@ QWidget* Gui::buildConnectionPage() {
     sweepRow->addStretch(1);
     sweepRow->addWidget(sweepBtn);
     df->addLayout(sweepRow);
+    auto* enumRow = new QHBoxLayout;
+    edEnumFunc_ = hexEdit("E400", 4);
+    auto* enumBtn = new QPushButton("Enumerate ECUs (functional)");
+    enumRow->addWidget(new QLabel("Functional addr")); enumRow->addWidget(edEnumFunc_);
+    enumRow->addStretch(1);
+    enumRow->addWidget(enumBtn);
+    df->addLayout(enumRow);
     df->addWidget(new QLabel(
         "<i>A reply (even a negative one) proves an address is routable - the "
         "fastest way to find the real VF8 ECU addresses.</i>"));
@@ -520,6 +527,37 @@ QWidget* Gui::buildConnectionPage() {
             }
             Logger::instance().info("Sweep complete: " + std::to_string(found) +
                                     " address(es) responded");
+        });
+    });
+
+    connect(enumBtn, &QPushButton::clicked, this, [this] {
+        syncSettingsFromUi();
+        uint16_t funcAddr = parseHex16(edEnumFunc_->text(), 0xE400);
+        bool add = cbSweepAdd_->isChecked();
+        startWorker([this, funcAddr, add] {
+            std::string err;
+            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            std::vector<uint16_t> found;
+            if (!uds.enumerateEcus(funcAddr, found, err)) {
+                Logger::instance().warn("Functional enumeration: " + err);
+                return;
+            }
+            if (add) {
+                std::lock_guard<std::mutex> g(mutex_);
+                for (uint16_t a : found) {
+                    bool exists = false;
+                    for (auto& r : ecus_)
+                        if (r.logicalAddr == a) { exists = true; r.reachable = 1; break; }
+                    if (!exists) {
+                        EcuRow r; char nm[32];
+                        std::snprintf(nm, sizeof nm, "Discovered 0x%04X", a);
+                        r.name = nm; r.logicalAddr = a;
+                        r.statusMsg = "reachable (functional)"; r.reachable = 1;
+                        ecus_.push_back(std::move(r));
+                    }
+                }
+            }
         });
     });
 

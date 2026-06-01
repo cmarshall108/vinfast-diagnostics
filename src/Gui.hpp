@@ -226,6 +226,7 @@ private:
     QLineEdit* edSweepStart_= nullptr;
     QLineEdit* edSweepEnd_  = nullptr;
     QCheckBox* cbSweepAdd_  = nullptr;
+    QLineEdit* edEnumFunc_  = nullptr;
 
     // ecu page
     QWidget*     ecuTileHost_  = nullptr;

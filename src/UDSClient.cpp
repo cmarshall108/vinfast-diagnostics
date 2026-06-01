@@ -295,6 +295,33 @@ bool UDSClient::probe(uint16_t target, std::string& err) {
     return false;  // err set by DoIP layer (timeout / nack)
 }
 
+bool UDSClient::enumerateEcus(uint16_t functionalAddr, std::vector<uint16_t>& found,
+                              std::string& err, int collectMs) {
+    // TesterPresent without suppression: every ECU in the functional group is
+    // expected to answer (positive 0x7E or a negative response - either way it
+    // reveals the responder's logical address).
+    std::vector<uint8_t> req = {0x3E, 0x00};
+    Logger::instance().log(LogLevel::Tx,
+        "UDS functional enumerate -> 0x" + addr16(functionalAddr) +
+        "  TesterPresent (collecting " + std::to_string(collectMs) + "ms)");
+
+    std::vector<doip::DiagResponse> responses;
+    if (!doip_.sendDiagnosticMulti(tester_, functionalAddr, req, responses,
+                                   collectMs, err))
+        return false;
+
+    found.clear();
+    for (const auto& r : responses) found.push_back(r.source);
+    std::sort(found.begin(), found.end());
+
+    std::string list;
+    for (uint16_t a : found) list += (list.empty() ? "" : ", ") + ("0x" + addr16(a));
+    Logger::instance().log(LogLevel::Info,
+        "Functional enumeration found " + std::to_string(found.size()) +
+        " ECU(s): " + (list.empty() ? "(none)" : list));
+    return true;
+}
+
 // -----------------------------------------------------------------------
 // Safe service-discovery primitives
 // -----------------------------------------------------------------------

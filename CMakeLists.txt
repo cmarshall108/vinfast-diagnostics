@@ -73,3 +73,22 @@ if(APPLE)
     MACOSX_BUNDLE_BUNDLE_VERSION "1.0.0"
     MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0.0")
 endif()
+
+# -------------------------------------------------------------------
+# Optional headless self-test (links the real DoIP/UDS stack, no Qt/curl).
+# Build:  cmake -DBUILD_DOIP_SELFTEST=ON -S . -B build
+# Run against tools/doip_simulator.py.
+# -------------------------------------------------------------------
+option(BUILD_DOIP_SELFTEST "Build the headless DoIP/UDS self-test CLI" OFF)
+if(BUILD_DOIP_SELFTEST)
+  add_executable(doip_selftest
+    tools/doip_selftest.cpp
+    src/Logger.cpp
+    src/DoIPClient.cpp
+    src/UDSClient.cpp
+    src/VF8Data.cpp)
+  target_include_directories(doip_selftest PRIVATE src)
+  if(WIN32)
+    target_link_libraries(doip_selftest PRIVATE ws2_32 iphlpapi)
+  endif()
+endif()

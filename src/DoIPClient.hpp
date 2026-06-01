@@ -66,6 +66,13 @@ struct EntityStatus {
     bool        hasMaxDataSize  = false;
 };
 
+// One diagnostic response collected during functional enumeration: which ECU
+// answered (its logical/source address) and the raw UDS payload it returned.
+struct DiagResponse {
+    uint16_t             source = 0;
+    std::vector<uint8_t> uds;
+};
+
 
 class Client {
 public:
@@ -130,6 +137,15 @@ public:
                         const std::vector<uint8_t>& uds,
                         std::vector<uint8_t>& response, int timeoutMs,
                         std::string& err, bool functional = false);
+
+    // Sends one (typically functional) request and collects EVERY diagnostic
+    // response that arrives within collectMs, keyed by responder source
+    // address (de-duplicated). Unlike sendDiagnostic this never returns early
+    // on the first reply, so it can enumerate all ECUs in a functional group.
+    bool sendDiagnosticMulti(uint16_t source, uint16_t target,
+                             const std::vector<uint8_t>& uds,
+                             std::vector<DiagResponse>& responses, int collectMs,
+                             std::string& err);
 
     uint16_t testerAddress() const { return testerAddr_; }
 

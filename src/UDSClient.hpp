@@ -135,6 +135,16 @@ public:
     // still proves the ECU/address exists and is routable.
     bool probe(uint16_t target, std::string& err);
 
+    // Functional ECU enumeration. Broadcasts a TesterPresent (0x3E) to a
+    // functional group address and returns the logical (source) addresses of
+    // every ECU that answers within collectMs. This is the fastest way to
+    // build an ECU map for a vehicle with no published address list, since one
+    // request reaches every ECU in the group at once. `functionalAddr` is
+    // OEM-specific (common DoIP functional range is 0xE000-0xE3FF); try a few
+    // if unknown. Returns false (err set) if nothing responds.
+    bool enumerateEcus(uint16_t functionalAddr, std::vector<uint16_t>& found,
+                       std::string& err, int collectMs = 1500);
+
     // -------------------------------------------------------------------
     // Safe service-discovery primitives (option 2).
     //
