@@ -19,6 +19,7 @@
 //
 #include "DoIPClient.hpp"
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 #include <optional>
@@ -200,6 +201,51 @@ public:
     // 0x03 both). Disabling is commonly required before reprogramming.
     bool communicationControl(uint16_t target, CommCtrl control, uint8_t commType,
                               std::string& err);
+
+    // -------------------------------------------------------------------
+    // Reprogramming / block transfer (ISO 14229 services 0x34/0x36/0x37).
+    //
+    // The full flash sequence over DoIP is the reason Ethernet beats CAN for
+    // reprogramming: a large software image is pushed in big TransferData
+    // blocks rather than tiny CAN frames. The caller is responsible for first
+    // entering the programming session (0x10 0x02), unlocking SecurityAccess
+    // (0x27) and any erase/pre-conditions routines (0x31). These services are
+    // INVASIVE - gate them behind explicit user confirmation.
+    // -------------------------------------------------------------------
+
+    // 0x34 RequestDownload - announces an upcoming download of `size` bytes to
+    // `memoryAddress`. addrBytes/sizeBytes are the byte-widths packed into the
+    // addressAndLengthFormatIdentifier (1-4 each). `dataFormatId` is the
+    // compression/encryption identifier (0x00 = none). On success the ECU
+    // reports the maximum TransferData block length (including the 0x36 SID and
+    // block-sequence-counter overhead) in `maxBlockLength`.
+    bool requestDownload(uint16_t target, uint32_t memoryAddress, uint32_t size,
+                         uint8_t addrBytes, uint8_t sizeBytes, uint8_t dataFormatId,
+                         uint32_t& maxBlockLength, std::string& err);
+
+    // 0x36 TransferData - sends one block. `blockSequenceCounter` starts at
+    // 0x01 after RequestDownload and increments per block, wrapping 0xFF->0x00.
+    // The ECU echoes the counter in its positive response.
+    bool transferData(uint16_t target, uint8_t blockSequenceCounter,
+                      const std::vector<uint8_t>& data, std::string& err);
+
+    // 0x37 RequestTransferExit - terminates the download. `params` is an
+    // optional transferRequestParameterRecord; `out` receives any
+    // transferResponseParameterRecord (e.g. a CRC) the ECU returns.
+    bool requestTransferExit(uint16_t target, const std::vector<uint8_t>& params,
+                             std::vector<uint8_t>& out, std::string& err);
+
+    // Orchestrates a full firmware block download: RequestDownload (0x34) ->
+    // TransferData (0x36) loop sized to the ECU-reported maxBlockLength ->
+    // RequestTransferExit (0x37). `progress(bytesDone, total)` is invoked after
+    // each accepted block when set. Caller must already be in the programming
+    // session with security unlocked. Returns false (err set) on the first
+    // failed step.
+    bool downloadBlock(uint16_t target, uint32_t memoryAddress,
+                       const std::vector<uint8_t>& image,
+                       uint8_t addrBytes, uint8_t sizeBytes, uint8_t dataFormatId,
+                       const std::function<void(size_t, size_t)>& progress,
+                       std::string& err);
 
     // 0x19 / 0x06 - reportDTCExtendedDataRecordByDTCNumber. Returns the raw
     // extended-data payload for a 3-byte DTC and record number (0xFF = all).

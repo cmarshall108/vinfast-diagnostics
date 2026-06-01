@@ -484,6 +484,108 @@ bool UDSClient::communicationControl(uint16_t target, CommCtrl control,
     return true;
 }
 
+bool UDSClient::requestDownload(uint16_t target, uint32_t memoryAddress, uint32_t size,
+                                uint8_t addrBytes, uint8_t sizeBytes, uint8_t dataFormatId,
+                                uint32_t& maxBlockLength, std::string& err) {
+    if (addrBytes < 1 || addrBytes > 4 || sizeBytes < 1 || sizeBytes > 4) {
+        err = "addrBytes/sizeBytes must be 1-4"; return false;
+    }
+    // addressAndLengthFormatIdentifier: high nibble = size width, low = addr width.
+    uint8_t alfid = (uint8_t)((sizeBytes << 4) | addrBytes);
+    std::vector<uint8_t> req = {0x34, dataFormatId, alfid};
+    for (int i = addrBytes - 1; i >= 0; --i) req.push_back((uint8_t)((memoryAddress >> (8 * i)) & 0xFF));
+    for (int i = sizeBytes - 1; i >= 0; --i) req.push_back((uint8_t)((size >> (8 * i)) & 0xFF));
+    std::vector<uint8_t> resp;
+    if (!request(target, req, resp, err)) return false;
+    // Positive: 0x74 <lengthFormatIdentifier> <maxNumberOfBlockLength...>
+    // The high nibble of the LFID gives the byte-width of maxNumberOfBlockLength.
+    if (resp.size() < 3) { err = "RequestDownload response too short"; return false; }
+    uint8_t lenWidth = (resp[1] >> 4) & 0x0F;
+    if (lenWidth < 1 || lenWidth > 4 || resp.size() < (size_t)(2 + lenWidth)) {
+        err = "RequestDownload maxBlockLength width invalid"; return false;
+    }
+    uint32_t mbl = 0;
+    for (uint8_t i = 0; i < lenWidth; ++i) mbl = (mbl << 8) | resp[2 + i];
+    maxBlockLength = mbl;
+    Logger::instance().log(LogLevel::Info,
+        "RequestDownload 0x" + addr16(target) + ": " + std::to_string(size) +
+        " byte(s) accepted, maxBlockLength=" + std::to_string(mbl));
+    return true;
+}
+
+bool UDSClient::transferData(uint16_t target, uint8_t blockSequenceCounter,
+                             const std::vector<uint8_t>& data, std::string& err) {
+    std::vector<uint8_t> req = {0x36, blockSequenceCounter};
+    req.insert(req.end(), data.begin(), data.end());
+    std::vector<uint8_t> resp;
+    if (!request(target, req, resp, err)) return false;
+    // Positive: 0x76 <blockSequenceCounter> [transferResponseParameterRecord]
+    if (resp.size() >= 2 && resp[1] != blockSequenceCounter) {
+        err = "TransferData block-counter mismatch (sent 0x" +
+              byteHex(blockSequenceCounter) + ", echoed 0x" + byteHex(resp[1]) + ")";
+        return false;
+    }
+    Logger::instance().log(LogLevel::Info,
+        "TransferData 0x" + addr16(target) + " block 0x" + byteHex(blockSequenceCounter) +
+        " (" + std::to_string(data.size()) + " byte(s)) accepted");
+    return true;
+}
+
+bool UDSClient::requestTransferExit(uint16_t target, const std::vector<uint8_t>& params,
+                                    std::vector<uint8_t>& out, std::string& err) {
+    std::vector<uint8_t> req = {0x37};
+    req.insert(req.end(), params.begin(), params.end());
+    std::vector<uint8_t> resp;
+    if (!request(target, req, resp, err)) return false;
+    // Positive: 0x77 [transferResponseParameterRecord...]
+    out.assign(resp.begin() + 1, resp.end());
+    Logger::instance().log(LogLevel::Info,
+        "RequestTransferExit 0x" + addr16(target) + " accepted (" +
+        std::to_string(out.size()) + " response byte(s))");
+    return true;
+}
+
+bool UDSClient::downloadBlock(uint16_t target, uint32_t memoryAddress,
+                              const std::vector<uint8_t>& image,
+                              uint8_t addrBytes, uint8_t sizeBytes, uint8_t dataFormatId,
+                              const std::function<void(size_t, size_t)>& progress,
+                              std::string& err) {
+    if (image.empty()) { err = "Download image is empty"; return false; }
+
+    uint32_t maxBlockLength = 0;
+    if (!requestDownload(target, memoryAddress, (uint32_t)image.size(),
+                         addrBytes, sizeBytes, dataFormatId, maxBlockLength, err))
+        return false;
+
+    // maxNumberOfBlockLength includes the 0x36 SID + block-sequence-counter, so
+    // the usable payload per TransferData block is two bytes less.
+    if (maxBlockLength <= 2) {
+        err = "ECU-reported maxBlockLength too small (" +
+              std::to_string(maxBlockLength) + ")";
+        return false;
+    }
+    size_t chunk = (size_t)(maxBlockLength - 2);
+
+    size_t offset = 0;
+    uint8_t bsc = 0x01;   // block sequence counter starts at 1
+    while (offset < image.size()) {
+        size_t n = std::min(chunk, image.size() - offset);
+        std::vector<uint8_t> block(image.begin() + offset, image.begin() + offset + n);
+        if (!transferData(target, bsc, block, err)) return false;
+        offset += n;
+        bsc = (uint8_t)(bsc + 1);   // wraps 0xFF -> 0x00 per ISO 14229
+        if (progress) progress(offset, image.size());
+    }
+
+    std::vector<uint8_t> exitResp;
+    if (!requestTransferExit(target, {}, exitResp, err)) return false;
+    Logger::instance().log(LogLevel::Info,
+        "Block download to 0x" + addr16(target) + " complete: " +
+        std::to_string(image.size()) + " byte(s) in " +
+        std::to_string((image.size() + chunk - 1) / chunk) + " block(s)");
+    return true;
+}
+
 bool UDSClient::readDTCExtendedData(uint16_t target, uint32_t dtc,
                                     uint8_t recordNumber,
                                     std::vector<uint8_t>& raw, std::string& err) {
