@@ -127,16 +127,20 @@ jobs:
           Categories=Utility;
           Terminal=false
           EOF
-          # Fetch linuxdeploy + the Qt plugin.
-          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
+          # Fetch linuxdeploy + the Qt plugin into a tools dir so they don't
+          # collide with the produced AppImage when globbing later.
+          mkdir -p tools
+          wget -q -O tools/linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q -O tools/linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x tools/linuxdeploy-x86_64.AppImage tools/linuxdeploy-plugin-qt-x86_64.AppImage
+          export PATH="$PWD/tools:$PATH"
           export QML_SOURCES_PATHS=""
-          ./linuxdeploy-x86_64.AppImage --appdir AppDir --plugin qt \
+          export OUTPUT="VinFast_Scanner-x86_64.AppImage"
+          tools/linuxdeploy-x86_64.AppImage --appdir AppDir --plugin qt \
             --output appimage \
             --desktop-file AppDir/usr/share/applications/vinfast_scanner.desktop \
             --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/vinfast_scanner.png
-          mv *.AppImage dist/VinFast_Scanner-x86_64.AppImage
+          mv "$OUTPUT" dist/VinFast_Scanner-x86_64.AppImage
         env:
           EXTRACT_AND_RUN: 1
 
