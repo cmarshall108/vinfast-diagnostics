@@ -82,11 +82,43 @@ cmake --build build --config Release
 
 ### Run
 ```bash
-# Linux/macOS
+# Linux
 ./build/vinfast_scanner
+# macOS (built as an .app bundle)
+open build/vinfast_scanner.app
 # Windows
 build\Release\vinfast_scanner.exe
 ```
+
+## Prebuilt downloads
+
+Every push is built for **Linux, macOS, and Windows** by GitHub Actions
+(`.github/workflows/build.yml`); the binaries are uploaded as workflow
+artifacts. Pushing a version tag (e.g. `git tag v1.0.0 && git push --tags`)
+additionally publishes a **GitHub Release** with packaged downloads:
+
+- **Linux:** `VinFast_Scanner-x86_64.AppImage` (self-contained, `chmod +x` and run)
+- **macOS:** `VinFast_Scanner.dmg` (universal Intel + Apple Silicon `.app`, Qt bundled via `macdeployqt`)
+- **Windows x64:** `vinfast_scanner.exe` with Qt + libcurl DLLs (deployed via `windeployqt`)
+- **Windows ARM64:** native `arm64` build for Windows on ARM (e.g. Snapdragon devices)
+
+### macOS code signing & notarization (optional)
+
+The macOS job signs the `.app` with a Developer ID certificate and notarizes the
+DMG **only when** the following repository secrets are present; otherwise those
+steps are skipped and an unsigned (still runnable) DMG is produced.
+
+| Secret | Purpose |
+|--------|---------|
+| `MACOS_CERTIFICATE` | base64-encoded Developer ID Application `.p12` |
+| `MACOS_CERTIFICATE_PWD` | password for the `.p12` |
+| `MACOS_CERT_IDENTITY` | identity string, e.g. `Developer ID Application: Name (TEAMID)` |
+| `MACOS_NOTARY_APPLE_ID` | Apple ID used for notarization |
+| `MACOS_NOTARY_PASSWORD` | app-specific password for that Apple ID |
+| `MACOS_NOTARY_TEAM_ID` | Apple Developer Team ID |
+
+Export the certificate to base64 with:
+`base64 -i DeveloperID.p12 | pbcopy`.
 
 ## Usage
 

@@ -1,0 +1,242 @@
+name: Build
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux (x86_64)
+            os: ubuntu-22.04
+            artifact: vinfast_scanner-linux-x86_64
+            qt_version: "6.7.*"
+          - name: macOS (universal)
+            os: macos-latest
+            artifact: vinfast_scanner-macos
+            qt_version: "6.7.*"
+            osx_archs: "arm64;x86_64"
+          - name: Windows (x64)
+            os: windows-latest
+            artifact: vinfast_scanner-windows-x64
+            qt_version: "6.7.*"
+            vcpkg_triplet: x64-windows
+            cmake_arch: x64
+          - name: Windows (ARM64)
+            os: windows-11-arm
+            artifact: vinfast_scanner-windows-arm64
+            qt_version: "6.8.*"
+            qt_arch: win64_msvc2022_arm64
+            vcpkg_triplet: arm64-windows
+            cmake_arch: ARM64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ----------------------------------------------------------------
+      # Qt6 (Widgets) for every platform.
+      # ----------------------------------------------------------------
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ matrix.qt_version }}
+          arch: ${{ matrix.qt_arch }}
+          modules: ""
+          cache: true
+
+      # ----------------------------------------------------------------
+      # libcurl: system package on Linux, system framework on macOS,
+      # vcpkg on Windows.
+      # ----------------------------------------------------------------
+      - name: Install libcurl (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev
+
+      - name: Install libcurl (Windows)
+        if: runner.os == 'Windows'
+        run: vcpkg install curl:${{ matrix.vcpkg_triplet }}
+        shell: pwsh
+
+      # ----------------------------------------------------------------
+      # Configure & build.
+      # ----------------------------------------------------------------
+      - name: Configure (Linux)
+        if: runner.os == 'Linux'
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Configure (macOS)
+        if: runner.os == 'macOS'
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_OSX_ARCHITECTURES="${{ matrix.osx_archs }}"
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -A ${{ matrix.cmake_arch }}
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DVCPKG_TARGET_TRIPLET=${{ matrix.vcpkg_triplet }}
+        shell: pwsh
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      # ----------------------------------------------------------------
+      # Bundle dependencies so the binary is runnable standalone.
+      # ----------------------------------------------------------------
+      - name: Deploy (Linux AppImage)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p dist
+          # Stage a FHS-style AppDir for linuxdeploy.
+          mkdir -p AppDir/usr/bin
+          cp build/vinfast_scanner AppDir/usr/bin/
+          # Minimal .desktop entry + icon required by linuxdeploy.
+          mkdir -p AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+          cp assets/images/vinfast-vf8.png AppDir/usr/share/icons/hicolor/256x256/apps/vinfast_scanner.png
+          cat > AppDir/usr/share/applications/vinfast_scanner.desktop <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=VinFast Scanner
+          Exec=vinfast_scanner
+          Icon=vinfast_scanner
+          Categories=Utility;
+          Terminal=false
+          EOF
+          # Fetch linuxdeploy + the Qt plugin.
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
+          export QML_SOURCES_PATHS=""
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --plugin qt \
+            --output appimage \
+            --desktop-file AppDir/usr/share/applications/vinfast_scanner.desktop \
+            --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/vinfast_scanner.png
+          mv *.AppImage dist/VinFast_Scanner-x86_64.AppImage
+        env:
+          EXTRACT_AND_RUN: 1
+
+      - name: Deploy (macOS app bundle)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p dist
+          "$QT_ROOT_DIR/bin/macdeployqt" build/vinfast_scanner.app -always-overwrite
+
+      # Import the Developer ID certificate into a throwaway keychain.
+      # All signing/notarization steps are skipped automatically when the
+      # MACOS_CERTIFICATE secret is not configured, so forks still build.
+      - name: Import signing certificate (macOS)
+        if: ${{ runner.os == 'macOS' && secrets.MACOS_CERTIFICATE != '' }}
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/build.keychain"
+          KEYCHAIN_PWD="$(openssl rand -base64 24)"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PWD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Sign app (macOS)
+        if: ${{ runner.os == 'macOS' && secrets.MACOS_CERTIFICATE != '' }}
+        env:
+          MACOS_CERT_IDENTITY: ${{ secrets.MACOS_CERT_IDENTITY }}
+        run: |
+          codesign --force --deep --options runtime --timestamp \
+            --sign "$MACOS_CERT_IDENTITY" build/vinfast_scanner.app
+          codesign --verify --strict --verbose=2 build/vinfast_scanner.app
+
+      - name: Package DMG (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p dist
+          hdiutil create -volname "VinFast Scanner" \
+            -srcfolder build/vinfast_scanner.app \
+            -ov -format UDZO dist/VinFast_Scanner.dmg
+
+      - name: Notarize & staple (macOS)
+        if: ${{ runner.os == 'macOS' && secrets.MACOS_CERTIFICATE != '' }}
+        env:
+          MACOS_NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
+          MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
+          MACOS_NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
+        run: |
+          xcrun notarytool submit dist/VinFast_Scanner.dmg \
+            --apple-id "$MACOS_NOTARY_APPLE_ID" \
+            --password "$MACOS_NOTARY_PASSWORD" \
+            --team-id "$MACOS_NOTARY_TEAM_ID" \
+            --wait
+          xcrun stapler staple dist/VinFast_Scanner.dmg
+
+      - name: Deploy (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item build/Release/vinfast_scanner.exe dist/
+          & "$env:QT_ROOT_DIR/bin/windeployqt.exe" --release --no-translations dist/vinfast_scanner.exe
+          # Bring in the vcpkg curl runtime DLLs.
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT/installed/${{ matrix.vcpkg_triplet }}/bin/*.dll" dist/ -ErrorAction SilentlyContinue
+        shell: pwsh
+
+      # ----------------------------------------------------------------
+      # Upload build artifacts.
+      # ----------------------------------------------------------------
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/
+
+  # ------------------------------------------------------------------
+  # On tag pushes, gather all artifacts and publish a GitHub Release.
+  # ------------------------------------------------------------------
+  release:
+    name: Publish Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Package artifacts
+        run: |
+          cd artifacts
+          for d in */; do
+            name="${d%/}"
+            zip -r "../${name}.zip" "$d"
+          done
+          cd ..
+          ls -la *.zip
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.zip"
+          generate_release_notes: true

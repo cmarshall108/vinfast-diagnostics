@@ -13,12 +13,6 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-# -------------------------------------------------------------------
-# Qt6 (Widgets) - the GUI is modelled on TEXA IDC6: a dark, icon-driven
-# navigator with compact pages and detail shown in relative popups.
-# On macOS with Homebrew Qt, point CMake at the install prefix if needed:
-#   cmake -B build -DCMAKE_PREFIX_PATH=$(brew --prefix qt)
-# -------------------------------------------------------------------
 if(APPLE AND NOT CMAKE_PREFIX_PATH)
   execute_process(COMMAND brew --prefix qt
                   OUTPUT_VARIABLE _brew_qt
@@ -38,7 +32,10 @@ find_package(CURL REQUIRED)
 # -------------------------------------------------------------------
 # Application
 # -------------------------------------------------------------------
-add_executable(vinfast_scanner
+# On macOS, bundle the app icon into the generated .app so macdeployqt
+# produces a self-contained, double-clickable application.
+set(_app_macos_icon "${CMAKE_CURRENT_SOURCE_DIR}/assets/images/vinfast-vf8.icns")
+set(_app_sources
   src/main.cpp
   src/Logger.cpp
   src/DoIPClient.cpp
@@ -48,6 +45,11 @@ add_executable(vinfast_scanner
   src/CloudClient.cpp
   src/Gui.cpp
 )
+if(APPLE AND EXISTS "${_app_macos_icon}")
+  list(APPEND _app_sources "${_app_macos_icon}")
+endif()
+
+add_executable(vinfast_scanner MACOSX_BUNDLE ${_app_sources})
 target_include_directories(vinfast_scanner PRIVATE src)
 target_link_libraries(vinfast_scanner PRIVATE Qt6::Widgets CURL::libcurl)
 
@@ -58,4 +60,16 @@ endif()
 if(APPLE)
   target_link_libraries(vinfast_scanner PRIVATE
     "-framework Cocoa" "-framework IOKit" "-framework CoreVideo")
+
+  if(EXISTS "${_app_macos_icon}")
+    set_source_files_properties("${_app_macos_icon}" PROPERTIES
+      MACOSX_PACKAGE_LOCATION "Resources")
+    set(MACOSX_BUNDLE_ICON_FILE "vinfast-vf8.icns")
+  endif()
+
+  set_target_properties(vinfast_scanner PROPERTIES
+    MACOSX_BUNDLE_BUNDLE_NAME "VinFast Scanner"
+    MACOSX_BUNDLE_GUI_IDENTIFIER "com.vinfast.diagnostics.scanner"
+    MACOSX_BUNDLE_BUNDLE_VERSION "1.0.0"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0.0")
 endif()
