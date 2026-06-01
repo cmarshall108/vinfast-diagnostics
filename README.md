@@ -1,9 +1,11 @@
 # VinFast VF8 DoIP/UDS Diagnostic Scanner
 
-A minimal, modular C++20 diagnostic application that connects to a vehicle over
+A modular **C++20 / Qt6** diagnostic application that connects to a vehicle over
 **DoIP (ISO 13400-2)** using a standard DoIP Ethernet interface such as the
 **GODIAG GT109 DOIP ENET** adapter, discovers ECUs, and reads/clears Diagnostic
-Trouble Codes via **UDS (ISO 14229)**.
+Trouble Codes via **UDS (ISO 14229)**. It also includes an optional
+community-reverse-engineered **connected-car cloud client** for remote
+telemetry and commands.
 
 > ⚠️ **Safety & legal note.** Clearing DTCs erases stored fault history and can
 > affect vehicle behaviour. Only operate on a vehicle you are authorised to
@@ -28,8 +30,11 @@ Trouble Codes via **UDS (ISO 14229)**.
   reachability indicator from the last probe.
 - **Per-ECU actions** — Read DTCs (0x19/0x02), Clear DTCs (0x14, auto-enters an
   Extended session first, with a confirmation dialog), Read ID (0x22 VIN).
+- **Connected-car cloud client** — optional REST/IoT path to VinFast's app
+  back-end (Auth0 + AWS) for telemetry and remote commands, based on public
+  community sources. Completely separate from the on-vehicle diagnostic bus.
 - **Live log** — colour-coded hex dump of every DoIP/UDS TX/RX frame.
-- Background worker thread keeps the GUI responsive during network I/O.
+- Background worker thread keeps the Qt GUI responsive during network I/O.
 
 > ⚠️ **Realistic expectations.** Reading DTCs typically works in the default
 > session. **Clearing very often requires Security Access (0x27)** whose
@@ -46,9 +51,12 @@ Trouble Codes via **UDS (ISO 14229)**.
 |------|----------------|
 | `src/DoIPClient.*` | DoIP transport: UDP discovery, TCP routing activation, diagnostic message framing, ack / alive-check / response-pending handling. |
 | `src/UDSClient.*`  | UDS services 0x22 / 0x19 / 0x14 / 0x3E and DTC / NRC decoding. |
-| `src/Gui.*`        | Dear ImGui front-end and worker-thread orchestration. |
+| `src/CloudData.*`  | VinFast connected-car cloud reference data (regions, telemetry map, command list) from public community sources. |
+| `src/CloudClient.*`| REST/IoT client (libcurl) for the connected-car cloud back-end. |
+| `src/VF8Data.*`    | VF8-specific ECU / DTC reference tables. |
+| `src/Gui.*`        | Qt6 Widgets front-end (TEXA IDC6-style navigator) and worker-thread orchestration. |
 | `src/Logger.*`     | Thread-safe in-memory hex/text log. |
-| `src/main.cpp`     | GLFW + OpenGL3 + ImGui bootstrap and render loop. |
+| `src/main.cpp`     | `QApplication` bootstrap. |
 
 ### DoIP flow recap
 
@@ -60,23 +68,36 @@ Trouble Codes via **UDS (ISO 14229)**.
    UDS). The stack absorbs `0x8002` positive acks, answers `0x0007` alive checks,
    and waits on UDS `0x7F .. 0x78` (response pending).
 
-## Build (Dear ImGui + GLFW are fetched automatically)
-
-The `CMakeLists.txt` uses `FetchContent` to download **GLFW 3.4** and
-**Dear ImGui v1.90.9** (including the GLFW + OpenGL3 backends), so no manual
-dependency setup is required beyond a compiler, CMake, and OpenGL.
+## Building from source
 
 ### Prerequisites
 - CMake ≥ 3.16
 - A C++20 compiler (MSVC 2022 / Clang / GCC)
-- OpenGL development libraries
-  - **Windows:** ships with the OS / GPU drivers.
-  - **macOS:** provided by the system frameworks.
-  - **Linux:** `sudo apt install libgl1-mesa-dev xorg-dev`
+- **Qt 6** (Widgets)
+- **libcurl**
+
+Install the dependencies:
+
+- **macOS (Homebrew):** `brew install qt curl`
+  CMake auto-detects Homebrew Qt; if needed, pass
+  `-DCMAKE_PREFIX_PATH=$(brew --prefix qt)`.
+- **Linux (Debian/Ubuntu):**
+  `sudo apt install qt6-base-dev libcurl4-openssl-dev`
+- **Windows:** install Qt 6 (official installer or `aqt`) and provide libcurl
+  via [vcpkg](https://vcpkg.io) (`vcpkg install curl:x64-windows`), then pass the
+  vcpkg toolchain file to CMake.
 
 ### Configure & build
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+```
+
+On Windows with vcpkg:
+```powershell
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release `
+  -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+  -DVCPKG_TARGET_TRIPLET=x64-windows
 cmake --build build --config Release
 ```
 
@@ -97,16 +118,34 @@ Every push is built for **Linux, macOS, and Windows** by GitHub Actions
 artifacts. Pushing a version tag (e.g. `git tag v1.0.0 && git push --tags`)
 additionally publishes a **GitHub Release** with packaged downloads:
 
-- **Linux:** `VinFast_Scanner-x86_64.AppImage` (self-contained, `chmod +x` and run)
-- **macOS:** `VinFast_Scanner.dmg` (universal Intel + Apple Silicon `.app`, Qt bundled via `macdeployqt`)
-- **Windows x64:** `vinfast_scanner.exe` with Qt + libcurl DLLs (deployed via `windeployqt`)
-- **Windows ARM64:** native `arm64` build for Windows on ARM (e.g. Snapdragon devices)
+| Platform | Download | Notes |
+|----------|----------|-------|
+| Linux (x86_64) | `VinFast_Scanner-x86_64.AppImage` | Self-contained; `chmod +x` and run. |
+| macOS (universal) | `VinFast_Scanner.dmg` | Intel + Apple Silicon `.app`, Qt bundled via `macdeployqt`. |
+| Windows (x64) | `vinfast_scanner.exe` + DLLs | Qt + libcurl runtime deployed via `windeployqt`. |
+| Windows (ARM64) | `vinfast_scanner.exe` + DLLs | Native `arm64` build for Windows on ARM. |
+
+### Opening the macOS app
+
+If the DMG was **not** signed and notarized with a paid Apple Developer ID
+(see below), macOS Gatekeeper will block it on first launch ("Apple cannot check
+it for malicious software"). The app is still safe to run — bypass Gatekeeper
+once with any of:
+
+- **Right-click** the app → **Open** → confirm **Open** in the dialog, or
+- **System Settings → Privacy & Security → Open Anyway**, or
+- Terminal: `xattr -dr com.apple.quarantine /Applications/vinfast_scanner.app`
+
+CI always **ad-hoc signs** the universal binary so it loads on Apple Silicon;
+ad-hoc signing does not satisfy Gatekeeper for downloaded apps, hence the step
+above.
 
 ### macOS code signing & notarization (optional)
 
-The macOS job signs the `.app` with a Developer ID certificate and notarizes the
-DMG **only when** the following repository secrets are present; otherwise those
-steps are skipped and an unsigned (still runnable) DMG is produced.
+When the following repository secrets are configured, the macOS job signs the
+`.app` with a Developer ID certificate and notarizes the DMG, so users can open
+it with no Gatekeeper prompt. When the secrets are absent, those steps are
+skipped and the ad-hoc-signed (still runnable) DMG is produced instead.
 
 | Secret | Purpose |
 |--------|---------|
