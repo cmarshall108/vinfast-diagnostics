@@ -630,7 +630,7 @@ bool UDSClient::downloadBlock(uint16_t target, uint32_t memoryAddress,
     size_t offset = 0;
     uint8_t bsc = 0x01;   // block sequence counter starts at 1
     while (offset < image.size()) {
-        size_t n = std::min(chunk, image.size() - offset);
+        size_t n = (std::min)(chunk, image.size() - offset);
         std::vector<uint8_t> block(image.begin() + offset, image.begin() + offset + n);
         if (!transferData(target, bsc, block, err)) return false;
         offset += n;
