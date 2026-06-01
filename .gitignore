@@ -1,0 +1,47 @@
+# Build output
+build/
+out/
+cmake-build-*/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+cmake_install.cmake
+install_manifest.txt
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# Compiled objects / binaries / libraries
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+vinfast_scanner
+
+# Qt generated (moc/uic/rcc/autogen)
+moc_*.cpp
+moc_*.h
+ui_*.h
+qrc_*.cpp
+*_autogen/
+.qmake.stash
+*.pro.user
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# macOS
+.DS_Store
+
+# Logs / local artifacts
+*.log
