@@ -54,12 +54,24 @@ const std::vector<TelemetryResource> kVF8Telemetry = {
     {"34183_00000_00015", "Charge voltage",           "V"},
     {"34183_00000_00016", "Charge current",           "A"},
     {"34193_00001_00012", "Charge target",            "%"},
+    // Extended charging resources (community const_common.py; VF8 subscribes to
+    // the 34193 series via the cloud's extra-resource registration).
+    {"34193_00001_00031", "Charge plug connected",    ""},
+    {"34193_00001_00005", "Charging status",          ""},
+    {"34193_00001_00007", "Charge time remaining",    "min"},
+    {"34193_00001_00026", "Charge time estimate",     "min"},
+    {"34193_00001_00013", "Charge completion time",   ""},
+    {"34193_00001_00032", "Charge system relay",      ""},
+    {"34193_00001_00016", "Charge session ID",        ""},
+    {"34193_00001_00014", "Charge target",            "%"},
+    {"34193_00001_00019", "Charge target",            "%"},
 
     // Motion
     {"34187_00000_00000", "Gear position",            ""},
     {"34188_00000_00000", "Speed",                    "km/h"},
     {"34199_00000_00000", "Total odometer",           "km"},
     {"34183_00001_00029", "Electronic parking brake", ""},
+    {"34183_00001_00035", "Foot brake switch",        ""},
 
     // Climate / temperature
     {"34189_00000_00000", "Outside temperature",      "C"},
@@ -72,6 +84,7 @@ const std::vector<TelemetryResource> kVF8Telemetry = {
     {"34184_00001_00009", "Defrost",                  ""},
     {"34184_00001_00025", "Fan level",                ""},
     {"34184_00001_00041", "Cooling level",            ""},
+    {"34224_00001_00005", "HVAC set temperature",     "C"},
 
     // Tyre pressure
     {"34190_00000_00001", "Tyre pressure front-left", "bar"},
