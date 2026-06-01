@@ -112,7 +112,12 @@ jobs:
           cp build/vinfast_scanner AppDir/usr/bin/
           # Minimal .desktop entry + icon required by linuxdeploy.
           mkdir -p AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
-          cp assets/images/vinfast-vf8.png AppDir/usr/share/icons/hicolor/256x256/apps/vinfast_scanner.png
+          # linuxdeploy validates the icon against its hicolor directory, so the
+          # source PNG (non-square / wrong size) must be normalised to 256x256.
+          sudo apt-get install -y imagemagick
+          convert assets/images/vinfast-vf8.png -resize 256x256 -background none \
+            -gravity center -extent 256x256 \
+            AppDir/usr/share/icons/hicolor/256x256/apps/vinfast_scanner.png
           cat > AppDir/usr/share/applications/vinfast_scanner.desktop <<'EOF'
           [Desktop Entry]
           Type=Application
@@ -140,6 +145,16 @@ jobs:
         run: |
           mkdir -p dist
           "$QT_ROOT_DIR/bin/macdeployqt" build/vinfast_scanner.app -always-overwrite
+
+      # Ad-hoc sign when no Developer ID is configured. This does NOT satisfy
+      # Gatekeeper for downloaded apps, but it gives the universal binary a
+      # valid signature so it loads on Apple Silicon (which rejects unsigned
+      # arm64 Mach-O images).
+      - name: Ad-hoc sign (macOS, no certificate)
+        if: ${{ runner.os == 'macOS' && env.HAS_MACOS_CERT != 'true' }}
+        run: |
+          codesign --force --deep --sign - build/vinfast_scanner.app
+          codesign --verify --verbose=2 build/vinfast_scanner.app
 
       # Import the Developer ID certificate into a throwaway keychain.
       # All signing/notarization steps are skipped automatically when the
