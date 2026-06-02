@@ -410,6 +410,7 @@ private:
             case 1:  return QColor(0x20, 0xc5, 0x5a); // pass
             case 2:  return QColor(0xf4, 0x87, 0x20); // fault
             case 3:  return QColor(0x7e, 0x87, 0x94); // no response
+            case 4:  return QColor(0x2e, 0x7d, 0xd1); // scanning
             default: return QColor(0x1f, 0x7b, 0xd6); // not scanned
         }
     }
@@ -474,6 +475,22 @@ void EcuTopologyView::drawNode(QPainter& p, const Node& n) {
     p.setPen(QPen(fill.lighter(125), 1.5));
     p.setBrush(fill);
     p.drawRoundedRect(n.rect, 6, 6);
+
+    if (n.state == 4) {
+        // Animated scan halo and sweep line for in-progress module scans.
+        const qint64 t = QDateTime::currentMSecsSinceEpoch();
+        const int cyc = (int)((t / 36 + n.ecuIndex * 5) % 26);
+        const int pad = cyc / 4;
+        const QRect halo = n.rect.adjusted(-4 - pad, -4 - pad, 4 + pad, 4 + pad);
+        const int a = 140 - pad * 14;
+        p.setPen(QPen(QColor(0x2e, 0x7d, 0xd1, a > 30 ? a : 30), 2));
+        p.setBrush(Qt::NoBrush);
+        p.drawRoundedRect(halo, 7 + pad, 7 + pad);
+
+        const int sx = n.rect.left() + (cyc * n.rect.width()) / 25;
+        p.setPen(QPen(QColor(0xff, 0xff, 0xff, 155), 2));
+        p.drawLine(sx, n.rect.top() + 4, sx, n.rect.bottom() - 4);
+    }
 
     QFont f = p.font();
     f.setBold(true);
@@ -1159,6 +1176,7 @@ QWidget* Gui::buildEcuPage() {
     };
 
     addLegendItem("#1f7bd6", "Not scanned");
+    addLegendItem("#2e7dd1", "Scanning");
     addLegendItem("#20c55a", "Pass");
     addLegendItem("#ff8a00", "Fault");
     addLegendItem("#7e8794", "No response");
@@ -1224,7 +1242,12 @@ QWidget* Gui::buildEcuPage() {
                     alt = ecus_[i].altAddr;
                     name = ecus_[i].name;
                     sovdId = ecus_[i].sovdId;
+                    ecus_[i].statusMsg = "scanning module " + std::to_string(i + 1) +
+                                         "/" + std::to_string(count) + "...";
                 }
+
+                // Intentional pacing so the topology animation can show each ECU scan step.
+                std::this_thread::sleep_for(std::chrono::milliseconds(140));
 
                 uint16_t target = functional ? funcAddr : addr;
 
@@ -3543,7 +3566,8 @@ void Gui::refreshEcuTiles() {
         n.ecuIndex = i;
         n.bus = bus; n.col = col; n.below = below; n.gateway = gw;
         n.faults = (int)r.dtcs.size();
-        if (r.reachable == 0)      n.state = 3;   // no response
+        if (r.statusMsg.rfind("scanning module ", 0) == 0) n.state = 4; // scanning
+        else if (r.reachable == 0)      n.state = 3;   // no response
         else if (!r.dtcs.empty())  n.state = 2;   // fault
         else if (r.reachable == 1) n.state = 1;   // pass
         else                       n.state = 0;   // not scanned
