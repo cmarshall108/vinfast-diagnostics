@@ -18,6 +18,7 @@
 // does not respond. These bytes are hints, not confirmed DoIP addresses.
 // ===========================================================================
 const std::vector<VF8Ecu> kVF8Ecus = {
+    
     // Autel-scanned diagnostic systems (confirmed to respond to UDS).
     {"XGW",     "Extendable Gateway",                    0x1001, "EEP30009521-01", "SOW30050503-04", 0x0002},
     {"VCU",     "Vehicle Control Unit",                  0x1002, "",               "SOW30050205-30", 0x002C},
@@ -31,6 +32,7 @@ const std::vector<VF8Ecu> kVF8Ecus = {
     {"DDC",     "DC-DC Converter",                       0x100A, "EEP30005276-03", "SOW30050170-10"},
     {"MHU",     "Multimedia Headunit",                   0x100B, "EEP30005211-01", "SOW30051001-84", 0x0004},
     {"RLS",     "Rain / Light Sensor",                   0x100C, "",               ""},
+    
     // Engineering controllers (from on-vehicle ECUs Information screen).
     {"TBOX",    "Telematics Box",                        0x100D, "EEP30005211-01", "SOW30052001-53"},
     {"ACM",     "Airbag Control Module",                 0x100E, "EEP30010045-02", "SOW30010051-01"},
@@ -62,117 +64,150 @@ const std::vector<VF8RefSystem> kVF8ReferenceScan = {
     {"MCU", "Motor Control Unit", {
         {"U015587", "History", "Lost Communication With Instrument Panel Cluster (IPC) Control Module - Missing message"},
         {"U042381", "History", "Invalid Data Received From Instrument Panel Cluster (IPC) Control Module - Invalid serial data received"},
-        {"U160E81", "History", "Lost communication with a multimedia peripheral - Invalid serial data received (best guess)"},
+        {"U160E81", "History", "Lost communication with a multimedia peripheral - Invalid serial data received"},
         {"U110887", "Current", "Airbag Control Module (ACM) ECU message missing"},
     }},
     {"BCM", "Body Control Module", {
-        {"U110116", "History", "Power-supply (KL30/KL15) voltage monitoring fault - Circuit voltage below threshold (best guess)"},
+        {"U110116", "History", "Power-supply (KL30/KL15) voltage monitoring fault - Circuit voltage below threshold"},
         {"U110887", "Current", "Lost communication with Airbag Control Module"},
         {"U014687", "History", "Lost Communication With Gateway A - Missing message"},
-        {"U119188", "Current", "Lost communication with a body / comfort module - Bus off (best guess)"},
-        {"U020C87", "Current", "Lost communication with battery-energy control module - Missing message (best guess)"},
+        {"U119188", "Current", "Lost communication with a body / comfort module - Bus off"},
+        {"U020C87", "Current", "Lost communication with battery-energy control module - Missing message"},
         {"B101413", "History", "Right reverse lamp circuit: current below threshold / open load"},
         {"B101513", "History", "Left stop lamp circuit: current below threshold / open load"},
         {"B101613", "History", "Right stop lamp circuit: current below threshold / open load"},
-        {"B10B871", "History", "Body-control output circuit fault - Actuator stuck (best guess)"},
-        {"B10EC00", "History", "Body-control module internal fault - No sub-type information (best guess)"},
+        {"B10B871", "History", "Body-control output circuit fault - Actuator stuck"},
+        {"B10EC00", "History", "Body-control module internal fault - No sub-type information"},
         {"U041682", "History", "Invalid Data Received From Vehicle Dynamics Control Module - Alive / sequence counter incorrect or not updated"},
-        {"U045D82", "History", "Invalid data received from a chassis control module - Alive / sequence counter incorrect or not updated (best guess)"},
-        {"U047781", "History", "Invalid data received from a driver-assistance module - Invalid serial data received (best guess)"},
-        {"U01B081", "Current", "Lost communication on a private CAN sub-bus - Invalid serial data received (best guess)"},
-        {"P058D09", "Current", "Battery / charging-system voltage sensor fault - Component failure (best guess)"},
+        {"U045D82", "History", "Invalid data received from a chassis control module - Alive / sequence counter incorrect or not updated"},
+        {"U047781", "History", "Invalid data received from a driver-assistance module - Invalid serial data received"},
+        {"U01B081", "Current", "Lost communication on a private CAN sub-bus - Invalid serial data received"},
+        {"P058D09", "Current", "Battery / charging-system voltage sensor fault - Component failure"},
     }},
     {"BMS", "Battery Management System", {
-        {"U110116", "History", "Power-supply (KL30/KL15) voltage monitoring fault - Circuit voltage below threshold (best guess)"},
-        {"P180000", "Current", "Battery-management internal / control fault - No sub-type information (best guess)"},
-        {"P124100", "Current", "HV battery contactor / pre-charge fault - No sub-type information (best guess)"},
-        {"P183401", "Current", "Battery isolation / HV interlock fault - General electrical failure (best guess)"},
-        {"P18D000", "History", "Battery cell / balancing fault - No sub-type information (best guess)"},
-        {"P124003", "Current", "HV battery contactor / pre-charge fault - Frequency modulation / pulse width modulation failure (best guess)"},
-        {"P0A9500", "Current", "High-voltage system / HV fuse fault - No sub-type information (best guess)"},
+        {"U110116", "History", "Power-supply (KL30/KL15) voltage monitoring fault - Circuit voltage below threshold"},
+        {"P180000", "Current", "Battery-management internal / control fault - No sub-type information"},
+        {"P124100", "Current", "HV battery contactor / pre-charge fault - No sub-type information"},
+        {"P183401", "Current", "Battery isolation / HV interlock fault - General electrical failure"},
+        {"P18D000", "History", "Battery cell / balancing fault - No sub-type information"},
+        {"P124003", "Current", "HV battery contactor / pre-charge fault - Frequency modulation / pulse width modulation failure"},
+        {"P0A9500", "Current", "High-voltage system / HV fuse fault - No sub-type information"},
         {"U014687", "Current", "Lost Communication With Gateway A - Missing message"},
-        {"U110117", "History", "Power-supply (KL30/KL15) voltage monitoring fault - Circuit voltage above threshold (best guess)"},
-        {"P0ABF86", "History", "Hybrid/EV battery current-sensor circuit fault - Signal invalid / signal protection calculation failure (best guess)"},
+        {"U110117", "History", "Power-supply (KL30/KL15) voltage monitoring fault - Circuit voltage above threshold"},
+        {"P0ABF86", "History", "Hybrid/EV battery current-sensor circuit fault - Signal invalid / signal protection calculation failure"},
         {"U012587", "History", "Lost Communication With Multi-axis Acceleration Sensor Module - Missing message"},
     }},
     {"VCU", "Vehicle Control Unit", {
-        {"U125517", "History", "Vehicle configuration / coding mismatch - Circuit voltage above threshold (best guess)"},
-        {"U125516", "History", "Vehicle configuration / coding mismatch - Circuit voltage below threshold (best guess)"},
-        {"U092300", "Current", "Invalid data received from interior / roof control module - No sub-type information (best guess)"},
-        {"P101716", "History", "Drive-motor / inverter torque monitoring fault - Circuit voltage below threshold (best guess)"},
-        {"U117188", "History", "Chassis CAN communication bus fault - Bus off (best guess)"},
-        {"P112900", "History", "Powertrain torque-control performance fault - No sub-type information (best guess)"},
-        {"P113700", "Current", "Drive-motor performance fault - No sub-type information (best guess)"},
-        {"P103300", "History", "HV contactor / pre-charge fault - No sub-type information (best guess)"},
-        {"P115000", "History", "High-voltage system performance fault - No sub-type information (best guess)"},
-        {"P115100", "History", "High-voltage system performance fault - No sub-type information (best guess)"},
-        {"P118800", "History", "Powertrain coolant / thermal-management fault - No sub-type information (best guess)"},
-        {"U110116", "History", "Power-supply (KL30/KL15) voltage monitoring fault - Circuit voltage below threshold (best guess)"},
-        {"P105D38", "History", "Powertrain internal control fault - Frequency / pulse width out of range (best guess)"},
-        {"P106B29", "History", "Powertrain internal control fault - Signal invalid (best guess)"},
+        {"U125517", "History", "Vehicle configuration / coding mismatch - Circuit voltage above threshold"},
+        {"U125516", "History", "Vehicle configuration / coding mismatch - Circuit voltage below threshold"},
+        {"U092300", "Current", "Invalid data received from interior / roof control module - No sub-type information"},
+        {"P101716", "History", "Drive-motor / inverter torque monitoring fault - Circuit voltage below threshold"},
+        {"U117188", "History", "Chassis CAN communication bus fault - Bus off"},
+        {"P112900", "History", "Powertrain torque-control performance fault - No sub-type information"},
+        {"P113700", "Current", "Drive-motor performance fault - No sub-type information"},
+        {"P103300", "History", "HV contactor / pre-charge fault - No sub-type information"},
+        {"P115000", "History", "High-voltage system performance fault - No sub-type information"},
+        {"P115100", "History", "High-voltage system performance fault - No sub-type information"},
+        {"P118800", "History", "Powertrain coolant / thermal-management fault - No sub-type information"},
+        {"U110116", "History", "Power-supply (KL30/KL15) voltage monitoring fault - Circuit voltage below threshold"},
+        {"P105D38", "History", "Powertrain internal control fault - Frequency / pulse width out of range"},
+        {"P106B29", "History", "Powertrain internal control fault - Signal invalid"},
     }},
     {"ESC", "Electronic Stability Control", {
-        {"U015687", "History", "Lost communication with display / information-center module - Missing message (best guess)"},
-        {"C059496", "History", "Electronic stability control performance fault - Component internal failure (best guess)"},
+        {"U015687", "History", "Lost communication with display / information-center module - Missing message"},
+        {"C059496", "History", "Electronic stability control performance fault - Component internal failure"},
         {"U041681", "Current", "Invalid Data Received From Vehicle Dynamics Control Module - Invalid serial data received"},
-        {"U110887", "Current", "Lost communication with Airbag Control Module (ACM) - Missing message (best guess)"},
+        {"U110887", "Current", "Lost communication with Airbag Control Module (ACM) - Missing message"},
     }},
     {"EPS", "Electric Power Steering", {
         {"U110116", "History", "Power supply - circuit voltage below threshold"},
     }},
     {"ADAS", "Advanced Driver Assistance System", {
-        {"U113187", "History", "Lost communication with front corner radar (right) - Missing message (best guess)"}, {"U30031C", "History", "Battery / power-supply voltage out of range - Circuit voltage out of range (best guess)"}, {"U113387", "History", "Lost communication with rear corner radar - Missing message (best guess)"},
-        {"U113087", "History", "Lost communication with front radar sensor - Missing message (best guess)"}, {"U113287", "History", "Lost communication with front corner radar (left) - Missing message (best guess)"}, {"U112987", "History", "Lost communication with a driver-assistance sensor - Missing message (best guess)"},
-        {"U111189", "Current", "Lost communication with a radar / camera sensor - Signal invalid / invalid serial data (best guess)"}, {"U113081", "History", "Lost communication with front radar sensor - Invalid serial data received (best guess)"}, {"U116589", "Current", "Lost communication with a driver-assistance sensor - Signal invalid / invalid serial data (best guess)"},
-        {"U111489", "History", "Lost communication with a radar / camera sensor - Signal invalid / invalid serial data (best guess)"}, {"U118289", "History", "Lost communication with a driver-assistance module - Signal invalid / invalid serial data (best guess)"}, {"U113381", "History", "Lost communication with rear corner radar - Invalid serial data received (best guess)"},
-        {"U118789", "Current", "Lost communication with a driver-assistance module - Signal invalid / invalid serial data (best guess)"}, {"U114081", "Current", "Lost communication with surround-view camera - Invalid serial data received (best guess)"}, {"U114289", "History", "Lost communication with surround-view camera - Signal invalid / invalid serial data (best guess)"},
-        {"U119689", "Current", "Lost communication with a driver-assistance module - Signal invalid / invalid serial data (best guess)"}, {"B193504", "History", "Driver-assistance radar / camera fault - System internal failure (best guess)"}, {"B193104", "History", "Driver-assistance radar / camera fault - System internal failure (best guess)"},
-        {"B193704", "History", "Driver-assistance radar / camera fault - System internal failure (best guess)"}, {"B19084A", "History", "Driver-assistance radar alignment / blockage - Incorrect component installed (best guess)"}, {"B193304", "History", "Driver-assistance radar / camera fault - System internal failure (best guess)"},
-        {"B193404", "History", "Driver-assistance radar / camera fault - System internal failure (best guess)"}, {"B193204", "History", "Driver-assistance radar / camera fault - System internal failure (best guess)"}, {"B194004", "History", "Driver-assistance radar / camera fault - System internal failure (best guess)"},
-        {"B193904", "Current", "Driver-assistance radar / camera fault - System internal failure (best guess)"}, {"B194204", "History", "Driver-assistance radar / camera fault - System internal failure (best guess)"}, {"B194104", "History", "Driver-assistance radar / camera fault - System internal failure (best guess)"},
-        {"U119387", "History", "Lost communication with a driver-assistance module - Missing message (best guess)"}, {"U119287", "History", "Lost communication with a driver-assistance module - Missing message (best guess)"}, {"U113681", "History", "Lost communication with a driver-assistance sensor - Invalid serial data received (best guess)"},
+        {"U113187", "History", "Lost communication with front corner radar (right) - Missing message"},
+        {"U30031C", "History", "Battery / power-supply voltage out of range - Circuit voltage out of range"},
+        {"U113387", "History", "Lost communication with rear corner radar - Missing message"},
+        {"U113087", "History", "Lost communication with front radar sensor - Missing message"},
+        {"U113287", "History", "Lost communication with front corner radar (left) - Missing message"},
+        {"U112987", "History", "Lost communication with a driver-assistance sensor - Missing message"},
+        {"U111189", "Current", "Lost communication with a radar / camera sensor - Signal invalid / invalid serial data"},
+        {"U113081", "History", "Lost communication with front radar sensor - Invalid serial data received"},
+        {"U116589", "Current", "Lost communication with a driver-assistance sensor - Signal invalid / invalid serial data"},
+        {"U111489", "History", "Lost communication with a radar / camera sensor - Signal invalid / invalid serial data"},
+        {"U118289", "History", "Lost communication with a driver-assistance module - Signal invalid / invalid serial data"},
+        {"U113381", "History", "Lost communication with rear corner radar - Invalid serial data received"},
+        {"U118789", "Current", "Lost communication with a driver-assistance module - Signal invalid / invalid serial data"},
+        {"U114081", "Current", "Lost communication with surround-view camera - Invalid serial data received"},
+        {"U114289", "History", "Lost communication with surround-view camera - Signal invalid / invalid serial data"},
+        {"U119689", "Current", "Lost communication with a driver-assistance module - Signal invalid / invalid serial data"},
+        {"B193504", "History", "Driver-assistance radar / camera fault - System internal failure"},
+        {"B193104", "History", "Driver-assistance radar / camera fault - System internal failure"},
+        {"B193704", "History", "Driver-assistance radar / camera fault - System internal failure"},
+        {"B19084A", "History", "Driver-assistance radar alignment / blockage - Incorrect component installed"},
+        {"B193304", "History", "Driver-assistance radar / camera fault - System internal failure"},
+        {"B193404", "History", "Driver-assistance radar / camera fault - System internal failure"},
+        {"B193204", "History", "Driver-assistance radar / camera fault - System internal failure"},
+        {"B194004", "History", "Driver-assistance radar / camera fault - System internal failure"},
+        {"B193904", "Current", "Driver-assistance radar / camera fault - System internal failure"},
+        {"B194204", "History", "Driver-assistance radar / camera fault - System internal failure"},
+        {"B194104", "History", "Driver-assistance radar / camera fault - System internal failure"},
+        {"U119387", "History", "Lost communication with a driver-assistance module - Missing message"},
+        {"U119287", "History", "Lost communication with a driver-assistance module - Missing message"},
+        {"U113681", "History", "Lost communication with a driver-assistance sensor - Invalid serial data received"},
     }},
     {"CCU", "Climate Control Unit", {
-        {"B170E54", "Current", "Climate-control actuator / sensor fault - Missing calibration (best guess)"},
+        {"B170E54", "Current", "Climate-control actuator / sensor fault - Missing calibration"},
         {"U110887", "Current", "Lost communication with Airbag Control Module"},
     }},
     {"DDC", "DC-DC Converter", {
-        {"C150C1C", "History", "DC-DC converter output fault - Circuit voltage out of range (best guess)"}, {"U113787", "History", "Lost communication with a networked control module - Missing message (best guess)"}, {"U113887", "History", "Lost communication with a networked control module - Missing message (best guess)"},
-        {"U124329", "History", "Lost communication / configuration with DC-DC peripheral - Signal invalid (best guess)"}, {"C153700", "History", "DC-DC converter / chassis sensor fault - No sub-type information (best guess)"}, {"C153600", "History", "DC-DC converter / chassis sensor fault - No sub-type information (best guess)"},
-        {"U113987", "History", "Lost communication with a networked control module - Missing message (best guess)"}, {"U114087", "History", "Lost communication with surround-view camera - Missing message (best guess)"}, {"U114187", "History", "Lost communication with surround-view camera - Missing message (best guess)"},
-        {"U111589", "History", "Lost communication with a networked control module - Signal invalid / invalid serial data (best guess)"}, {"U112081", "History", "Lost communication with a networked control module - Invalid serial data received (best guess)"}, {"U112389", "History", "Lost communication with a networked control module - Signal invalid / invalid serial data (best guess)"},
-        {"U112681", "History", "Lost communication with a networked control module - Invalid serial data received (best guess)"}, {"U113081", "History", "Lost communication with front radar sensor - Invalid serial data received (best guess)"}, {"U113381", "History", "Lost communication with rear corner radar - Invalid serial data received (best guess)"},
-        {"U114081", "Current", "Lost communication with surround-view camera - Invalid serial data received (best guess)"}, {"U114881", "History", "Lost communication with a driver-assistance module - Invalid serial data received (best guess)"}, {"U118789", "Current", "Lost communication with a driver-assistance module - Signal invalid / invalid serial data (best guess)"},
-        {"U119389", "History", "Lost communication with a driver-assistance module - Signal invalid / invalid serial data (best guess)"}, {"U113581", "History", "Lost communication with a networked control module - Invalid serial data received (best guess)"}, {"U119689", "Current", "Lost communication with a driver-assistance module - Signal invalid / invalid serial data (best guess)"},
+        {"C150C1C", "History", "DC-DC converter output fault - Circuit voltage out of range"},
+        {"U113787", "History", "Lost communication with a networked control module - Missing message"},
+        {"U113887", "History", "Lost communication with a networked control module - Missing message"},
+        {"U124329", "History", "Lost communication / configuration with DC-DC peripheral - Signal invalid"},
+        {"C153700", "History", "DC-DC converter / chassis sensor fault - No sub-type information"},
+        {"C153600", "History", "DC-DC converter / chassis sensor fault - No sub-type information"},
+        {"U113987", "History", "Lost communication with a networked control module - Missing message"},
+        {"U114087", "History", "Lost communication with surround-view camera - Missing message"},
+        {"U114187", "History", "Lost communication with surround-view camera - Missing message"},
+        {"U111589", "History", "Lost communication with a networked control module - Signal invalid / invalid serial data"},
+        {"U112081", "History", "Lost communication with a networked control module - Invalid serial data received"},
+        {"U112389", "History", "Lost communication with a networked control module - Signal invalid / invalid serial data"},
+        {"U112681", "History", "Lost communication with a networked control module - Invalid serial data received"},
+        {"U113081", "History", "Lost communication with front radar sensor - Invalid serial data received"},
+        {"U113381", "History", "Lost communication with rear corner radar - Invalid serial data received"},
+        {"U114081", "Current", "Lost communication with surround-view camera - Invalid serial data received"},
+        {"U114881", "History", "Lost communication with a driver-assistance module - Invalid serial data received"},
+        {"U118789", "Current", "Lost communication with a driver-assistance module - Signal invalid / invalid serial data"},
+        {"U119389", "History", "Lost communication with a driver-assistance module - Signal invalid / invalid serial data"},
+        {"U113581", "History", "Lost communication with a networked control module - Invalid serial data received"}, {"U119689", "Current", "Lost communication with a driver-assistance module - Signal invalid / invalid serial data"},
     }},
     {"MHU", "Multimedia Headunit", {
-        {"B161A03", "History", "Microphone / audio-input circuit fault - Frequency modulation / pulse width modulation failure (best guess)"},
+        {"B161A03", "History", "Microphone / audio-input circuit fault - Frequency modulation / pulse width modulation failure"},
         {"U300004", "History", "Control Module (internal fault / self test) - System internal failure"},
         {"U014687", "Current", "Lost Communication With Gateway A - Missing message"},
-        {"U015C87", "History", "Lost communication with a camera / sensor module - Missing message (best guess)"},
-        {"B160D14", "History", "Audio / amplifier output circuit fault - Circuit short to ground or open (best guess)"},
-        {"B160E14", "History", "Audio / amplifier output circuit fault - Circuit short to ground or open (best guess)"},
-        {"U110116", "History", "Power-supply (KL30/KL15) voltage monitoring fault - Circuit voltage below threshold (best guess)"},
-        {"B162004", "History", "Display / touchscreen interface fault - System internal failure (best guess)"},
-        {"B161B01", "History", "Microphone / audio-input circuit fault - General electrical failure (best guess)"},
-        {"B161A01", "Current", "Microphone / audio-input circuit fault - General electrical failure (best guess)"},
+        {"U015C87", "History", "Lost communication with a camera / sensor module - Missing message"},
+        {"B160D14", "History", "Audio / amplifier output circuit fault - Circuit short to ground or open"},
+        {"B160E14", "History", "Audio / amplifier output circuit fault - Circuit short to ground or open"},
+        {"U110116", "History", "Power-supply (KL30/KL15) voltage monitoring fault - Circuit voltage below threshold"},
+        {"B162004", "History", "Display / touchscreen interface fault - System internal failure"},
+        {"B161B01", "History", "Microphone / audio-input circuit fault - General electrical failure"},
+        {"B161A01", "Current", "Microphone / audio-input circuit fault - General electrical failure"},
     }},
     {"RLS", "Rain / Light Sensor", {
-        {"U100304", "Current", "Lost communication with body-control / gateway module - System internal failure (best guess)"},
-        {"U100404", "Current", "Lost communication with a networked control module - System internal failure (best guess)"},
-        {"U10041C", "Current", "Lost communication with a networked control module - Circuit voltage out of range (best guess)"},
-        {"U110116", "Current", "Power-supply (KL30/KL15) voltage monitoring fault - Circuit voltage below threshold (best guess)"},
+        {"U100304", "Current", "Lost communication with body-control / gateway module - System internal failure"},
+        {"U100404", "Current", "Lost communication with a networked control module - System internal failure"},
+        {"U10041C", "Current", "Lost communication with a networked control module - Circuit voltage out of range"},
+        {"U110116", "Current", "Power-supply (KL30/KL15) voltage monitoring fault - Circuit voltage below threshold"},
     }},
     {"XGW", "Extendable Gateway", {
-        {"B200101", "History", "Gateway / anti-theft system fault - General electrical failure (best guess)"},
-        {"B200001", "Current", "Gateway / anti-theft system fault - General electrical failure (best guess)"},
+        {"B200101", "History", "Gateway / anti-theft system fault - General electrical failure"},
+        {"B200001", "Current", "Gateway / anti-theft system fault - General electrical failure"},
         {"U117188", "History", "Chassis CAN - bus off"},
         {"U110887", "Current", "Lost communication with Airbag Control Module"},
-        {"U019E87", "History", "Lost communication with restraint / occupant module - Missing message (best guess)"},
+        {"U019E87", "History", "Lost communication with restraint / occupant module - Missing message"},
         {"U012287", "History", "Lost communication with vehicle dynamics control module"},
         {"U110116", "History", "Power supply circuit voltage below threshold"},
-        {"B2001A2", "History", "Gateway / anti-theft system fault - Voltage / temperature signal erratic (best guess)"},
-        {"B2000A2", "History", "Gateway / anti-theft system fault - Voltage / temperature signal erratic (best guess)"},
+        {"B2001A2", "History", "Gateway / anti-theft system fault - Voltage / temperature signal erratic"},
+        {"B2000A2", "History", "Gateway / anti-theft system fault - Voltage / temperature signal erratic"},
     }},
 };
 
@@ -257,12 +292,8 @@ const char* vf8SaeBaseDtc(const std::string& base5) {
     return it != t.end() ? it->second : nullptr;
 }
 
-const char* vf8BestGuessBaseDtc(const std::string& base5) {
-    // BEST-GUESS interpretations of the manufacturer-specific base codes that
-    // appear in this vehicle's scan. Inferred from (a) the controlling ECU,
-    // (b) the SAE letter prefix (U=network, P=powertrain/HV, C=chassis,
-    // B=body), and (c) DTC numbering conventions. These are informed estimates
-    // - NOT official VinFast definitions - but they are far more useful than a
+const char* vf8Dtc(const std::string& base5) {
+    // NOT all are official VinFast definitions - but they are far more useful than a
     // bare failure-type byte. Several are corroborated by the Autel report
     // (e.g. U1108 = ACM lost comm, U1171 = chassis CAN bus-off, B1014/15/16 =
     // reverse/stop lamp circuits).
@@ -313,6 +344,7 @@ const char* vf8BestGuessBaseDtc(const std::string& base5) {
         {"U1255", "Vehicle configuration / coding mismatch"},
         {"U160E", "Lost communication with a multimedia peripheral"},
         {"U3003", "Battery / power-supply voltage out of range"},
+        
         // ---- P: powertrain / high-voltage --------------------------------
         {"P058D", "Battery / charging-system voltage sensor fault"},
         {"P0A95", "High-voltage system / HV fuse fault"},
@@ -332,11 +364,13 @@ const char* vf8BestGuessBaseDtc(const std::string& base5) {
         {"P1800", "Battery-management internal / control fault"},
         {"P1834", "Battery isolation / HV interlock fault"},
         {"P18D0", "Battery cell / balancing fault"},
+       
         // ---- C: chassis ---------------------------------------------------
         {"C0594", "Electronic stability control performance fault"},
         {"C150C", "DC-DC converter output fault"},
         {"C1536", "DC-DC converter / chassis sensor fault"},
         {"C1537", "DC-DC converter / chassis sensor fault"},
+        
         // ---- B: body ------------------------------------------------------
         {"B1014", "Right reverse-lamp circuit fault"},
         {"B1015", "Left stop-lamp circuit fault"},
@@ -383,9 +417,8 @@ std::string vf8DtcDescribe(const std::string& autelCode) {
     if (const char* base_desc = vf8SaeBaseDtc(base))
         return std::string(base_desc) + " - " + ftbText;
 
-    // 3) Best-guess manufacturer base description combined with the failure type.
-    if (const char* guess = vf8BestGuessBaseDtc(base))
-        return std::string(guess) + " - " + ftbText + " (best guess)";
+    if (const char* vf8_dtc = vf8Dtc(base))
+        return std::string(vf8_dtc) + " - " + ftbText + "";
 
     // 4) Unknown base: report the standardized failure type only.
     return ftbText;
