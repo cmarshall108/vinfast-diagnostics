@@ -270,6 +270,7 @@ const char* vf8BestGuessBaseDtc(const std::string& base5) {
         // ---- U: network / communication ----------------------------------
         {"U015C", "Lost communication with a camera / sensor module"},
         {"U0156", "Lost communication with display / information-center module"},
+        {"U0160", "Lost communication with Central Gateway (XGW)"},
         {"U019E", "Lost communication with restraint / occupant module"},
         {"U01B0", "Lost communication on a private CAN sub-bus"},
         {"U020C", "Lost communication with battery-energy control module"},
@@ -318,6 +319,7 @@ const char* vf8BestGuessBaseDtc(const std::string& base5) {
         {"P0ABF", "Hybrid/EV battery current-sensor circuit fault"},
         {"P1017", "Drive-motor / inverter torque monitoring fault"},
         {"P1033", "HV contactor / pre-charge fault"},
+        {"P1110", "Coolant / thermal-management circuit fault"},
         {"P105D", "Powertrain internal control fault"},
         {"P106B", "Powertrain internal control fault"},
         {"P1129", "Powertrain torque-control performance fault"},
