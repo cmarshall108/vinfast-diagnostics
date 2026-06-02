@@ -1,0 +1,344 @@
+#!/usr/bin/env python3
+"""
+tests_j2534_can500k_scan.py - Load Toyota's Mini-VCI J2534 driver (mvci32.dll)
+and scan a CAN 500 kbit/s bus for any ECU responses.
+
+This is a self-contained, dependency-free probe used to confirm how a vehicle
+(e.g. a VinFast VF8 - whose diagnostics, like the VF6, run on ISO 15765-4 CAN
+@ 500k) communicates on the OBD-II port, using the same Toyota Mini-VCI cable
+the C++ app drives.
+
+It does two things at 500 kbit/s:
+  1. Passive sniff - opens a raw CAN channel and listens for any live bus
+     traffic (a modern EV constantly broadcasts, so this alone proves the bus
+     is CAN @ 500k).
+  2. Active OBD/UDS probe - opens an ISO 15765 channel and sends a functional
+     OBD-II "Mode 01 PID 00" request (and a UDS "tester present"), collecting
+     every responder.
+
+IMPORTANT: mvci32.dll is a 32-bit DLL. You MUST run this with a 32-bit Python
+interpreter on Windows; a 64-bit process cannot load it (WinError 193).
+
+Usage (Windows, 32-bit Python):
+    py -3-32 tests/tests_j2534_can500k_scan.py
+    py -3-32 tests/tests_j2534_can500k_scan.py --dll "C:\\Program Files (x86)\\XHorse Electronics\\MVCI Driver for TOYOTA TIS\\mvci32.dll"
+    py -3-32 tests/tests_j2534_can500k_scan.py --baud 500000 --listen 3.0
+"""
+
+import argparse
+import ctypes
+import os
+import sys
+import time
+from ctypes import (
+    c_char, c_char_p, c_long, c_ubyte, c_ulong, POINTER, Structure, byref,
+)
+
+# --- SAE J2534 v04.04 constants --------------------------------------------
+CAN = 5
+ISO15765 = 6
+
+CAN_29BIT_ID = 0x00000100
+ISO15765_FRAME_PAD = 0x00000040
+
+# RxStatus bits
+TX_MSG_TYPE = 0x00000001          # loopback echo of our own transmit
+ISO15765_FIRST_FRAME = 0x00000002  # ISO-TP first-frame indication
+
+# Filter types
+PASS_FILTER = 0x00000001
+FLOW_CONTROL_FILTER = 0x00000003
+
+# Return codes
+STATUS_NOERROR = 0x00
+ERR_TIMEOUT = 0x09
+ERR_BUFFER_EMPTY = 0x10
+
+MSG_DATA_SIZE = 4128
+
+# Common default install locations for the XHorse "MVCI Driver for TOYOTA TIS".
+DEFAULT_DLL_CANDIDATES = [
+    r"C:\Program Files (x86)\XHorse Electronics\MVCI Driver for TOYOTA TIS\mvci32.dll",
+    r"C:\Program Files\XHorse Electronics\MVCI Driver for TOYOTA TIS\mvci32.dll",
+    r"C:\Program Files (x86)\Toyota Diagnostics\MVCI\mvci32.dll",
+    r"C:\Program Files\Toyota Diagnostics\MVCI\mvci32.dll",
+]
+
+
+class PASSTHRU_MSG(Structure):
+    _pack_ = 1
+    _fields_ = [
+        ("ProtocolID", c_ulong),
+        ("RxStatus", c_ulong),
+        ("TxFlags", c_ulong),
+        ("Timestamp", c_ulong),
+        ("DataSize", c_ulong),
+        ("ExtraDataIndex", c_ulong),
+        ("Data", c_ubyte * MSG_DATA_SIZE),
+    ]
+
+
+def _bind(dll):
+    """Resolve and prototype the J2534 PassThru exports we need."""
+    fns = {}
+
+    def proto(name, restype, argtypes, required=True):
+        try:
+            fn = getattr(dll, name)
+        except AttributeError:
+            if required:
+                raise RuntimeError(f"mvci32.dll is missing required export '{name}'")
+            return None
+        fn.restype = restype
+        fn.argtypes = argtypes
+        fns[name] = fn
+        return fn
+
+    proto("PassThruOpen", c_long, [c_char_p, POINTER(c_ulong)])
+    proto("PassThruClose", c_long, [c_ulong])
+    proto("PassThruConnect", c_long,
+          [c_ulong, c_ulong, c_ulong, c_ulong, POINTER(c_ulong)])
+    proto("PassThruDisconnect", c_long, [c_ulong])
+    proto("PassThruReadMsgs", c_long,
+          [c_ulong, POINTER(PASSTHRU_MSG), POINTER(c_ulong), c_ulong])
+    proto("PassThruWriteMsgs", c_long,
+          [c_ulong, POINTER(PASSTHRU_MSG), POINTER(c_ulong), c_ulong])
+    proto("PassThruStartMsgFilter", c_long,
+          [c_ulong, c_ulong, POINTER(PASSTHRU_MSG), POINTER(PASSTHRU_MSG),
+           POINTER(PASSTHRU_MSG), POINTER(c_ulong)])
+    proto("PassThruStopMsgFilter", c_long, [c_ulong, c_ulong])
+    proto("PassThruReadVersion", c_long,
+          [c_ulong, c_char_p, c_char_p, c_char_p], required=False)
+    proto("PassThruGetLastError", c_long, [c_char_p], required=False)
+    return fns
+
+
+def _last_error(fns):
+    fn = fns.get("PassThruGetLastError")
+    if not fn:
+        return "unknown J2534 error"
+    buf = ctypes.create_string_buffer(128)
+    if fn(buf) == STATUS_NOERROR and buf.value:
+        return buf.value.decode(errors="replace")
+    return "unknown J2534 error"
+
+
+def _put_id(msg, can_id):
+    """Write a 4-byte big-endian CAN id into the front of a PASSTHRU_MSG."""
+    msg.Data[0] = (can_id >> 24) & 0xFF
+    msg.Data[1] = (can_id >> 16) & 0xFF
+    msg.Data[2] = (can_id >> 8) & 0xFF
+    msg.Data[3] = can_id & 0xFF
+
+
+def _hex(data, n):
+    return " ".join(f"{data[i]:02X}" for i in range(n))
+
+
+def resolve_dll(explicit):
+    if explicit:
+        return explicit if os.path.isfile(explicit) else None
+    for cand in DEFAULT_DLL_CANDIDATES:
+        if os.path.isfile(cand):
+            return cand
+    return None
+
+
+def passive_sniff(fns, device_id, baud, listen_s):
+    """Open raw CAN @ baud and report any live bus frames."""
+    print(f"\n[1] Passive raw-CAN sniff @ {baud} bps for {listen_s:.1f}s ...")
+    channel_id = c_ulong(0)
+    rc = fns["PassThruConnect"](device_id, CAN, 0, baud, byref(channel_id))
+    if rc != STATUS_NOERROR:
+        print(f"    link failed: VCI could not open raw CAN ({_last_error(fns)})")
+        return 0
+
+    # Pass-all filter so reads return every frame on the bus.
+    mask = PASSTHRU_MSG(ProtocolID=CAN, DataSize=4)
+    patt = PASSTHRU_MSG(ProtocolID=CAN, DataSize=4)
+    fid = c_ulong(0)
+    fns["PassThruStartMsgFilter"](channel_id, PASS_FILTER,
+                                  byref(mask), byref(patt), None, byref(fid))
+
+    seen = {}
+    deadline = time.time() + listen_s
+    while time.time() < deadline:
+        rx = PASSTHRU_MSG()
+        num = c_ulong(1)
+        rc = fns["PassThruReadMsgs"](channel_id, byref(rx), byref(num), 200)
+        if rc != STATUS_NOERROR or num.value == 0:
+            continue
+        if rx.RxStatus & TX_MSG_TYPE or rx.DataSize < 4:
+            continue
+        can_id = (rx.Data[0] << 24) | (rx.Data[1] << 16) | (rx.Data[2] << 8) | rx.Data[3]
+        if can_id not in seen:
+            payload = _hex(rx.Data, min(rx.DataSize, 12))
+            seen[can_id] = payload
+            print(f"    live frame  id=0x{can_id:X}  data={payload}")
+
+    fns["PassThruStopMsgFilter"](channel_id, fid)
+    fns["PassThruDisconnect"](channel_id)
+    if seen:
+        print(f"    -> {len(seen)} distinct CAN id(s) seen: bus IS active @ {baud}")
+    else:
+        print("    -> no bus activity (wrong baud, or VCI not connected to a live bus)")
+    return len(seen)
+
+
+def active_probe(fns, device_id, baud, req_id, resp_id, ext, requests):
+    """Open ISO 15765 @ baud and collect responders to UDS/OBD requests."""
+    width = "29-bit" if ext else "11-bit"
+    print(f"\n[2] Active ISO 15765-4 probe @ {baud} bps, {width}, "
+          f"req=0x{req_id:X} resp=0x{resp_id:X} ...")
+    flags = CAN_29BIT_ID if ext else 0
+    channel_id = c_ulong(0)
+    rc = fns["PassThruConnect"](device_id, ISO15765, flags, baud, byref(channel_id))
+    if rc != STATUS_NOERROR:
+        print(f"    link failed: VCI could not open ISO 15765 ({_last_error(fns)})")
+        return 0
+
+    txf = ISO15765_FRAME_PAD | (CAN_29BIT_ID if ext else 0)
+
+    def mk(can_id):
+        m = PASSTHRU_MSG(ProtocolID=ISO15765, TxFlags=txf, DataSize=4)
+        _put_id(m, can_id)
+        return m
+
+    mask, patt, flow = mk(0xFFFFFFFF), mk(resp_id), mk(req_id)
+    fid = c_ulong(0)
+    rc = fns["PassThruStartMsgFilter"](channel_id, FLOW_CONTROL_FILTER,
+                                       byref(mask), byref(patt), byref(flow), byref(fid))
+    if rc != STATUS_NOERROR:
+        print(f"    warning: flow-control filter failed ({_last_error(fns)}); "
+              "multi-frame responses may not assemble")
+
+    found = 0
+    for name, payload in requests:
+        tx = PASSTHRU_MSG(ProtocolID=ISO15765, TxFlags=txf)
+        _put_id(tx, req_id)
+        for i, b in enumerate(payload):
+            tx.Data[4 + i] = b
+        tx.DataSize = 4 + len(payload)
+
+        num = c_ulong(1)
+        rc = fns["PassThruWriteMsgs"](channel_id, byref(tx), byref(num), 1000)
+        if rc != STATUS_NOERROR:
+            print(f"    {name}: transmit failed ({_last_error(fns)})")
+            continue
+
+        got_any = False
+        deadline = time.time() + 1.0
+        while time.time() < deadline:
+            rx = PASSTHRU_MSG()
+            n = c_ulong(1)
+            rc = fns["PassThruReadMsgs"](channel_id, byref(rx), byref(n), 200)
+            if rc != STATUS_NOERROR or n.value == 0:
+                continue
+            if rx.RxStatus & TX_MSG_TYPE or rx.RxStatus & ISO15765_FIRST_FRAME:
+                continue
+            if rx.DataSize <= 4:
+                continue
+            src = (rx.Data[0] << 24) | (rx.Data[1] << 16) | (rx.Data[2] << 8) | rx.Data[3]
+            uds = _hex((ctypes.c_ubyte * (rx.DataSize - 4))(
+                *rx.Data[4:rx.DataSize]), rx.DataSize - 4)
+            print(f"    {name}: RESPONSE from 0x{src:X} -> {uds}")
+            found += 1
+            got_any = True
+            break
+        if not got_any:
+            print(f"    {name}: no response")
+
+    fns["PassThruStopMsgFilter"](channel_id, fid)
+    fns["PassThruDisconnect"](channel_id)
+    return found
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description="Load Toyota's Mini-VCI mvci32.dll and scan CAN 500k for responses.")
+    ap.add_argument("--dll", help="Full path to mvci32.dll "
+                    "(default: auto-detect under Program Files Toyota/XHorse).")
+    ap.add_argument("--baud", type=int, default=500000, help="CAN bit rate (default 500000).")
+    ap.add_argument("--req", type=lambda x: int(x, 0), default=0x7DF,
+                    help="ISO 15765 functional request id (default 0x7DF).")
+    ap.add_argument("--resp", type=lambda x: int(x, 0), default=0x7E8,
+                    help="Expected response id for the flow-control filter (default 0x7E8).")
+    ap.add_argument("--ext", action="store_true", help="Use 29-bit CAN identifiers.")
+    ap.add_argument("--listen", type=float, default=3.0,
+                    help="Passive sniff duration in seconds (default 3.0).")
+    args = ap.parse_args()
+
+    if sys.platform != "win32":
+        print("ERROR: J2534 / mvci32.dll is Windows-only. Run this on Windows "
+              "with a 32-bit Python interpreter.")
+        return 2
+    if ctypes.sizeof(ctypes.c_void_p) != 4:
+        print("ERROR: mvci32.dll is 32-bit; a 64-bit Python process cannot load it.\n"
+              "       Re-run with 32-bit Python, e.g.:  py -3-32 "
+              + os.path.basename(__file__))
+        return 2
+
+    dll_path = resolve_dll(args.dll)
+    if not dll_path:
+        print("ERROR: could not find mvci32.dll. Pass it explicitly with --dll, e.g.:\n"
+              '       --dll "C:\\Program Files (x86)\\XHorse Electronics\\'
+              'MVCI Driver for TOYOTA TIS\\mvci32.dll"')
+        return 2
+
+    print(f"Loading Toyota Mini-VCI driver: {dll_path}")
+    try:
+        dll = ctypes.WinDLL(dll_path)
+    except OSError as e:
+        print(f"ERROR: failed to load mvci32.dll: {e}")
+        return 2
+
+    try:
+        fns = _bind(dll)
+    except RuntimeError as e:
+        print(f"ERROR: {e}")
+        return 2
+
+    device_id = c_ulong(0)
+    rc = fns["PassThruOpen"](None, byref(device_id))
+    if rc != STATUS_NOERROR:
+        print(f"ERROR: PassThruOpen failed ({_last_error(fns)}); is the Mini-VCI plugged in?")
+        return 1
+    print(f"PassThruOpen OK (device id {device_id.value}).")
+
+    rv = fns.get("PassThruReadVersion")
+    if rv:
+        fw = ctypes.create_string_buffer(80)
+        dl = ctypes.create_string_buffer(80)
+        api = ctypes.create_string_buffer(80)
+        if rv(device_id, fw, dl, api) == STATUS_NOERROR:
+            print(f"  Firmware: {fw.value.decode(errors='replace')}  "
+                  f"DLL: {dl.value.decode(errors='replace')}  "
+                  f"J2534: {api.value.decode(errors='replace')}")
+
+    try:
+        hits = passive_sniff(fns, device_id, args.baud, args.listen)
+
+        # Functional OBD-II Mode 01 PID 00 (supported PIDs) + UDS tester-present.
+        requests = [
+            ("OBD Mode01 PID00", [0x01, 0x00]),
+            ("UDS TesterPresent", [0x3E, 0x00]),
+            ("UDS DiagSessionDefault", [0x10, 0x01]),
+        ]
+        resp = active_probe(fns, device_id, args.baud, args.req, args.resp,
+                            args.ext, requests)
+
+        print("\n=== Summary ===")
+        print(f"  Passive: {hits} distinct CAN id(s) @ {args.baud} bps")
+        print(f"  Active : {resp} ISO 15765 response(s)")
+        if hits or resp:
+            print(f"  RESULT : vehicle communicates over CAN @ {args.baud} bps.")
+        else:
+            print("  RESULT : no responses. Try --baud 250000, --ext, or check the cable.")
+    finally:
+        fns["PassThruClose"](device_id)
+        print("\nPassThruClose OK. Done.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
