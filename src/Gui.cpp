@@ -127,6 +127,51 @@ uint16_t Gui::parseHex16(const QString& s, uint16_t def) {
     return ok ? (uint16_t)v : def;
 }
 
+static std::string trimCopy(const std::string& s) {
+    size_t b = 0;
+    while (b < s.size() && std::isspace((unsigned char)s[b])) ++b;
+    size_t e = s.size();
+    while (e > b && std::isspace((unsigned char)s[e - 1])) --e;
+    return s.substr(b, e - b);
+}
+
+static std::string extractDidValue(const std::string& idInfo, const char* label) {
+    const std::string key = std::string(label) + " (";
+    size_t pos = 0;
+    while (pos < idInfo.size()) {
+        size_t nl = idInfo.find('\n', pos);
+        if (nl == std::string::npos) nl = idInfo.size();
+        std::string line = trimCopy(idInfo.substr(pos, nl - pos));
+        if (!line.empty() && line.rfind(key, 0) == 0) {
+            size_t c = line.find(':');
+            if (c != std::string::npos) return trimCopy(line.substr(c + 1));
+        }
+        pos = nl + 1;
+    }
+    return "";
+}
+
+static std::string extractScannedVin(const std::string& idInfo) {
+    std::string v = extractDidValue(idInfo, "VIN");
+    if (!v.empty()) return v;
+    const std::string key = "VIN/F190:";
+    size_t p = idInfo.find(key);
+    if (p == std::string::npos) return "";
+    return trimCopy(idInfo.substr(p + key.size()));
+}
+
+static std::string decodeVinModelYear(const std::string& vin) {
+    if (vin.size() < 10) return "";
+    static const char* code = "123456789ABCDEFGHJKLMNPRSTVWXY";
+    char c = (char)std::toupper((unsigned char)vin[9]);
+    const char* p = std::strchr(code, c);
+    if (!p) return "";
+    int year = 2001 + (int)(p - code);
+    char out[8];
+    std::snprintf(out, sizeof out, "%d", year);
+    return out;
+}
+
 // ==========================================================================
 // Engineering-menu TOTP candidate generation
 //
@@ -472,9 +517,9 @@ void EcuTopologyView::paintEvent(QPaintEvent*) {
     p.setRenderHint(QPainter::Antialiasing, true);
 
     QLinearGradient bg(0, 0, width(), height());
-    bg.setColorAt(0.0, QColor(0x0f, 0x24, 0x39));
-    bg.setColorAt(0.5, QColor(0x0d, 0x1d, 0x31));
-    bg.setColorAt(1.0, QColor(0x0b, 0x17, 0x28));
+    bg.setColorAt(0.0, QColor(0xff, 0xff, 0xff));
+    bg.setColorAt(0.5, QColor(0xfd, 0xff, 0xff));
+    bg.setColorAt(1.0, QColor(0xf8, 0xfb, 0xff));
     p.fillRect(rect(), bg);
 
     const int contentRight = width() - 56;
@@ -525,15 +570,15 @@ void EcuTopologyView::paintEvent(QPaintEvent*) {
                         ob.top() + (ob.height() - scaled.height()) / 2);
         p.drawPixmap(at, scaled);
     } else {
-        p.setPen(QPen(QColor(0xe6, 0xee, 0xf7), 2));
-        p.setBrush(QColor(0x14, 0x22, 0x33));
+        p.setPen(QPen(QColor(0x4a, 0x5f, 0x78), 2));
+        p.setBrush(QColor(0xe8, 0xf0, 0xf9));
         p.drawRoundedRect(ob, 6, 6);
         p.setPen(Qt::NoPen);
-        p.setBrush(QColor(0xcf, 0xdc, 0xea));
+        p.setBrush(QColor(0x5f, 0x75, 0x8f));
         for (int i = 0; i < 4; ++i) p.drawRect(ob.left() + 8 + i * 8, ob.top() + 12, 4, 8);
         for (int i = 0; i < 3; ++i) p.drawRect(ob.left() + 12 + i * 8, ob.top() + 30, 4, 8);
     }
-    p.setPen(QColor(0xe6, 0xee, 0xf7));
+    p.setPen(QColor(0x3a, 0x4e, 0x66));
     QFont lf = p.font(); lf.setPointSize(10); lf.setBold(true); p.setFont(lf);
     p.drawText(QRect(ob.left() - 2, ob.top() - 20, 70, 16),
                Qt::AlignLeft | Qt::AlignVCenter, "OBD");
@@ -633,13 +678,13 @@ QWidget* Gui::buildHeader() {
 
     auto* title = new QLabel("VinFast VF8");
     title->setObjectName("title");
-    auto* vin = new QLabel(QString("VIN %1   ·   %2")
-                               .arg(vf8::kVin).arg(vf8::kFirmware));
-    vin->setObjectName("subtitle");
+    hdrSubtitle_ = new QLabel(QString("VIN %1   ·   %2")
+                                  .arg(vf8::kVin).arg(vf8::kFirmware));
+    hdrSubtitle_->setObjectName("subtitle");
     auto* titleCol = new QVBoxLayout();
     titleCol->setSpacing(0);
     titleCol->addWidget(title);
-    titleCol->addWidget(vin);
+    titleCol->addWidget(hdrSubtitle_);
     lay->addLayout(titleCol);
 
     lay->addStretch(1);
@@ -703,11 +748,22 @@ QWidget* Gui::buildDashboardPage() {
 
     auto* info = card("Vehicle");
     auto* form = new QFormLayout(info);
-    form->addRow("Model",     new QLabel(QString("%1 (%2)").arg(vf8::kModel).arg(vf8::kModelYear)));
-    form->addRow("VIN",       new QLabel(vf8::kVin));
-    form->addRow("Market",    new QLabel(QString("%1   ·   %2").arg(vf8::kMarket).arg(vf8::kVariant)));
-    form->addRow("MHU SW",    new QLabel(vf8::kMhuSoftware));
-    form->addRow("TBOX",      new QLabel(vf8::kTboxProject));
+    dashModel_ = new QLabel("-");
+    dashVin_ = new QLabel("-");
+    dashMarket_ = new QLabel("-");
+    dashMhuSw_ = new QLabel("-");
+    dashTbox_ = new QLabel("-");
+    dashModules_ = new QLabel("-");
+    dashVin_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    dashMhuSw_->setWordWrap(true);
+    dashTbox_->setWordWrap(true);
+    dashModules_->setWordWrap(false);
+    form->addRow("Model", dashModel_);
+    form->addRow("VIN", dashVin_);
+    form->addRow("Market", dashMarket_);
+    form->addRow("MHU SW", dashMhuSw_);
+    form->addRow("TBOX", dashTbox_);
+    form->addRow("Modules", dashModules_);
     lay->addWidget(info);
 
     auto* quick = card("Quick actions");
@@ -3314,8 +3370,7 @@ void Gui::applyStyle() {
         QPushButton#danger { background: #b23a4a; border: none; color: #fff; }
         QPushButton#danger:hover { background: #c8485a; }
         QFrame#ecuCanvas {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                        stop:0 #f9fcff, stop:0.5 #edf5fc, stop:1 #e4eef8);
+            background: #ffffff;
             border: 1px solid #c7d8ea;
             border-radius: 12px;
         }
@@ -3347,6 +3402,7 @@ void Gui::applyStyle() {
 // ==========================================================================
 void Gui::onTick() {
     refreshHeader();
+    refreshDashboard();
     if (pages_->currentIndex() == 2) refreshEcuTiles();
     if (pages_->currentIndex() == 3) refreshLive();
     if (pages_->currentIndex() == 4) refreshServiceResults();
@@ -3374,9 +3430,92 @@ void Gui::refreshHeader() {
         connText_->setText(QString::fromStdString(connStatus_));
     }
     connectBtn_->setText(conn ? "Disconnect" : "Connect");
+
+    if (hdrSubtitle_) {
+        std::string vin = vf8::kVin;
+        int identified = 0;
+        int total = 0;
+        {
+            std::lock_guard<std::mutex> g(mutex_);
+            total = (int)ecus_.size();
+            for (const auto& r : ecus_) {
+                if (!r.idInfo.empty()) ++identified;
+                std::string cand = extractScannedVin(r.idInfo);
+                if (!cand.empty()) vin = cand;
+            }
+        }
+        hdrSubtitle_->setText(QString("VIN %1   ·   Modules %2/%3 identified")
+                                  .arg(QString::fromStdString(vin))
+                                  .arg(identified)
+                                  .arg(total));
+    }
+
     // re-polish so objectName-based colors update
     busyDot_->style()->unpolish(busyDot_); busyDot_->style()->polish(busyDot_);
     connDot_->style()->unpolish(connDot_); connDot_->style()->polish(connDot_);
+}
+
+void Gui::refreshDashboard() {
+    if (!dashModel_ || !dashVin_ || !dashMarket_ || !dashMhuSw_ || !dashTbox_ || !dashModules_)
+        return;
+
+    std::string vin = vf8::kVin;
+    std::string mhuSw;
+    std::string tboxSw;
+    int reachable = 0;
+    int identified = 0;
+    int faulted = 0;
+    int total = 0;
+
+    {
+        std::lock_guard<std::mutex> g(mutex_);
+        total = (int)ecus_.size();
+        for (const auto& r : ecus_) {
+            if (r.reachable == 1) ++reachable;
+            if (!r.dtcs.empty()) ++faulted;
+            if (!r.idInfo.empty()) {
+                ++identified;
+                std::string candVin = extractScannedVin(r.idInfo);
+                if (!candVin.empty()) vin = candVin;
+            }
+
+            std::string code = r.name;
+            size_t sep = code.find(" - ");
+            if (sep != std::string::npos) code = code.substr(0, sep);
+            if (mhuSw.empty() && code == "MHU") {
+                mhuSw = extractDidValue(r.idInfo, "SW Version Number");
+                if (mhuSw.empty()) mhuSw = extractDidValue(r.idInfo, "SW Version");
+                if (mhuSw.empty()) mhuSw = extractDidValue(r.idInfo, "ECU SW Version");
+                if (mhuSw.empty()) mhuSw = extractDidValue(r.idInfo, "System Supplier SW Version");
+            }
+            if (tboxSw.empty() && code == "TBOX") {
+                tboxSw = extractDidValue(r.idInfo, "SW Version Number");
+                if (tboxSw.empty()) tboxSw = extractDidValue(r.idInfo, "SW Version");
+                if (tboxSw.empty()) tboxSw = extractDidValue(r.idInfo, "ECU SW Version");
+                if (tboxSw.empty()) tboxSw = extractDidValue(r.idInfo, "System Supplier SW Version");
+            }
+        }
+    }
+
+    if (identified == 0) {
+        dashModel_->setText("-");
+        dashVin_->setText("-");
+        dashMarket_->setText("-");
+        dashMhuSw_->setText("-");
+        dashTbox_->setText("-");
+        dashModules_->setText("-");
+    } else {
+        std::string year = decodeVinModelYear(vin);
+        dashModel_->setText(year.empty()
+            ? QString(vf8::kModel)
+            : QString("%1 (%2)").arg(vf8::kModel).arg(QString::fromStdString(year)));
+        dashVin_->setText(QString::fromStdString(vin));
+        dashMarket_->setText(QString("%1   ·   %2").arg(vf8::kMarket).arg(vf8::kVariant));
+        dashMhuSw_->setText(QString::fromStdString(mhuSw.empty() ? std::string(vf8::kMhuSoftware) : mhuSw));
+        dashTbox_->setText(QString::fromStdString(tboxSw.empty() ? std::string(vf8::kTboxProject) : tboxSw));
+        dashModules_->setText(QString("ID %1/%2   |   Reach %3   |   DTC %4")
+                                  .arg(identified).arg(total).arg(reachable).arg(faulted));
+    }
 }
 
 void Gui::refreshEcuTiles() {
@@ -3613,7 +3752,7 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
 
     auto* dtcTable = new QTableWidget(0, 5);
     dtcTable->setHorizontalHeaderLabels({"DTC", "Code status", "Status", "Description", ""});
-    dtcTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    dtcTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
     dtcTable->setColumnWidth(0, 130);
     dtcTable->setColumnWidth(1, 110);
     dtcTable->setColumnWidth(4, 90);

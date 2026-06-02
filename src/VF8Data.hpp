@@ -7,11 +7,6 @@
 // (VIN RLLV1AEB0RH004878). Use it for ECU naming, scan coverage and DTC
 // description lookup.
 //
-// IMPORTANT: DoIP *logical addresses* are NOT exposed by the Autel report or
-// the engineering menus, so the addresses below are PLACEHOLDERS only. They
-// are sequential and clearly not official - edit them in the UI to match the
-// real gateway routing before relying on them.
-//
 #include <cstdint>
 #include <string>
 #include <vector>

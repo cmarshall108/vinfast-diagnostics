@@ -118,6 +118,7 @@ private:
 
     // --- periodic refresh of dynamic views ---
     void refreshHeader();
+    void refreshDashboard();
     void refreshEcuTiles();
     void refreshLive();
     void refreshServiceResults();
@@ -224,7 +225,16 @@ private:
     QLabel*         busyText_   = nullptr;
     QLabel*         connDot_    = nullptr;
     QLabel*         connText_   = nullptr;
+    QLabel*         hdrSubtitle_= nullptr;
     QPushButton*    connectBtn_ = nullptr;
+
+    // dashboard page
+    QLabel*         dashModel_   = nullptr;
+    QLabel*         dashVin_     = nullptr;
+    QLabel*         dashMarket_  = nullptr;
+    QLabel*         dashMhuSw_   = nullptr;
+    QLabel*         dashTbox_    = nullptr;
+    QLabel*         dashModules_ = nullptr;
 
     // connection page
     QLineEdit* edBroadcast_ = nullptr;
