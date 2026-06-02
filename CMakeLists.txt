@@ -8,6 +8,37 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# -------------------------------------------------------------------
+# Windows: this is a 32-bit (x86) build.
+#
+# The CAN/OBD-II backup transport loads Toyota's Mini-VCI J2534 driver
+# (mvci32.dll), which is a 32-bit DLL. A 64-bit process CANNOT load a 32-bit
+# DLL - LoadLibrary fails with ERROR_BAD_EXE_FORMAT (193) - so the entire app
+# must be built as x86 on Windows. Configure a *separate* 32-bit build tree:
+#
+#   Visual Studio:  cmake -A Win32 -S . -B build-win32
+#                   cmake --build build-win32 --config Release
+#   MinGW (i686):   configure with a 32-bit i686-w64-mingw32 toolchain
+#
+# The guard below makes a mismatched 64-bit Windows build fail fast with a
+# clear message instead of failing at runtime when mvci32.dll won't load.
+# Set -DALLOW_WIN64=ON only if you knowingly want a 64-bit build WITHOUT the
+# Mini-VCI CAN backup (DoIP/SOVD transports still work).
+# -------------------------------------------------------------------
+option(ALLOW_WIN64 "Permit a 64-bit Windows build (disables Mini-VCI CAN backup at runtime)" OFF)
+if(WIN32 AND NOT ALLOW_WIN64 AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+  message(FATAL_ERROR
+    "vinfast_scanner must be built as 32-bit (x86) on Windows: Toyota's Mini-VCI "
+    "J2534 driver (mvci32.dll) is a 32-bit DLL and a 64-bit process cannot load "
+    "it.\n"
+    "  Visual Studio:  cmake -A Win32 -S . -B build-win32\n"
+    "  MinGW:          use a 32-bit (i686-w64-mingw32) toolchain\n"
+    "Or pass -DALLOW_WIN64=ON to build 64-bit without the CAN backup.")
+endif()
+if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
+  message(STATUS "vinfast_scanner: 32-bit (x86) Windows build - Mini-VCI mvci32.dll loadable.")
+endif()
+
 # Qt code-generation (moc/uic/rcc) must run automatically.
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)

@@ -35,6 +35,16 @@ jobs:
             qt_version: "6.7.*"
             vcpkg_triplet: x64-windows
             cmake_arch: x64
+          # 32-bit (x86) build. Required so the executable can load Toyota's
+          # Mini-VCI J2534 driver (mvci32.dll), which is a 32-bit DLL a 64-bit
+          # process cannot load. Qt6 publishes NO prebuilt 32-bit binaries, so
+          # Qt is built from source by vcpkg for this job (qt_via_vcpkg).
+          - name: Windows (x86 / 32-bit)
+            os: windows-latest
+            artifact: vinfast_scanner-windows-x86
+            vcpkg_triplet: x86-windows
+            cmake_arch: Win32
+            qt_via_vcpkg: true
           - name: Windows (ARM64)
             os: windows-11-arm
             artifact: vinfast_scanner-windows-arm64
@@ -48,9 +58,12 @@ jobs:
         uses: actions/checkout@v4
 
       # ----------------------------------------------------------------
-      # Qt6 (Widgets) for every platform.
+      # Qt6 (Widgets). Prebuilt binaries from install-qt-action for every
+      # platform EXCEPT 32-bit Windows, for which Qt6 ships no official
+      # binaries - that job builds Qt from source via vcpkg instead.
       # ----------------------------------------------------------------
       - name: Install Qt
+        if: ${{ matrix.qt_via_vcpkg != true }}
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ matrix.qt_version }}
@@ -71,6 +84,15 @@ jobs:
       - name: Install libcurl (Windows)
         if: runner.os == 'Windows'
         run: vcpkg install curl:${{ matrix.vcpkg_triplet }}
+        shell: pwsh
+
+      # 32-bit Windows only: Qt6 has no prebuilt x86 binaries, so build Qt
+      # Widgets from source through vcpkg. This is slow (Qt is large) but is
+      # the only reliable way to obtain a 32-bit Qt6. vcpkg's binary cache
+      # keeps subsequent runs fast.
+      - name: Install Qt via vcpkg (Windows x86)
+        if: ${{ matrix.qt_via_vcpkg == true }}
+        run: vcpkg install "qtbase[core,widgets,gui,png]:${{ matrix.vcpkg_triplet }}"
         shell: pwsh
 
       # ----------------------------------------------------------------
@@ -213,14 +235,28 @@ jobs:
             --wait
           xcrun stapler staple dist/VinFast_Scanner.dmg
 
-      - name: Deploy (Windows)
-        if: runner.os == 'Windows'
+      - name: Deploy (Windows, prebuilt Qt)
+        if: ${{ runner.os == 'Windows' && matrix.qt_via_vcpkg != true }}
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item build/Release/vinfast_scanner.exe dist/
           & "$env:QT_ROOT_DIR/bin/windeployqt.exe" --release --no-translations dist/vinfast_scanner.exe
           # Bring in the vcpkg curl runtime DLLs.
           Copy-Item "$env:VCPKG_INSTALLATION_ROOT/installed/${{ matrix.vcpkg_triplet }}/bin/*.dll" dist/ -ErrorAction SilentlyContinue
+        shell: pwsh
+
+      # 32-bit Windows: Qt came from vcpkg, so use vcpkg's windeployqt and copy
+      # the vcpkg runtime DLLs (Qt + curl) from the x86 install tree.
+      - name: Deploy (Windows x86, vcpkg Qt)
+        if: ${{ runner.os == 'Windows' && matrix.qt_via_vcpkg == true }}
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item build/Release/vinfast_scanner.exe dist/
+          $vcpkgRoot = "$env:VCPKG_INSTALLATION_ROOT/installed/${{ matrix.vcpkg_triplet }}"
+          & "$vcpkgRoot/tools/Qt6/bin/windeployqt.exe" --release --no-translations `
+            --libdir dist --plugindir dist/plugins dist/vinfast_scanner.exe
+          # Fallback: copy the vcpkg runtime DLLs (Qt6Widgets/Gui/Core, curl, etc.).
+          Copy-Item "$vcpkgRoot/bin/*.dll" dist/ -ErrorAction SilentlyContinue
         shell: pwsh
 
       # ----------------------------------------------------------------

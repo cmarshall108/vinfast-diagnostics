@@ -12,25 +12,31 @@
 
 #include <cstring>
 
+// The real Mini-VCI integration is 32-bit-Windows only (mvci32.dll is a 32-bit
+// DLL). These headers must be included at global scope - never inside
+// namespace can - or the whole standard library lands in can::std.
+#if defined(_WIN32) && !defined(_WIN64)
+#include <windows.h>
+#include <algorithm>
+#include <chrono>
+#include <thread>
+#endif
+
 namespace can {
 
 bool Client::platformSupported() {
-#ifdef _WIN32
-    return true;
+#if defined(_WIN32) && !defined(_WIN64)
+    return true;   // 32-bit Windows: can load Toyota's 32-bit mvci32.dll
 #else
-    return false;
+    return false;  // 64-bit Windows / other OSes cannot load the 32-bit DLL
 #endif
 }
 
 // ===========================================================================
 //  Windows implementation - real Toyota Mini-VCI / J2534 PassThru integration
+//  (32-bit only: mvci32.dll is a 32-bit DLL and a 64-bit process can't load it)
 // ===========================================================================
-#ifdef _WIN32
-
-#include <windows.h>
-#include <chrono>
-#include <thread>
-#include <algorithm>
+#if defined(_WIN32) && !defined(_WIN64)
 
 namespace {
 
@@ -643,7 +649,11 @@ bool Client::scanObdProtocols(const std::string& dllPath,
 
 
 // ===========================================================================
-#else // !_WIN32
+//  Stub - used on non-Windows platforms and on 64-bit Windows, since Toyota's
+//  Mini-VCI J2534 driver (mvci32.dll) is a 32-bit DLL that only a 32-bit
+//  process can load.
+// ===========================================================================
+#else // !(_WIN32 && !_WIN64)
 
 struct Client::Impl {};
 
@@ -653,7 +663,8 @@ Client::~Client() {}
 bool Client::isConnected() const { return false; }
 
 bool Client::connect(const Config& /*cfg*/, std::string& err) {
-    err = "CAN backup (Toyota Mini-VCI / J2534 mvci32.dll) is only available on Windows";
+    err = "CAN backup (Toyota Mini-VCI / J2534 mvci32.dll) requires a 32-bit "
+          "(x86) Windows build; mvci32.dll is a 32-bit DLL";
     return false;
 }
 
@@ -684,6 +695,6 @@ bool Client::scanObdProtocols(const std::string&,
     return false;
 }
 
-#endif // _WIN32
+#endif // _WIN32 && !_WIN64
 
 } // namespace can
