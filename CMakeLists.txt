@@ -45,6 +45,7 @@ set(_app_sources
   src/CloudClient.cpp
   src/SovdClient.cpp
   src/Gui.cpp
+  assets/resources.qrc
 )
 if(APPLE AND EXISTS "${_app_macos_icon}")
   list(APPEND _app_sources "${_app_macos_icon}")

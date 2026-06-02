@@ -40,6 +40,9 @@ class QTreeWidget;
 class QWidget;
 QT_END_NAMESPACE
 
+// Autel-style module-topology canvas (defined in Gui.cpp).
+class EcuTopologyView;
+
 class Gui : public QMainWindow {
     Q_OBJECT
 public:
@@ -115,7 +118,6 @@ private:
 
     // --- periodic refresh of dynamic views ---
     void refreshHeader();
-    void rebuildEcuTiles();
     void refreshEcuTiles();
     void refreshLive();
     void refreshServiceResults();
@@ -245,13 +247,10 @@ private:
     QLineEdit* edSovdUrl_   = nullptr;
     QLineEdit* edSovdToken_ = nullptr;
 
-    // ecu page
-    QWidget*     ecuTileHost_  = nullptr;
-    QGridLayout* ecuTileGrid_  = nullptr;
-    std::vector<QToolButton*> ecuTiles_;
-    int          ecuTileCount_ = -1;   // last built count
-    int          openEcuIdx_   = -1;   // currently open detail dialog index
-    QWidget*     openEcuDialog_= nullptr;
+    // ecu page (Autel-style module topology)
+    EcuTopologyView* topology_     = nullptr;
+    int              openEcuIdx_   = -1;   // currently open detail dialog index
+    QWidget*         openEcuDialog_= nullptr;
 
     // live page
     QLineEdit*    edLiveInterval_ = nullptr;

@@ -1,0 +1,6 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+  <qresource prefix="/images">
+    <file alias="obd-connector.png">images/obd-connector-a-emale.png</file>
+  </qresource>
+</RCC>

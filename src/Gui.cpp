@@ -38,6 +38,13 @@
 #include <QColor>
 #include <QSizePolicy>
 #include <QAbstractItemView>
+#include <QPainter>
+#include <QPixmap>
+#include <QPainterPath>
+#include <QLinearGradient>
+#include <QFontMetrics>
+#include <QMouseEvent>
+#include <QResizeEvent>
 
 #include <cctype>
 #include <cstdint>
@@ -295,6 +302,244 @@ totpCandidates(uint64_t seed, const QString& seedStr, uint64_t step, long long d
 } // namespace
 
 // ==========================================================================
+// EcuTopologyView - Autel-style "module topology" diagram.
+//
+// Each module is drawn as a coloured node that hangs off one of three coloured
+// communication buses (drive / comfort / information). The buses fan out from
+// the gateway beside the OBD connector, exactly like a vehicle network map.
+// Faulted modules turn orange and carry a red fault-count badge; clicking a
+// node opens that ECU's diagnostics dialog.
+// ==========================================================================
+class EcuTopologyView : public QWidget {
+public:
+    struct Node {
+        QString code;
+        QString addr;
+        QString fullName;
+        int     state    = 0;   // 0 not scanned, 1 pass, 2 fault, 3 no response
+        int     faults   = 0;
+        int     ecuIndex = -1;
+        int     bus      = 1;   // 0 drive, 1 comfort, 2 information
+        int     col      = 0;   // column within its band row
+        bool    below    = false;
+        bool    gateway  = false;
+        QRect   rect;           // computed in relayout(), used for hit-testing
+    };
+
+    explicit EcuTopologyView(QWidget* parent = nullptr) : QWidget(parent) {
+        setMinimumSize(760, 500);
+        setMouseTracking(true);
+        setCursor(Qt::PointingHandCursor);
+    }
+
+    std::function<void(int, QWidget*)> onClick;
+
+    void setNodes(std::vector<Node> nodes) {
+        nodes_ = std::move(nodes);
+        relayout();
+        update();
+    }
+
+protected:
+    void resizeEvent(QResizeEvent*) override { relayout(); }
+    void mousePressEvent(QMouseEvent* e) override {
+        for (const auto& n : nodes_)
+            if (n.ecuIndex >= 0 && n.rect.contains(e->pos())) {
+                if (onClick) onClick(n.ecuIndex, this);
+                return;
+            }
+    }
+    void mouseMoveEvent(QMouseEvent* e) override {
+        QString tip;
+        for (const auto& n : nodes_)
+            if (n.rect.contains(e->pos())) { tip = n.fullName; break; }
+        setToolTip(tip);
+    }
+    void paintEvent(QPaintEvent*) override;
+
+private:
+    static QColor stateFill(int s) {
+        switch (s) {
+            case 1:  return QColor(0x20, 0xc5, 0x5a); // pass
+            case 2:  return QColor(0xf4, 0x87, 0x20); // fault
+            case 3:  return QColor(0x7e, 0x87, 0x94); // no response
+            default: return QColor(0x1f, 0x7b, 0xd6); // not scanned
+        }
+    }
+    static QColor busColor(int b) {
+        switch (b) {
+            case 0:  return QColor(0x3f, 0x8a, 0xe0); // drive (blue)
+            case 2:  return QColor(0xb1, 0x5c, 0xd0); // information (purple)
+            default: return QColor(0xe0, 0x55, 0x6a); // comfort (red)
+        }
+    }
+
+    void drawNode(QPainter& p, const Node& n);
+
+    void relayout() {
+        const int W = width();
+        for (int b = 0; b < 3; ++b)
+            trunkY_[b] = marginTop_ + b * bandPitch_ + nodeH_ + dropGap_;
+        const int cy = trunkY_[1];
+
+        obdRect_ = QRect(12, cy - 34, 68, 68);
+        gwRect_  = QRect(98, cy - nodeH_ / 2, 62, nodeH_);
+        spineX_  = 166;
+
+        const int contentLeft  = 180;
+        const int contentRight = W - 56;
+        const int span  = std::max(contentRight - contentLeft, 7 * 70);
+        const int cellW = span / 7;
+
+        int cnt[3][2] = {{0,0},{0,0},{0,0}};
+        for (const auto& n : nodes_)
+            if (!n.gateway) cnt[n.bus][n.below ? 1 : 0]++;
+
+        for (auto& n : nodes_) {
+            if (n.gateway) { n.rect = gwRect_; continue; }
+            const int k = cnt[n.bus][n.below ? 1 : 0];
+            const int rowW = k * cellW;
+            const int startX = contentLeft + (span - rowW) / 2;
+            const int nodeW = std::min(cellW - 12, 116);
+            const int x = startX + n.col * cellW + (cellW - nodeW) / 2;
+            const int y = n.below ? (trunkY_[n.bus] + dropGap_)
+                                  : (trunkY_[n.bus] - dropGap_ - nodeH_);
+            n.rect = QRect(x, y, nodeW, nodeH_);
+        }
+
+        setMinimumHeight(marginTop_ + 3 * bandPitch_ + 12);
+    }
+
+    std::vector<Node> nodes_;
+    QPixmap obdPixmap_{QStringLiteral(":/images/obd-connector.png")};
+    int   marginTop_ = 18;
+    int   nodeH_     = 46;
+    int   dropGap_   = 26;
+    int   bandPitch_ = 46 + 26 + 26 + 46 + 30; // nodeH + drop + drop + nodeH + gap
+    int   trunkY_[3] = {0, 0, 0};
+    int   spineX_    = 154;
+    QRect gwRect_;
+    QRect obdRect_;
+};
+
+void EcuTopologyView::drawNode(QPainter& p, const Node& n) {
+    const QColor fill = stateFill(n.state);
+    p.setPen(QPen(fill.lighter(125), 1.5));
+    p.setBrush(fill);
+    p.drawRoundedRect(n.rect, 6, 6);
+
+    QFont f = p.font();
+    f.setBold(true);
+    f.setPointSize(n.gateway ? 11 : 10);
+    p.setFont(f);
+    p.setPen(QColor(0xff, 0xff, 0xff));
+
+    if (n.gateway || n.addr.isEmpty()) {
+        const QString label =
+            QFontMetrics(f).elidedText(n.code, Qt::ElideRight, n.rect.width() - 8);
+        p.drawText(n.rect, Qt::AlignCenter, label);
+    } else {
+        // code on top, address on a dimmer second line
+        QRect top(n.rect.left(), n.rect.top() + 5, n.rect.width(), n.rect.height() / 2 - 1);
+        QRect bot(n.rect.left(), n.rect.center().y() + 1, n.rect.width(), n.rect.height() / 2 - 3);
+        const QString code =
+            QFontMetrics(f).elidedText(n.code, Qt::ElideRight, n.rect.width() - 8);
+        p.drawText(top, Qt::AlignHCenter | Qt::AlignVCenter, code);
+        QFont af = f; af.setBold(false); af.setPointSize(8); p.setFont(af);
+        p.setPen(QColor(0xff, 0xff, 0xff, 200));
+        const QString addr =
+            QFontMetrics(af).elidedText(n.addr, Qt::ElideRight, n.rect.width() - 8);
+        p.drawText(bot, Qt::AlignHCenter | Qt::AlignVCenter, addr);
+    }
+
+    if (n.faults > 0) {
+        const int r = 10;
+        const QPoint c(n.rect.right() - 2, n.rect.top() + 2);
+        const QRect br(c.x() - r, c.y() - r, 2 * r, 2 * r);
+        p.setPen(QPen(QColor(0xff, 0xff, 0xff), 1.5));
+        p.setBrush(QColor(0xe2, 0x3a, 0x2c));
+        p.drawEllipse(br);
+        QFont bf = f; bf.setPointSize(8); p.setFont(bf);
+        p.setPen(QColor(0xff, 0xff, 0xff));
+        p.drawText(br, Qt::AlignCenter, QString::number(n.faults));
+    }
+}
+
+void EcuTopologyView::paintEvent(QPaintEvent*) {
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing, true);
+
+    QLinearGradient bg(0, 0, width(), height());
+    bg.setColorAt(0.0, QColor(0x0f, 0x24, 0x39));
+    bg.setColorAt(0.5, QColor(0x0d, 0x1d, 0x31));
+    bg.setColorAt(1.0, QColor(0x0b, 0x17, 0x28));
+    p.fillRect(rect(), bg);
+
+    const int contentRight = width() - 56;
+    const int cy = trunkY_[1];
+
+    // neutral left riser linking the three coloured trunks
+    p.setPen(QPen(QColor(0x4a, 0x6f, 0x96), 2));
+    p.drawLine(spineX_, trunkY_[0], spineX_, trunkY_[2]);
+
+    // three coloured bus trunks, each ending in a chassis-ground symbol
+    static const char* kBusName[3] = {"drive", "comfort", "information"};
+    for (int b = 0; b < 3; ++b) {
+        p.setPen(QPen(busColor(b), 3));
+        p.drawLine(spineX_, trunkY_[b], contentRight, trunkY_[b]);
+        const int gx = contentRight + 6, gy = trunkY_[b];
+        p.drawLine(gx, gy, gx + 10, gy);
+        p.drawLine(gx + 10, gy - 7, gx + 10, gy + 7);
+        p.drawLine(gx + 13, gy - 4, gx + 13, gy + 4);
+        p.drawLine(gx + 16, gy - 2, gx + 16, gy + 2);
+
+        // bus name label sitting just above the trunk start
+        QFont nf = p.font(); nf.setBold(true); nf.setPointSize(8); p.setFont(nf);
+        p.setPen(busColor(b).lighter(135));
+        p.drawText(QRect(spineX_ + 6, trunkY_[b] - 16, 120, 14),
+                   Qt::AlignLeft | Qt::AlignVCenter, kBusName[b]);
+    }
+
+    // vertical drop from each node to its trunk
+    for (const auto& n : nodes_) {
+        if (n.gateway) continue;
+        p.setPen(QPen(busColor(n.bus), 2));
+        const int xc = n.rect.center().x();
+        if (n.below) p.drawLine(xc, n.rect.top(), xc, trunkY_[n.bus]);
+        else         p.drawLine(xc, n.rect.bottom(), xc, trunkY_[n.bus]);
+    }
+
+    // OBD connector -> gateway -> spine (comfort-bus colour)
+    p.setPen(QPen(busColor(1), 3));
+    p.drawLine(obdRect_.right(), cy, gwRect_.left(), cy);
+    p.drawLine(gwRect_.right(), cy, spineX_, cy);
+
+    // OBD connector glyph
+    const QRect ob = obdRect_;
+    if (!obdPixmap_.isNull()) {
+        const QPixmap scaled = obdPixmap_.scaled(
+            ob.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        const QPoint at(ob.left() + (ob.width() - scaled.width()) / 2,
+                        ob.top() + (ob.height() - scaled.height()) / 2);
+        p.drawPixmap(at, scaled);
+    } else {
+        p.setPen(QPen(QColor(0xe6, 0xee, 0xf7), 2));
+        p.setBrush(QColor(0x14, 0x22, 0x33));
+        p.drawRoundedRect(ob, 6, 6);
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(0xcf, 0xdc, 0xea));
+        for (int i = 0; i < 4; ++i) p.drawRect(ob.left() + 8 + i * 8, ob.top() + 12, 4, 8);
+        for (int i = 0; i < 3; ++i) p.drawRect(ob.left() + 12 + i * 8, ob.top() + 30, 4, 8);
+    }
+    p.setPen(QColor(0xe6, 0xee, 0xf7));
+    QFont lf = p.font(); lf.setPointSize(10); lf.setBold(true); p.setFont(lf);
+    p.drawText(QRect(ob.left() - 2, ob.top() - 20, 70, 16),
+               Qt::AlignLeft | Qt::AlignVCenter, "OBD");
+
+    for (const auto& n : nodes_) drawNode(p, n);
+}
+
+// ==========================================================================
 // Construction
 // ==========================================================================
 Gui::Gui() {
@@ -366,7 +611,7 @@ QWidget* Gui::buildNav() {
     nav_->setFixedWidth(168);
     nav_->setSpacing(2);
     nav_->setFocusPolicy(Qt::NoFocus);
-    const char* items[] = {"Dashboard", "Connection", "ECUs",
+    const char* items[] = {"Dashboard", "Connection", "ECU Topology",
                            "Live Data", "Service Disc.", "Protocol",
                            "Cloud", "Reference", "Log"};
     for (const char* s : items) {
@@ -772,6 +1017,16 @@ QWidget* Gui::buildEcuPage() {
     lay->setContentsMargins(18, 18, 18, 18);
     lay->setSpacing(12);
 
+    auto* title = new QLabel("MODULE TOPOLOGY");
+    title->setObjectName("ecuTitle");
+    auto* subtitle = new QLabel(
+        "Displays a system distribution diagram of vehicle control modules. "
+        "Modules with active faults are highlighted in orange.");
+    subtitle->setObjectName("ecuSubtitle");
+    subtitle->setWordWrap(true);
+    lay->addWidget(title);
+    lay->addWidget(subtitle);
+
     auto* toolbar = new QHBoxLayout;
     auto* scanBtn  = new QPushButton("Scan all (read DTCs)");
     auto* probeBtn = new QPushButton("Probe addresses");
@@ -784,30 +1039,103 @@ QWidget* Gui::buildEcuPage() {
     toolbar->addWidget(addBtn);
     lay->addLayout(toolbar);
 
-    auto* ecuHint = new QLabel(
-        "<i>Tap an ECU to open its diagnostics. Addresses are placeholders - "
-        "edit them in the popup to match the VF8 routing.</i>");
-    ecuHint->setWordWrap(true);
-    lay->addWidget(ecuHint);
-    auto* ecuLegend = new QLabel(
-        "<span style='color:#43d17a'>● connected</span> &nbsp;&nbsp; "
-        "<span style='color:#e0556a'>○ no response</span> &nbsp;&nbsp; "
-        "<span style='color:#9fb0c0'>· not probed</span> &nbsp;&nbsp; "
-        "<span style='color:#f2b134'>●N = DTC count</span> &nbsp;&nbsp; "
-        "<i>run \"Probe addresses\" to test connectivity.</i>");
-    ecuLegend->setWordWrap(true);
-    lay->addWidget(ecuLegend);
+    auto* row = new QHBoxLayout;
+    row->setSpacing(12);
 
+    auto* canvas = new QFrame;
+    canvas->setObjectName("ecuCanvas");
+    auto* canvasLay = new QVBoxLayout(canvas);
+    canvasLay->setContentsMargins(14, 14, 14, 14);
+    canvasLay->setSpacing(8);
+
+    auto* ecuHint = new QLabel(
+        "Tap a module for diagnostics and actions. Placeholder addresses can be "
+        "edited inside each module dialog.");
+    ecuHint->setObjectName("ecuCanvasHint");
+    ecuHint->setWordWrap(true);
+    canvasLay->addWidget(ecuHint);
+
+    topology_ = new EcuTopologyView;
+    topology_->onClick = [this](int idx, QWidget* anchor) { openEcuDialog(idx, anchor); };
     auto* scroll = new QScrollArea;
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    ecuTileHost_ = new QWidget;
-    ecuTileGrid_ = new QGridLayout(ecuTileHost_);
-    ecuTileGrid_->setSpacing(10);
-    ecuTileGrid_->setContentsMargins(0, 0, 0, 0);
-    scroll->setWidget(ecuTileHost_);
-    lay->addWidget(scroll, 1);
+    scroll->setStyleSheet(
+        "QScrollArea{background:transparent;border:none;}"
+        "QScrollArea>QWidget>QWidget{background:transparent;}");
+    scroll->setWidget(topology_);
+    canvasLay->addWidget(scroll, 1);
+    row->addWidget(canvas, 1);
+
+    auto* legend = new QFrame;
+    legend->setObjectName("ecuLegend");
+    legend->setFixedWidth(220);
+    auto* legendLay = new QVBoxLayout(legend);
+    legendLay->setContentsMargins(12, 12, 12, 12);
+    legendLay->setSpacing(10);
+
+    auto* lgTitle = new QLabel("Status");
+    lgTitle->setObjectName("ecuLegendTitle");
+    legendLay->addWidget(lgTitle);
+
+    auto addLegendItem = [legendLay](const QString& color, const QString& text) {
+        auto* item = new QWidget;
+        auto* hl = new QHBoxLayout(item);
+        hl->setContentsMargins(0, 0, 0, 0);
+        hl->setSpacing(8);
+        auto* swatch = new QFrame;
+        swatch->setFixedSize(14, 14);
+        swatch->setStyleSheet(QString("background:%1;border-radius:4px;").arg(color));
+        auto* lbl = new QLabel(text);
+        hl->addWidget(swatch);
+        hl->addWidget(lbl, 1);
+        legendLay->addWidget(item);
+    };
+
+    addLegendItem("#1f7bd6", "Not scanned");
+    addLegendItem("#20c55a", "Pass");
+    addLegendItem("#ff8a00", "Fault");
+    addLegendItem("#7e8794", "No response");
+
+    auto* div = new QFrame;
+    div->setFrameShape(QFrame::HLine);
+    div->setStyleSheet("color:#2c4a6b; background:#2c4a6b; max-height:1px;");
+    legendLay->addWidget(div);
+
+    auto addBusItem = [legendLay](const QString& color, const QString& text) {
+        auto* item = new QWidget;
+        auto* hl = new QHBoxLayout(item);
+        hl->setContentsMargins(0, 0, 0, 0);
+        hl->setSpacing(8);
+        auto* line = new QFrame;
+        line->setFixedSize(22, 4);
+        line->setStyleSheet(QString("background:%1; border-radius:2px;").arg(color));
+        auto* wrap = new QWidget;
+        wrap->setFixedWidth(22);
+        auto* wl = new QVBoxLayout(wrap);
+        wl->setContentsMargins(0, 0, 0, 0);
+        wl->addStretch(1); wl->addWidget(line); wl->addStretch(1);
+        auto* lbl = new QLabel(text);
+        hl->addWidget(wrap);
+        hl->addWidget(lbl, 1);
+        legendLay->addWidget(item);
+    };
+    addBusItem("#b15cd0", "information");
+    addBusItem("#e0556a", "comfort");
+    addBusItem("#3f8ae0", "drive");
+
+    auto* legendNote = new QLabel(
+        "Fault count appears on each node after scanning. Run Probe addresses "
+        "to confirm communication.");
+    legendNote->setWordWrap(true);
+    legendNote->setObjectName("ecuLegendNote");
+    legendLay->addSpacing(4);
+    legendLay->addWidget(legendNote);
+    legendLay->addStretch(1);
+
+    row->addWidget(legend);
+    lay->addLayout(row, 1);
 
     connect(scanBtn, &QPushButton::clicked, this, [this] {
         syncSettingsFromUi();
@@ -2356,6 +2684,8 @@ void Gui::applyStyle() {
     setStyleSheet(R"(
         QWidget { background: #161a21; color: #dfe4ea; font-size: 13px; }
         QLabel { background: transparent; }
+        QLabel#ecuTitle { font-size: 38px; font-weight: 800; color: #f5f9ff; letter-spacing: 1px; }
+        QLabel#ecuSubtitle { color: #c8d7e8; font-size: 16px; font-weight: 600; }
         QFrame#header { background: #11202e;
                         border-bottom: 2px solid #2e7dd1; }
         QLabel#title { font-size: 20px; font-weight: 700; color: #ffffff; }
@@ -2379,6 +2709,20 @@ void Gui::applyStyle() {
         QPushButton#primary:hover { background: #3a8ce0; }
         QPushButton#danger { background: #b23a4a; border: none; color: #fff; }
         QPushButton#danger:hover { background: #c8485a; }
+        QFrame#ecuCanvas {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                        stop:0 #0f2439, stop:0.5 #0d1d31, stop:1 #0b1728);
+            border: 1px solid #24486c;
+            border-radius: 12px;
+        }
+        QLabel#ecuCanvasHint { color: #acc0d7; font-size: 12px; }
+        QFrame#ecuLegend {
+            background: rgba(14, 27, 43, 0.95);
+            border: 1px solid #24486c;
+            border-radius: 12px;
+        }
+        QLabel#ecuLegendTitle { font-size: 17px; font-weight: 700; color: #f5f9ff; }
+        QLabel#ecuLegendNote { color: #9fb0c0; font-size: 12px; }
         QToolButton#tile { background: #1c222c; border: 1px solid #29313d;
                            border-radius: 10px; font-weight: 600; }
         QToolButton#tile:hover { background: #243042; border-color: #2e7dd1; }
@@ -2399,7 +2743,7 @@ void Gui::applyStyle() {
 // ==========================================================================
 void Gui::onTick() {
     refreshHeader();
-    if (pages_->currentIndex() == 2) { rebuildEcuTiles(); refreshEcuTiles(); }
+    if (pages_->currentIndex() == 2) refreshEcuTiles();
     if (pages_->currentIndex() == 3) refreshLive();
     if (pages_->currentIndex() == 4) refreshServiceResults();
     if (pages_->currentIndex() == 5) refreshProtocol();
@@ -2431,55 +2775,68 @@ void Gui::refreshHeader() {
     connDot_->style()->unpolish(connDot_); connDot_->style()->polish(connDot_);
 }
 
-void Gui::rebuildEcuTiles() {
-    size_t count;
-    { std::lock_guard<std::mutex> g(mutex_); count = ecus_.size(); }
-    if ((int)count == ecuTileCount_) return;   // no structural change
-    ecuTileCount_ = (int)count;
-
-    for (auto* b : ecuTiles_) { ecuTileGrid_->removeWidget(b); b->deleteLater(); }
-    ecuTiles_.clear();
-
-    const int cols = 3;
-    for (size_t i = 0; i < count; ++i) {
-        auto* b = new QToolButton(ecuTileHost_);
-        b->setObjectName("tile");
-        b->setMinimumSize(220, 70);
-        b->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        b->setToolButtonStyle(Qt::ToolButtonTextOnly);
-        int idx = (int)i;
-        connect(b, &QToolButton::clicked, this, [this, idx, b] { openEcuDialog(idx, b); });
-        ecuTileGrid_->addWidget(b, (int)i / cols, (int)i % cols);
-        ecuTiles_.push_back(b);
-    }
-}
-
 void Gui::refreshEcuTiles() {
+    if (!topology_) return;
+
+    // Map each ECU code to one of the three communication buses
+    // (0 = drive, 1 = comfort, 2 = information).
+    static const std::vector<std::pair<const char*, int>> kBus = {
+        {"VCU",0},{"MCU",0},{"BMS",0},{"EDS_F",0},{"EDS_R",0},{"DCDC",0},
+        {"DDC",0},{"APM",0},{"PSM_D",0},{"SHVU_F",0},{"BCM_BPM",0},
+        {"BCM",1},{"CCU",1},{"MHU",1},{"RLS",1},{"TBOX",1},{"HUD",1},{"IDR",1},
+        {"ESC",2},{"EPS",2},{"ADAS",2},{"ACM",2},{"MRGEN",2},{"SCAM",2},{"RCU",2},
+        {"SRR_FR",2},{"SRR_FL",2},{"SRR_RR",2},{"SRR_RL",2},{"OCS",2},
+    };
+    auto busOf = [](const QString& code) -> int {
+        for (const auto& kv : kBus)
+            if (code == QString::fromUtf8(kv.first)) return kv.second;
+        return 1;   // unknown / discovered modules default to the comfort bus
+    };
+
+    std::vector<EcuTopologyView::Node> nodes;
     std::lock_guard<std::mutex> g(mutex_);
-    for (size_t i = 0; i < ecuTiles_.size() && i < ecus_.size(); ++i) {
-        const EcuRow& r = ecus_[i];
-        QString shortName = QString::fromStdString(r.name);
-        int dash = shortName.indexOf(" - ");
-        QString code = dash > 0 ? shortName.left(dash) : shortName;
-        QString badge = r.dtcs.empty() ? "" : QString("  ●%1").arg(r.dtcs.size());
-        QString dot = r.reachable == 1 ? "●  " : r.reachable == 0 ? "○  " : "·  ";
-        ecuTiles_[i]->setText(QString("%1%2%3\n0x%4\n%5")
-            .arg(dot).arg(code).arg(badge)
-            .arg(r.logicalAddr, 4, 16, QChar('0'))
-            .arg(QString::fromStdString(r.statusMsg)));
-        ecuTiles_[i]->setToolTip(shortName);
-        // Connected ECUs are tinted green, unreachable red, unknown neutral.
-        QString border, bg, hover, text = "#dfe4ea";
-        if (r.reachable == 1)      { border = "#43d17a"; bg = "#16331f"; hover = "#1d4429"; }
-        else if (r.reachable == 0) { border = "#e0556a"; bg = "#3a1a20"; hover = "#4a222a"; }
-        else                       { border = "#29313d"; bg = "#1c222c"; hover = "#243042"; }
-        QString accentBar = r.dtcs.empty() ? border : "#f2b134";
-        ecuTiles_[i]->setStyleSheet(QString(
-            "QToolButton#tile{background:%1;border:1px solid %2;"
-            "border-left:5px solid %3;border-radius:10px;color:%4;font-weight:600;}"
-            "QToolButton#tile:hover{background:%5;}")
-            .arg(bg).arg(border).arg(accentBar).arg(text).arg(hover));
+
+    std::vector<QString> code(ecus_.size());
+    std::vector<int> band[3];
+    int gwIdx = -1;
+    for (size_t i = 0; i < ecus_.size(); ++i) {
+        QString full = QString::fromStdString(ecus_[i].name);
+        int dash = full.indexOf(" - ");
+        code[i] = (dash > 0 ? full.left(dash) : full).trimmed();
+        if (code[i] == "XGW") { gwIdx = (int)i; continue; }
+        band[busOf(code[i])].push_back((int)i);
     }
+
+    auto makeNode = [&](int i, int bus, int col, bool below, bool gw) {
+        const EcuRow& r = ecus_[i];
+        EcuTopologyView::Node n;
+        n.code     = code[i];
+        n.addr     = QString("0x%1").arg(r.logicalAddr, 4, 16, QChar('0')).toUpper();
+        n.fullName = QString::fromStdString(r.name);
+        n.ecuIndex = i;
+        n.bus = bus; n.col = col; n.below = below; n.gateway = gw;
+        n.faults = (int)r.dtcs.size();
+        if (r.reachable == 0)      n.state = 3;   // no response
+        else if (!r.dtcs.empty())  n.state = 2;   // fault
+        else if (r.reachable == 1) n.state = 1;   // pass
+        else                       n.state = 0;   // not scanned
+        return n;
+    };
+
+    if (gwIdx >= 0) nodes.push_back(makeNode(gwIdx, 1, 0, false, true));
+
+    // Split each bus's modules into a row above and a row below its trunk.
+    for (int b = 0; b < 3; ++b) {
+        const int total = (int)band[b].size();
+        const int aboveCount = (total + 1) / 2;
+        for (int k = 0; k < total; ++k) {
+            const bool below = k >= aboveCount;
+            const int col = below ? (k - aboveCount) : k;
+            nodes.push_back(makeNode(band[b][k], b, col, below, false));
+        }
+    }
+
+    topology_->setNodes(std::move(nodes));
 }
 
 void Gui::refreshLive() {
