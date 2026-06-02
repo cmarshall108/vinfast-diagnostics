@@ -11,6 +11,7 @@
 #include "UDSClient.hpp"
 #include "CloudClient.hpp"
 #include "SovdClient.hpp"
+#include "CanClient.hpp"
 
 #include <QMainWindow>
 
@@ -155,6 +156,7 @@ private:
     // --- network ---
     doip::Client client_;
     sovd::SovdClient sovd_;   // REST backup diagnostic path (used when UDS fails)
+    can::Client canBackup_;   // CAN (ISO 15765 / mvci32.dll) backup transport
 
     // --- settings (synced from widgets via syncSettingsFromUi) ---
     std::string broadcastIp_ = "255.255.255.255";
@@ -185,6 +187,15 @@ private:
     // SOVD backup endpoint (empty base URL = disabled)
     std::string sovdBaseUrl_;
     std::string sovdToken_;
+
+    // CAN backup (UDS over ISO 15765 via mvci32.dll). Used automatically when
+    // the DoIP exchange fails. Disabled by default.
+    bool        canEnabled_   = false;
+    std::string canDll_       = "mvci32.dll";
+    int         canBaud_      = 500000;
+    int         canReqId_     = 0x7E0;   // physical request CAN ID
+    int         canRespId_    = 0x7E8;   // response CAN ID
+    bool        canExtended_  = false;   // 29-bit identifiers
 
     // service-discovery settings
     int  svcTarget_       = 0x1003;
@@ -260,7 +271,12 @@ private:
     QLineEdit* edEnumFunc_  = nullptr;
     QLineEdit* edSovdUrl_   = nullptr;
     QLineEdit* edSovdToken_ = nullptr;
-
+    QCheckBox* cbCanEnabled_= nullptr;
+    QLineEdit* edCanDll_    = nullptr;
+    QLineEdit* edCanBaud_   = nullptr;
+    QLineEdit* edCanReqId_  = nullptr;
+    QLineEdit* edCanRespId_ = nullptr;
+    QCheckBox* cbCanExt_    = nullptr;
     // ecu page (Autel-style module topology)
     EcuTopologyView* topology_     = nullptr;
     int              openEcuIdx_   = -1;   // currently open detail dialog index

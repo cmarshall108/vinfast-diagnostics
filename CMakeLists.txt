@@ -39,6 +39,7 @@ set(_app_sources
   src/main.cpp
   src/Logger.cpp
   src/DoIPClient.cpp
+  src/CanClient.cpp
   src/UDSClient.cpp
   src/VF8Data.cpp
   src/CloudData.cpp
@@ -87,6 +88,7 @@ if(BUILD_DOIP_SELFTEST)
     tools/doip_selftest.cpp
     src/Logger.cpp
     src/DoIPClient.cpp
+    src/CanClient.cpp
     src/UDSClient.cpp
     src/VF8Data.cpp)
   target_include_directories(doip_selftest PRIVATE src)

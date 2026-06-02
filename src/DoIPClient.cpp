@@ -1,4 +1,5 @@
 #include "DoIPClient.hpp"
+#include "CanClient.hpp"
 #include "Logger.hpp"
 
 #include <cstring>
@@ -544,6 +545,34 @@ bool Client::sendDiagnostic(uint16_t source, uint16_t target,
                             const std::vector<uint8_t>& uds,
                             std::vector<uint8_t>& response, int timeoutMs,
                             std::string& err, bool functional) {
+    lastUsedCanBackup_ = false;
+    std::string doipErr;
+    if (sendDiagnosticDoIP(source, target, uds, response, timeoutMs, doipErr,
+                           functional)) {
+        return true;
+    }
+    // DoIP transport failed - transparently retry over the CAN backup when one
+    // is registered and connected (UDS-on-CAN via ISO 15765 / mvci32.dll).
+    if (canBackup_ && canBackup_->isConnected()) {
+        Logger::instance().warn("DoIP exchange failed (" + doipErr +
+                                "); retrying over CAN backup");
+        std::string canErr;
+        if (canBackup_->sendDiagnostic(source, target, uds, response, timeoutMs,
+                                       canErr, functional)) {
+            lastUsedCanBackup_ = true;
+            return true;
+        }
+        err = "DoIP failed (" + doipErr + ") and CAN backup failed (" + canErr + ")";
+        return false;
+    }
+    err = doipErr;
+    return false;
+}
+
+bool Client::sendDiagnosticDoIP(uint16_t source, uint16_t target,
+                                const std::vector<uint8_t>& uds,
+                                std::vector<uint8_t>& response, int timeoutMs,
+                                std::string& err, bool functional) {
     if (!isConnected()) { err = "Not connected"; return false; }
 
     std::vector<uint8_t> pl;

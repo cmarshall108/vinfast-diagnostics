@@ -21,6 +21,10 @@
   using socket_t = int;
 #endif
 
+// Forward declaration: the optional CAN (ISO 15765 / mvci32.dll) backup
+// transport used automatically when a DoIP diagnostic exchange fails.
+namespace can { class Client; }
+
 namespace doip {
 
 constexpr uint16_t kDefaultPort      = 13400;
@@ -133,10 +137,20 @@ public:
     // budget; each UDS "response pending" (NRC 0x78) extends it. When
     // functional is true, `target` is treated as a functional address and the
     // strict "addressed to our tester" reply check is relaxed.
+    //
+    // If the DoIP exchange fails and a CAN backup transport has been registered
+    // (setCanBackup) and is connected, the request is transparently retried
+    // over UDS-on-CAN (ISO 15765 via mvci32.dll).
     bool sendDiagnostic(uint16_t source, uint16_t target,
                         const std::vector<uint8_t>& uds,
                         std::vector<uint8_t>& response, int timeoutMs,
                         std::string& err, bool functional = false);
+
+    // Registers an optional CAN backup transport. When set, a failed DoIP
+    // diagnostic exchange automatically falls back to it. Pass nullptr to
+    // disable. The pointer is borrowed; the caller retains ownership.
+    void setCanBackup(can::Client* backup) { canBackup_ = backup; }
+    bool usingCanBackup() const { return lastUsedCanBackup_; }
 
     // Sends one (typically functional) request and collects EVERY diagnostic
     // response that arrives within collectMs, keyed by responder source
@@ -158,6 +172,13 @@ private:
                       uint16_t reqType, const std::vector<uint8_t>& reqPayload,
                       std::vector<Entity>& out, std::string& err);
 
+    // Core DoIP-only diagnostic exchange (no CAN fallback). The public
+    // sendDiagnostic wraps this and adds the CAN backup retry.
+    bool sendDiagnosticDoIP(uint16_t source, uint16_t target,
+                            const std::vector<uint8_t>& uds,
+                            std::vector<uint8_t>& response, int timeoutMs,
+                            std::string& err, bool functional);
+
     static socket_t invalidSocket();
     bool sendAll(socket_t s, const uint8_t* data, size_t len);
     bool recvAll(socket_t s, uint8_t* data, size_t len, int timeoutMs);
@@ -167,6 +188,8 @@ private:
 
     socket_t tcp_;
     uint16_t testerAddr_ = 0x0E80;  // updated by routingActivation()
+    can::Client* canBackup_ = nullptr;   // optional CAN fallback (not owned)
+    bool lastUsedCanBackup_ = false;     // true if the last send fell back to CAN
 };
 
 } // namespace doip

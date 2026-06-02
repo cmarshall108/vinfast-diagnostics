@@ -645,6 +645,10 @@ Gui::Gui() {
     buildUi();
     applyStyle();
 
+    // Wire the CAN transport in as the DoIP fallback. doip::Client will retry
+    // failed exchanges over it automatically.
+    client_.setCanBackup(&canBackup_);
+
     timer_ = new QTimer(this);
     connect(timer_, &QTimer::timeout, this, &Gui::onTick);
     timer_->start(200);
@@ -751,10 +755,11 @@ QWidget* Gui::buildHeader() {
     connectBtn_->setMinimumWidth(120);
     lay->addWidget(connectBtn_);
     connect(connectBtn_, &QPushButton::clicked, this, [this] {
-        if (client_.isConnected()) {
+        if (client_.isConnected() || canBackup_.isConnected()) {
             stopLivePoll();
             stopKeepAlive();
             client_.disconnect();
+            canBackup_.disconnect();
             std::lock_guard<std::mutex> g(mutex_);
             connStatus_ = "Disconnected";
             return;
@@ -977,6 +982,49 @@ QWidget* Gui::buildConnectionPage() {
     sovdNote->setWordWrap(true);
     svf->addRow(sovdNote);
     lay->addWidget(sovd);
+
+    // --- CAN backup (UDS over ISO 15765 via mvci32.dll, used if DoIP fails) ---
+    auto* canc = card("CAN Backup  (UDS over ISO 15765, used if DoIP fails)");
+    auto* cvf = new QFormLayout(canc);
+    cbCanEnabled_ = new QCheckBox("Enable CAN fallback");
+    cbCanEnabled_->setChecked(canEnabled_);
+    edCanDll_ = new QLineEdit(QString::fromStdString(canDll_));
+    edCanDll_->setPlaceholderText("mvci32.dll  (MVCI D-PDU API)");
+    auto* btnCanDll = new QPushButton("Browse...");
+    auto* dllRow = new QHBoxLayout();
+    dllRow->setContentsMargins(0, 0, 0, 0);
+    dllRow->addWidget(edCanDll_, 1);
+    dllRow->addWidget(btnCanDll);
+    auto* dllRowW = new QWidget();
+    dllRowW->setLayout(dllRow);
+    edCanBaud_ = new QLineEdit(QString::number(canBaud_));
+    edCanBaud_->setPlaceholderText("500000");
+    edCanReqId_ = new QLineEdit(QString::asprintf("0x%X", canReqId_));
+    edCanReqId_->setPlaceholderText("0x7E0");
+    edCanRespId_ = new QLineEdit(QString::asprintf("0x%X", canRespId_));
+    edCanRespId_->setPlaceholderText("0x7E8");
+    cbCanExt_ = new QCheckBox("29-bit (extended) identifiers");
+    cbCanExt_->setChecked(canExtended_);
+    cvf->addRow(cbCanEnabled_);
+    cvf->addRow("D-PDU API DLL", dllRowW);
+    cvf->addRow("Baud rate", edCanBaud_);
+    cvf->addRow("Request CAN ID", edCanReqId_);
+    cvf->addRow("Response CAN ID", edCanRespId_);
+    cvf->addRow(cbCanExt_);
+    connect(btnCanDll, &QPushButton::clicked, this, [this] {
+        QString start = edCanDll_->text().trimmed();
+        QString fn = QFileDialog::getOpenFileName(
+            this, "Select MVCI D-PDU API library", start,
+            "Dynamic libraries (*.dll *.so *.dylib);;All files (*)");
+        if (!fn.isEmpty()) edCanDll_->setText(fn);
+    });
+    auto* canNote = new QLabel(
+        "<i>Windows only. When a DoIP exchange fails, requests are retried over "
+        "CAN using the MVCI D-PDU API (mvci32.dll). ISO-TP segmentation is "
+        "handled by the VCI.</i>");
+    canNote->setWordWrap(true);
+    cvf->addRow(canNote);
+    lay->addWidget(canc);
 
     lay->addStretch(1);
 
@@ -3071,7 +3119,7 @@ QWidget* Gui::buildCloudPage() {
     edTotpSeed_->setPlaceholderText("6-digit seed");
     edTotpSeed_->setMaximumWidth(120);
     edTotpTs_ = new QDateTimeEdit;
-    edTotpTs_->setDisplayFormat("yyyy-MM-dd HH:mm:ss");
+    edTotpTs_->setDisplayFormat("MM/dd/yyyy - HH:mm");
     edTotpTs_->setTimeZone(QTimeZone::UTC);
     edTotpTs_->setCalendarPopup(true);
     edTotpTs_->setDateTime(QDateTime::currentDateTimeUtc());
@@ -3079,10 +3127,11 @@ QWidget* Gui::buildCloudPage() {
                           "(defaults to now).");
     edTotpTs_->setMaximumWidth(220);
     edTotpTsText_ = new QLineEdit;
-    edTotpTsText_->setPlaceholderText("e.g. Wed May 20 20:24:05 2026 (UTC)");
+    edTotpTsText_->setPlaceholderText("e.g. 06/02/2026 - 12:01 (UTC)");
     edTotpTsText_->setToolTip("Optional: type a UTC date/time string and press "
                               "Enter to set the picker. Accepts forms like "
-                              "'Wed May 20 20:24:05 2026' or '2026-05-20 20:24:05'.");
+                              "'06/02/2026 - 12:01', 'Wed May 20 20:24:05 2026', "
+                              "or '2026-05-20 20:24:05'.");
     edTotpTsText_->setMinimumWidth(260);
     tf->addWidget(new QLabel("Seed"));              tf->addWidget(edTotpSeed_);
     tf->addWidget(new QLabel("UTC date/time"));     tf->addWidget(edTotpTs_);
@@ -3099,12 +3148,13 @@ QWidget* Gui::buildCloudPage() {
     tv->addLayout(tb);
     outer->addWidget(totpCard);
 
-    // Parse a typed UTC string into a QDateTime (UTC). Accepts the C asctime
-    // form ("Wed May 20 20:24:05 2026") and a few common ISO-ish variants.
+    // Parse a typed UTC string into a QDateTime (UTC). Accepts the current
+    // engineering-menu timestamp format and a few legacy/ISO-ish variants.
     auto parseUtcText = [](const QString& raw) -> QDateTime {
         QString s = raw.simplified();   // collapse runs of whitespace
         if (s.isEmpty()) return QDateTime();
         static const char* fmts[] = {
+            "MM/dd/yyyy - HH:mm",       // 06/02/2026 - 12:01
             "ddd MMM d HH:mm:ss yyyy",   // Wed May 20 20:24:05 2026 (asctime)
             "ddd MMM d yyyy HH:mm:ss",   // Wed May 20 2026 20:24:05
             "yyyy-MM-dd HH:mm:ss",       // 2026-05-20 20:24:05
@@ -3130,7 +3180,7 @@ QWidget* Gui::buildCloudPage() {
             edTotpTs_->setDateTime(dt);
         } else {
             cloudLine("TOTP: could not parse UTC date/time '" +
-                      raw.toStdString() + "'. Try 'Wed May 20 20:24:05 2026'.");
+                      raw.toStdString() + "'. Try '06/02/2026 - 12:01'.");
         }
     });
 
@@ -3150,7 +3200,7 @@ QWidget* Gui::buildCloudPage() {
             if (!dt.isValid()) {
                 cloudLine("TOTP: could not parse UTC date/time '" +
                           typed.toStdString() +
-                          "'. Try 'Wed May 20 20:24:05 2026'.");
+                          "'. Try '06/02/2026 - 12:01'.");
                 return;
             }
             edTotpTs_->setDateTime(dt);
@@ -3456,7 +3506,7 @@ void Gui::refreshHeader() {
     busyDot_->setObjectName(busy ? "dotBusy" : "dotIdle");
     busyText_->setText(busy ? "Working..." : "Ready");
 
-    bool conn = client_.isConnected();
+    bool conn = client_.isConnected() || canBackup_.isConnected();
     connDot_->setObjectName(conn ? "dotGood" : "dotBad");
     {
         std::lock_guard<std::mutex> g(mutex_);
@@ -4037,6 +4087,19 @@ void Gui::syncSettingsFromUi() {
     if (edSovdToken_)  sovdToken_    = edSovdToken_->text().toStdString();
     sovd_.setBaseUrl(sovdBaseUrl_);
     sovd_.setBearerToken(sovdToken_);
+    if (cbCanEnabled_) canEnabled_   = cbCanEnabled_->isChecked();
+    if (edCanDll_)     canDll_       = edCanDll_->text().toStdString();
+    if (edCanBaud_)    canBaud_      = edCanBaud_->text().toInt();
+    auto parseHex32 = [](const QString& s, int def) -> int {
+        QString t = s.trimmed();
+        if (t.startsWith("0x", Qt::CaseInsensitive)) t = t.mid(2);
+        bool ok = false;
+        uint v = t.toUInt(&ok, 16);
+        return ok ? (int)v : def;
+    };
+    if (edCanReqId_)   canReqId_     = parseHex32(edCanReqId_->text(), 0x7E0);
+    if (edCanRespId_)  canRespId_    = parseHex32(edCanRespId_->text(), 0x7E8);
+    if (cbCanExt_)     canExtended_  = cbCanExt_->isChecked();
 }
 
 // Derive a SOVD component id from a free-text ECU name. SOVD uses lowercase
@@ -4246,10 +4309,47 @@ void Gui::startWorker(std::function<void()> fn) {
 }
 
 bool Gui::ensureConnected(std::string& err) {
+    // Bring up the optional CAN backup transport first so it is available the
+    // moment a DoIP exchange fails. A CAN failure here is non-fatal.
+    if (canEnabled_ && !canBackup_.isConnected()) {
+        if (can::Client::platformSupported()) {
+            can::Config cfg;
+            cfg.dllPath    = canDll_;
+            cfg.baudrate   = (uint32_t)canBaud_;
+            cfg.reqId      = (uint32_t)canReqId_;
+            cfg.respId     = (uint32_t)canRespId_;
+            cfg.extendedId = canExtended_;
+            std::string canErr;
+            if (!canBackup_.connect(cfg, canErr)) {
+                Logger::instance().warn("CAN backup unavailable: " + canErr);
+            } else {
+                Logger::instance().info("CAN backup transport ready");
+            }
+        } else {
+            Logger::instance().warn("CAN backup enabled but not supported on this platform");
+        }
+    }
+
     if (client_.isConnected()) return true;
-    if (!client_.connectTcp(gatewayIp_, (uint16_t)port_, err)) return false;
+    if (!client_.connectTcp(gatewayIp_, (uint16_t)port_, err)) {
+        // DoIP link could not be established. If the CAN backup is up we can
+        // still operate purely over CAN.
+        if (canBackup_.isConnected()) {
+            Logger::instance().warn("DoIP connect failed (" + err +
+                                    "); continuing over CAN backup");
+            err.clear();
+            return true;
+        }
+        return false;
+    }
     if (!client_.routingActivation((uint16_t)testerAddr_, (uint8_t)activationType_, err)) {
         client_.disconnect();
+        if (canBackup_.isConnected()) {
+            Logger::instance().warn("DoIP routing activation failed (" + err +
+                                    "); continuing over CAN backup");
+            err.clear();
+            return true;
+        }
         return false;
     }
     if (keepAlive_) startKeepAlive();
