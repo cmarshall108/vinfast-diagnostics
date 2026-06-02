@@ -3286,59 +3286,59 @@ QWidget* Gui::buildLogPage() {
 
 void Gui::applyStyle() {
     setStyleSheet(R"(
-        QWidget { background: #161a21; color: #dfe4ea; font-size: 13px; }
+        QWidget { background: #f4f7fb; color: #1f2a37; font-size: 13px; }
         QLabel { background: transparent; }
-        QLabel#ecuTitle { font-size: 38px; font-weight: 800; color: #f5f9ff; letter-spacing: 1px; }
-        QLabel#ecuSubtitle { color: #c8d7e8; font-size: 16px; font-weight: 600; }
-        QFrame#header { background: #11202e;
+        QLabel#ecuTitle { font-size: 38px; font-weight: 800; color: #10233d; letter-spacing: 1px; }
+        QLabel#ecuSubtitle { color: #50657d; font-size: 16px; font-weight: 600; }
+        QFrame#header { background: #ffffff;
                         border-bottom: 2px solid #2e7dd1; }
-        QLabel#title { font-size: 20px; font-weight: 700; color: #ffffff; }
-        QLabel#subtitle { color: #9fb0c0; font-size: 11px; }
+        QLabel#title { font-size: 20px; font-weight: 700; color: #10233d; }
+        QLabel#subtitle { color: #63758a; font-size: 11px; }
         QLabel#dotGood { color: #43d17a; font-size: 16px; }
         QLabel#dotBad  { color: #e0556a; font-size: 16px; }
-        QLabel#dotIdle { color: #6a7686; font-size: 16px; }
+        QLabel#dotIdle { color: #8a97a8; font-size: 16px; }
         QLabel#dotBusy { color: #f2b134; font-size: 16px; }
-        QListWidget#nav { background: #11151c; border: none; outline: none; }
-        QListWidget#nav::item { color: #aeb9c6; border-radius: 6px; margin: 2px 8px; }
+        QListWidget#nav { background: #ebf1f7; border: none; outline: none; }
+        QListWidget#nav::item { color: #304255; border-radius: 6px; margin: 2px 8px; }
         QListWidget#nav::item:selected { background: #2e7dd1; color: #ffffff; }
-        QListWidget#nav::item:hover { background: #1d2530; }
-        QGroupBox#card { background: #1c222c; border: 1px solid #29313d;
+        QListWidget#nav::item:hover { background: #dbe7f3; }
+        QGroupBox#card { background: #ffffff; border: 1px solid #d6e0ea;
                          border-radius: 10px; margin-top: 14px; padding: 12px; }
         QGroupBox#card::title { subcontrol-origin: margin; left: 12px;
-                                padding: 0 6px; color: #7fa8d6; font-weight: 600; }
-        QPushButton { background: #232b37; border: 1px solid #323c4a;
+                                padding: 0 6px; color: #2f6fbf; font-weight: 600; }
+        QPushButton { background: #f7f9fc; border: 1px solid #cfd9e4;
                       border-radius: 6px; padding: 7px 14px; }
-        QPushButton:hover { background: #2b3543; }
+        QPushButton:hover { background: #edf3f8; }
         QPushButton#primary { background: #2e7dd1; border: none; color: #fff; font-weight: 600; }
         QPushButton#primary:hover { background: #3a8ce0; }
         QPushButton#danger { background: #b23a4a; border: none; color: #fff; }
         QPushButton#danger:hover { background: #c8485a; }
         QFrame#ecuCanvas {
             background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                        stop:0 #0f2439, stop:0.5 #0d1d31, stop:1 #0b1728);
-            border: 1px solid #24486c;
+                        stop:0 #f9fcff, stop:0.5 #edf5fc, stop:1 #e4eef8);
+            border: 1px solid #c7d8ea;
             border-radius: 12px;
         }
-        QLabel#ecuCanvasHint { color: #acc0d7; font-size: 12px; }
+        QLabel#ecuCanvasHint { color: #5f7287; font-size: 12px; }
         QFrame#ecuLegend {
-            background: rgba(14, 27, 43, 0.95);
-            border: 1px solid #24486c;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid #c7d8ea;
             border-radius: 12px;
         }
-        QLabel#ecuLegendTitle { font-size: 17px; font-weight: 700; color: #f5f9ff; }
-        QLabel#ecuLegendNote { color: #9fb0c0; font-size: 12px; }
-        QToolButton#tile { background: #1c222c; border: 1px solid #29313d;
+        QLabel#ecuLegendTitle { font-size: 17px; font-weight: 700; color: #10233d; }
+        QLabel#ecuLegendNote { color: #5f7287; font-size: 12px; }
+        QToolButton#tile { background: #ffffff; border: 1px solid #d1dbe6;
                            border-radius: 10px; font-weight: 600; }
-        QToolButton#tile:hover { background: #243042; border-color: #2e7dd1; }
-        QLineEdit, QSpinBox, QComboBox { background: #11151c; border: 1px solid #323c4a;
+        QToolButton#tile:hover { background: #eef4f9; border-color: #2e7dd1; }
+        QLineEdit, QSpinBox, QComboBox { background: #ffffff; border: 1px solid #cfd9e4;
                           border-radius: 5px; padding: 5px; }
         QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border-color: #2e7dd1; }
-        QTableWidget, QTreeWidget, QPlainTextEdit#log { background: #11151c;
-                          border: 1px solid #29313d; border-radius: 8px; gridline-color: #232c38; }
-        QHeaderView::section { background: #1c222c; color: #9fb0c0; border: none;
+        QTableWidget, QTreeWidget, QPlainTextEdit#log { background: #ffffff;
+                          border: 1px solid #d6e0ea; border-radius: 8px; gridline-color: #e2eaf2; }
+        QHeaderView::section { background: #edf3f8; color: #425466; border: none;
                           padding: 6px; }
-        QScrollBar:vertical { background: #11151c; width: 12px; }
-        QScrollBar::handle:vertical { background: #323c4a; border-radius: 6px; }
+        QScrollBar:vertical { background: #eef3f8; width: 12px; }
+        QScrollBar::handle:vertical { background: #c2cfdb; border-radius: 6px; }
     )");
 }
 
@@ -3611,11 +3611,12 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
     lay->addWidget(statusLbl);
     lay->addWidget(idLbl);
 
-    auto* dtcTable = new QTableWidget(0, 4);
-    dtcTable->setHorizontalHeaderLabels({"DTC", "Status", "Description", ""});
+    auto* dtcTable = new QTableWidget(0, 5);
+    dtcTable->setHorizontalHeaderLabels({"DTC", "Code status", "Status", "Description", ""});
     dtcTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
     dtcTable->setColumnWidth(0, 130);
-    dtcTable->setColumnWidth(3, 90);
+    dtcTable->setColumnWidth(1, 110);
+    dtcTable->setColumnWidth(4, 90);
     dtcTable->verticalHeader()->setVisible(false);
     dtcTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     lay->addWidget(dtcTable, 1);
@@ -3649,9 +3650,10 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
             };
             char codebuf[16]; std::snprintf(codebuf, sizeof codebuf, "%06X", d.code);
             set(0, QString("%1 (%2)").arg(QString::fromStdString(d.text)).arg(codebuf));
-            set(1, QString::fromStdString(decodeDtcStatus(d.status)));
-            set(2, QString::fromStdString(dtcDescription(d.code)));
-            if (!dtcTable->cellWidget((int)di, 3)) {
+            set(1, QString::fromStdString(dtcLifecycle(d.status)));
+            set(2, QString::fromStdString(decodeDtcStatus(d.status)));
+            set(3, QString::fromStdString(dtcDescription(d.code)));
+            if (!dtcTable->cellWidget((int)di, 4)) {
                 auto* snap = new QPushButton("Snapshot");
                 uint32_t code = d.code;
                 connect(snap, &QPushButton::clicked, this, [this, idx, code, targetOf] {
@@ -3671,7 +3673,7 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
                             if (idx < (int)ecus_.size()) ecus_[idx].statusMsg = "snapshot failed: " + err; }
                     });
                 });
-                dtcTable->setCellWidget((int)di, 3, snap);
+                dtcTable->setCellWidget((int)di, 4, snap);
             }
         }
     };

@@ -2,10 +2,10 @@
 //
 // Gui.hpp - Qt6 front-end for the DoIP/UDS diagnostic scanner.
 //
-// The interface is modelled on TEXA IDC6: a dark, icon-driven navigator down
-// the left edge selects compact "pages" in a stacked view, and detail (ECU
-// info, DTC lists, snapshots, add-signal forms, confirmations) is shown in
-// relative popups so very little text is visible at once.
+// The interface is modelled on TEXA IDC6: an icon-driven navigator down the
+// left edge selects compact "pages" in a stacked view, and detail (ECU info,
+// DTC lists, snapshots, add-signal forms, confirmations) is shown in relative
+// popups so very little text is visible at once.
 //
 #include "DoIPClient.hpp"
 #include "UDSClient.hpp"

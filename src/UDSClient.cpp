@@ -1115,6 +1115,15 @@ std::string decodeDtcStatus(uint8_t s) {
     return "0x" + byteHex(s) + " (" + out + ")";
 }
 
+std::string dtcLifecycle(uint8_t s) {
+    const bool active = (s & 0x07) != 0;
+    const bool history = (s & 0x28) != 0;
+    if (active && history) return "active/history";
+    if (active) return "active";
+    if (history) return "history";
+    return "inactive";
+}
+
 std::string dtcDescription(uint32_t code) {
     // Prefer VinFast VF8 data: explicit Autel text, else a standardized
     // SAE J2012 base description combined with the ISO 14229 failure-type byte.

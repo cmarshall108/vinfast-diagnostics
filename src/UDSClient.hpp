@@ -476,5 +476,6 @@ private:
 // Decoding helpers (defined in UDSClient.cpp).
 std::string decodeDtc(uint32_t code);          // "P0420-00"
 std::string decodeDtcStatus(uint8_t status);   // human-readable status bits
+std::string dtcLifecycle(uint8_t status);      // active/history classification
 std::string dtcDescription(uint32_t code);     // best-effort generic text
 std::string nrcText(uint8_t nrc);              // negative response code text
