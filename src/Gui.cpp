@@ -1096,13 +1096,9 @@ QWidget* Gui::buildEcuPage() {
 
     auto* toolbar = new QHBoxLayout;
     auto* scanBtn  = new QPushButton("Scan all (read DTCs)");
-    auto* probeBtn = new QPushButton("Probe addresses");
-    auto* idBtn    = new QPushButton("Identify (DID sweep)");
     auto* clearBtn = new QPushButton("Clear DTCs on ALL"); clearBtn->setObjectName("danger");
     auto* addBtn   = new QPushButton("Add ECU");
     toolbar->addWidget(scanBtn);
-    toolbar->addWidget(probeBtn);
-    toolbar->addWidget(idBtn);
     toolbar->addWidget(clearBtn);
     toolbar->addStretch(1);
     toolbar->addWidget(addBtn);
@@ -1195,8 +1191,8 @@ QWidget* Gui::buildEcuPage() {
     addBusItem("#3f8ae0", "drive");
 
     auto* legendNote = new QLabel(
-        "Fault count appears on each node after scanning. Run Probe addresses "
-        "to confirm communication.");
+        "Fault count appears on each node after scanning. Scan all now probes "
+        "addresses and runs DID identification automatically.");
     legendNote->setWordWrap(true);
     legendNote->setObjectName("ecuLegendNote");
     legendLay->addSpacing(4);
@@ -1209,119 +1205,107 @@ QWidget* Gui::buildEcuPage() {
     connect(scanBtn, &QPushButton::clicked, this, [this] {
         syncSettingsFromUi();
         uint8_t mask = (uint8_t)statusMask_;
-        bool functional = useFunctional_; uint16_t funcAddr = (uint16_t)functionalAddr_;
+        bool functional = useFunctional_;
+        uint16_t funcAddr = (uint16_t)functionalAddr_;
         startWorker([this, mask, functional, funcAddr] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
             UDSClient uds(client_, (uint16_t)testerAddr_);
             size_t count; { std::lock_guard<std::mutex> g(mutex_); count = ecus_.size(); }
-            for (size_t i = 0; i < count; ++i) {
-                uint16_t addr; { std::lock_guard<std::mutex> g(mutex_); addr = ecus_[i].logicalAddr; }
-                uint16_t target = functional ? funcAddr : addr;
-                std::vector<Dtc> dtcs; std::string e;
-                if (uds.readDTCByStatusMask(target, mask, dtcs, e)) {
-                    std::lock_guard<std::mutex> g(mutex_);
-                    ecus_[i].dtcs = std::move(dtcs);
-                    ecus_[i].statusMsg = "read OK (" + std::to_string(ecus_[i].dtcs.size()) + " DTC)";
-                } else { std::lock_guard<std::mutex> g(mutex_); ecus_[i].statusMsg = "read failed: " + e; }
-            }
-            Logger::instance().info("Scan All complete");
-        });
-    });
-    connect(probeBtn, &QPushButton::clicked, this, [this] {
-        syncSettingsFromUi();
-        startWorker([this] {
-            std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
-            size_t count; { std::lock_guard<std::mutex> g(mutex_); count = ecus_.size(); }
+
             int reachable = 0;
+            int identified = 0;
             for (size_t i = 0; i < count; ++i) {
-                uint16_t addr, alt; std::string name, sovdId;
-                { std::lock_guard<std::mutex> g(mutex_);
-                  addr = ecus_[i].logicalAddr; alt = ecus_[i].altAddr;
-                  name = ecus_[i].name; sovdId = ecus_[i].sovdId; }
-                std::string e; bool ok = uds.probe(addr, e);
-                if (!ok && alt != 0 && alt != addr) {
+                uint16_t addr, alt;
+                std::string name, sovdId;
+                {
+                    std::lock_guard<std::mutex> g(mutex_);
+                    addr = ecus_[i].logicalAddr;
+                    alt = ecus_[i].altAddr;
+                    name = ecus_[i].name;
+                    sovdId = ecus_[i].sovdId;
+                }
+
+                uint16_t target = functional ? funcAddr : addr;
+
+                // 1) Probe address first, trying alternative routing and SOVD backup.
+                bool probed = false;
+                std::string probeErr;
+                if (uds.probe(target, probeErr)) {
+                    probed = true;
+                } else if (!functional && alt != 0 && alt != addr) {
                     std::string e2;
                     if (uds.probe(alt, e2)) {
                         std::lock_guard<std::mutex> g(mutex_);
-                        ecus_[i].logicalAddr = alt;   // adopt the working alternative address
-                        ecus_[i].reachable = 1;
-                        char buf[48];
-                        std::snprintf(buf, sizeof buf, "reachable via alt 0x%04X", alt);
-                        ecus_[i].statusMsg = buf;
-                        ++reachable;
-                        continue;
+                        if (i < ecus_.size()) ecus_[i].logicalAddr = alt;
+                        target = alt;
+                        probed = true;
                     }
                 }
-                if (!ok && sovd_.configured()) {
+                if (!probed && !functional && sovd_.configured()) {
                     std::string cid = sovdId.empty() ? deriveSovdId(name) : sovdId;
                     std::string detail;
                     if (sovdProbe(cid, detail)) {
                         std::lock_guard<std::mutex> g(mutex_);
-                        ecus_[i].reachable = 1;
-                        ecus_[i].sovdId = cid;            // remember the working component id
-                        ecus_[i].statusMsg = "reachable " + detail;  // "reachable via SOVD (...)"
+                        if (i < ecus_.size()) {
+                            ecus_[i].reachable = 1;
+                            ecus_[i].sovdId = cid;
+                            ecus_[i].statusMsg = "reachable " + detail;
+                        }
                         ++reachable;
                         Logger::instance().info(name + ": UDS silent, reachable over SOVD backup (" + cid + ")");
                         continue;
                     }
                 }
-                std::lock_guard<std::mutex> g(mutex_);
-                ecus_[i].reachable = ok ? 1 : 0;
-                ecus_[i].statusMsg = ok ? "reachable" : ("no response: " + e);
-                if (ok) ++reachable;
-            }
-            Logger::instance().info("Probe complete: " + std::to_string(reachable) +
-                                    "/" + std::to_string(count) + " replied");
-        });
-    });
-    connect(idBtn, &QPushButton::clicked, this, [this] {
-        syncSettingsFromUi();
-        startWorker([this] {
-            std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
-            size_t count; { std::lock_guard<std::mutex> g(mutex_); count = ecus_.size(); }
-            int identified = 0;
-            for (size_t i = 0; i < count; ++i) {
-                uint16_t addr, alt;
-                { std::lock_guard<std::mutex> g(mutex_);
-                  addr = ecus_[i].logicalAddr; alt = ecus_[i].altAddr; }
 
-                int answered = 0;
-                auto fields = uds.sweepIdentificationDids(addr, answered);
-                uint16_t hit = addr;
-                if (answered == 0 && alt != 0 && alt != addr) {
-                    auto altFields = uds.sweepIdentificationDids(alt, answered);
-                    if (answered > 0) { fields = std::move(altFields); hit = alt; }
-                }
-
-                std::lock_guard<std::mutex> g(mutex_);
-                if (i >= ecus_.size()) break;
-                if (answered == 0) {
-                    ecus_[i].statusMsg = "DID sweep: no identification DIDs answered";
+                if (!probed) {
+                    std::lock_guard<std::mutex> g(mutex_);
+                    if (i < ecus_.size()) {
+                        ecus_[i].reachable = 0;
+                        ecus_[i].statusMsg = "no response: " + probeErr;
+                    }
                     continue;
                 }
-                // A positive identification read confirms the address is live.
-                ecus_[i].reachable = 1;
-                if (hit != ecus_[i].logicalAddr) {
-                    ecus_[i].logicalAddr = hit;   // adopt the address that actually answered
+
+                ++reachable;
+
+                // 2) Identify module via DID sweep.
+                int answered = 0;
+                auto fields = uds.sweepIdentificationDids(target, answered);
+                std::string idInfo;
+                if (answered > 0) {
+                    for (const auto& f : fields) {
+                        char did[8]; std::snprintf(did, sizeof did, "%04X", f.did);
+                        idInfo += f.label + " (" + did + "): " + f.value + "\n";
+                    }
+                    ++identified;
                 }
-                std::string info;
-                for (const auto& f : fields) {
-                    char did[8]; std::snprintf(did, sizeof did, "%04X", f.did);
-                    info += f.label + " (" + did + "): " + f.value + "\n";
+
+                // 3) Read DTCs for the requested status mask.
+                std::vector<Dtc> dtcs; std::string e;
+                if (uds.readDTCByStatusMask(target, mask, dtcs, e)) {
+                    std::lock_guard<std::mutex> g(mutex_);
+                    if (i < ecus_.size()) {
+                        ecus_[i].reachable = 1;
+                        if (!idInfo.empty()) ecus_[i].idInfo = idInfo;
+                        ecus_[i].dtcs = std::move(dtcs);
+                        ecus_[i].statusMsg = "scan OK (" + std::to_string(answered) + " DID, " +
+                                             std::to_string(ecus_[i].dtcs.size()) + " DTC)";
+                    }
+                } else {
+                    std::lock_guard<std::mutex> g(mutex_);
+                    if (i < ecus_.size()) {
+                        ecus_[i].reachable = 1;
+                        if (!idInfo.empty()) ecus_[i].idInfo = idInfo;
+                        ecus_[i].statusMsg = "read failed: " + e;
+                    }
                 }
-                ecus_[i].idInfo = info;
-                ecus_[i].statusMsg = "identified via DID sweep (" +
-                                     std::to_string(answered) + " DID, 0x" +
-                                     [hit] { char b[8]; std::snprintf(b, sizeof b, "%04X", hit); return std::string(b); }() + ")";
-                ++identified;
+
+                if (functional) break;
             }
-            Logger::instance().info("DID sweep complete: " + std::to_string(identified) +
-                                    "/" + std::to_string(count) + " identified");
+            Logger::instance().info("Scan All complete: " + std::to_string(reachable) +
+                                    "/" + std::to_string(count) + " reachable, " +
+                                    std::to_string(identified) + " identified");
         });
     });
     connect(clearBtn, &QPushButton::clicked, this, [this, clearBtn] {
