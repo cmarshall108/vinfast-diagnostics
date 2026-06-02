@@ -796,7 +796,14 @@ QWidget* Gui::buildConnectionPage() {
     cbAutoExt_ = new QCheckBox("Auto-enter Extended before Clear"); cbAutoExt_->setChecked(true);
     sf->addRow(cbAutoExt_);
     cbKeepAlive_ = new QCheckBox("Keep session alive (background TesterPresent)");
-    sf->addRow(cbKeepAlive_);
+    edKeepAliveTarget_ = hexEdit("1001", 4);
+    auto* kaRow = new QHBoxLayout;
+    kaRow->addWidget(cbKeepAlive_);
+    kaRow->addSpacing(10);
+    kaRow->addWidget(new QLabel("Keep-alive target"));
+    kaRow->addWidget(edKeepAliveTarget_);
+    kaRow->addStretch(1);
+    sf->addRow(kaRow);
     connect(cbKeepAlive_, &QCheckBox::toggled, this, [this](bool on) {
         keepAlive_ = on;
         if (on && client_.isConnected()) startKeepAlive();
@@ -809,6 +816,8 @@ QWidget* Gui::buildConnectionPage() {
     sbtns->addWidget(enterBtn); sbtns->addWidget(tpBtn); sbtns->addStretch(1);
     sf->addRow(sbtns);
 
+    edSecurityTarget_ = hexEdit("1001", 4);
+    sf->addRow("Session/Security target", edSecurityTarget_);
     edSeedLevel_ = hexEdit("01", 2);
     sf->addRow("Seed level (odd sub-func)", edSeedLevel_);
     seedLabel_ = new QLabel("seed: -");
@@ -880,7 +889,7 @@ QWidget* Gui::buildConnectionPage() {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
             UDSClient uds(client_, (uint16_t)testerAddr_);
-            if (uds.diagnosticSessionControl((uint16_t)gatewayAddr_, (UdsSession)s, err))
+            if (uds.diagnosticSessionControl((uint16_t)securityTarget_, (UdsSession)s, err))
                 Logger::instance().info("Session 0x" + byteHex((uint8_t)s) + " active");
             else Logger::instance().error("SessionControl: " + err);
         });
@@ -905,7 +914,7 @@ QWidget* Gui::buildConnectionPage() {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
             UDSClient uds(client_, (uint16_t)testerAddr_);
-            auto seed = uds.requestSeed((uint16_t)gatewayAddr_, (uint8_t)lvl, err);
+            auto seed = uds.requestSeed((uint16_t)securityTarget_, (uint8_t)lvl, err);
             std::lock_guard<std::mutex> g(mutex_);
             if (seed) {
                 lastSeedHex_ = seed->empty() ? "(already unlocked)"
@@ -924,7 +933,7 @@ QWidget* Gui::buildConnectionPage() {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
             UDSClient uds(client_, (uint16_t)testerAddr_);
-            if (uds.sendKey((uint16_t)gatewayAddr_, (uint8_t)lvl, key, err))
+            if (uds.sendKey((uint16_t)securityTarget_, (uint8_t)lvl, key, err))
                 Logger::instance().info("Security unlocked (level 0x" + byteHex((uint8_t)lvl) + ")");
             else Logger::instance().error("SendKey: " + err);
         });
@@ -2235,6 +2244,100 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
 
+    // ---- Full memory dump to .bin (chunked 0x35 upload) ----
+    auto* dumpCard = card("Full memory dump to .bin (0x35 upload)");
+    auto* dmpl = new QFormLayout(dumpCard);
+    auto* dumpNote = new QLabel(
+        "Reads a memory range in chunks via RequestUpload (0x35) and streams it "
+        "straight to a .bin file you can edit and reflash. Most production ECUs "
+        "require a programming session + SecurityAccess first, and many reject "
+        "0x35 entirely or only expose permitted regions - so a true full-flash "
+        "dump is often partial. Enter the start address and total size from the "
+        "ECU's memory map; the file is written incrementally so a partial dump "
+        "is still saved.");
+    dumpNote->setWordWrap(true);
+    dmpl->addRow(dumpNote);
+
+    edDumpAddr_  = hexEdit("00000000", 8);
+    edDumpSize_  = hexEdit("00100000", 8);   // 1 MiB default
+    edDumpChunk_ = hexEdit("0400", 4);        // 1 KiB request granularity
+    sbDumpAddrB_ = new QSpinBox; sbDumpAddrB_->setRange(1, 4); sbDumpAddrB_->setValue(4);
+    sbDumpSizeB_ = new QSpinBox; sbDumpSizeB_->setRange(1, 4); sbDumpSizeB_->setValue(4);
+    auto* dmpRow = new QHBoxLayout;
+    dmpRow->addWidget(new QLabel("Start")); dmpRow->addWidget(edDumpAddr_);
+    dmpRow->addWidget(new QLabel("Total"));  dmpRow->addWidget(edDumpSize_);
+    dmpRow->addWidget(new QLabel("Chunk"));  dmpRow->addWidget(edDumpChunk_);
+    dmpRow->addWidget(new QLabel("addrB")); dmpRow->addWidget(sbDumpAddrB_);
+    dmpRow->addWidget(new QLabel("sizeB")); dmpRow->addWidget(sbDumpSizeB_);
+    dmpl->addRow("Range", dmpRow);
+    auto* dumpBtn = new QPushButton("Dump to .bin file"); dumpBtn->setObjectName("primary");
+    auto* dmpBtnRow = new QHBoxLayout;
+    dmpBtnRow->addWidget(dumpBtn); dmpBtnRow->addStretch(1);
+    dmpl->addRow(dmpBtnRow);
+    outer->addWidget(dumpCard);
+
+    connect(dumpBtn, &QPushButton::clicked, this, [this, dumpBtn] {
+        uint16_t tgt   = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint32_t addr  = (uint32_t)edDumpAddr_->text().toUInt(nullptr, 16);
+        uint32_t total = (uint32_t)edDumpSize_->text().toUInt(nullptr, 16);
+        uint32_t chunk = (uint32_t)edDumpChunk_->text().toUInt(nullptr, 16);
+        uint8_t  addrB = (uint8_t)sbDumpAddrB_->value();
+        uint8_t  sizeB = (uint8_t)sbDumpSizeB_->value();
+        if (total == 0) { protoLine("Dump: total size must be non-zero."); return; }
+        if (chunk == 0) chunk = 0x400;
+
+        QString path = QFileDialog::getSaveFileName(this, "Save memory dump", "ecu-dump.bin",
+                                                    "Binary image (*.bin);;All files (*)");
+        if (path.isEmpty()) return;
+        if (!confirmPopup(dumpBtn, "Dump ECU memory",
+                          QString("Read %1 byte(s) from 0x%2 on ECU 0x%3 and save to a file?\n\n"
+                                  "The ECU must permit RequestUpload (0x35); enter a programming "
+                                  "session and unlock SecurityAccess first if required.")
+                              .arg(total).arg(addr, 0, 16).arg(tgt, 4, 16, QChar('0')),
+                          "Start dump"))
+            return;
+
+        std::string file = path.toStdString();
+        startWorker([this, tgt, addr, total, chunk, addrB, sizeB, file] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("Dump: " + err); return; }
+
+            FILE* fp = std::fopen(file.c_str(), "wb");
+            if (!fp) { protoLine("Dump: cannot open output file."); return; }
+
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            protoLine("Dump: reading " + std::to_string(total) + " byte(s) from 0x" +
+                      std::to_string(addr) + " in " + std::to_string(chunk) + "-byte chunks...");
+
+            uint32_t done = 0;
+            uint32_t nextReport = 0;
+            bool ok = true;
+            while (done < total && client_.isConnected()) {
+                uint32_t want = (std::min)(chunk, total - done);
+                std::vector<uint8_t> part;
+                std::string e;
+                if (!uds.uploadBlock(tgt, addr + done, want, addrB, sizeB, 0x00, part, nullptr, e)) {
+                    protoLine("Dump: stopped at 0x" + std::to_string(addr + done) + ": " + e);
+                    ok = false;
+                    break;
+                }
+                if (std::fwrite(part.data(), 1, part.size(), fp) != part.size()) {
+                    protoLine("Dump: file write error."); ok = false; break;
+                }
+                done += (uint32_t)part.size();
+                if (done >= nextReport) {
+                    protoLine("  dumped " + std::to_string(done) + "/" + std::to_string(total) +
+                              " byte(s)");
+                    nextReport = done + 64u * 1024u;
+                }
+            }
+            std::fclose(fp);
+            protoLine(std::string(ok ? "Dump complete: " : "Dump partial: ") +
+                      std::to_string(done) + " byte(s) saved to " + file +
+                      ". Edit it, then use the flash panel to reupload (0x34).");
+        });
+    });
+
     // ---- Link, timing & authentication (0x87 / 0x83 / 0x29) ----
     auto* linkCard = card("Link, timing & authentication (0x87 / 0x83 / 0x29)");
     auto* ll = new QFormLayout(linkCard);
@@ -2317,6 +2420,124 @@ QWidget* Gui::buildProtocolPage() {
                 protoLine("Authentication sub 0x" + byteHex(sub) + ": OK" +
                           (out.empty() ? "" : " " + toHex(out.data(), out.size())));
             else protoLine("Authentication: " + err);
+        });
+    });
+
+    // ---- Secured transport, response-on-event, file transfer (0x84 / 0x86 / 0x38) ----
+    auto* secEvtCard = card("Secured transport & event/file services (0x84 / 0x86 / 0x38)");
+    auto* se = new QFormLayout(secEvtCard);
+
+    edProtoSecData_ = new QLineEdit;
+    edProtoSecData_->setPlaceholderText("secured payload record (hex)");
+    auto* secRow = new QHBoxLayout;
+    secRow->addWidget(edProtoSecData_, 1);
+    auto* secBtn = new QPushButton("Send (0x84)");
+    secRow->addWidget(secBtn);
+    se->addRow("SecuredDataTransmission", secRow);
+
+    edProtoRoeEventType_ = hexEdit("01", 2);
+    edProtoRoeWindow_ = hexEdit("00", 2);
+    edProtoRoeEventRec_ = new QLineEdit;
+    edProtoRoeEventRec_->setPlaceholderText("eventTypeRecord (hex, optional)");
+    edProtoRoeSvcRec_ = new QLineEdit;
+    edProtoRoeSvcRec_->setPlaceholderText("serviceToRespondTo record (hex)");
+    auto* roeTop = new QHBoxLayout;
+    roeTop->addWidget(new QLabel("eventType")); roeTop->addWidget(edProtoRoeEventType_);
+    roeTop->addWidget(new QLabel("window")); roeTop->addWidget(edProtoRoeWindow_);
+    auto* roeBtn = new QPushButton("Configure (0x86)");
+    roeTop->addWidget(roeBtn); roeTop->addStretch(1);
+    se->addRow("ResponseOnEvent", roeTop);
+    se->addRow("Event record", edProtoRoeEventRec_);
+    se->addRow("Service record", edProtoRoeSvcRec_);
+
+    cbProtoFileMode_ = new QComboBox;
+    cbProtoFileMode_->addItems({"Add file (01)", "Delete file (02)", "Replace file (03)",
+                                "Read file (04)", "Read directory (05)", "Resume file (06)"});
+    edProtoFilePath_ = new QLineEdit;
+    edProtoFilePath_->setPlaceholderText("ECU file path, e.g. /logs/diag.bin");
+    edProtoFileFmt_ = hexEdit("00", 2);
+    edProtoFileSizeU_ = new QLineEdit("0");
+    edProtoFileSizeC_ = new QLineEdit("0");
+    auto* ftRow = new QHBoxLayout;
+    ftRow->addWidget(cbProtoFileMode_);
+    ftRow->addWidget(new QLabel("fmt")); ftRow->addWidget(edProtoFileFmt_);
+    ftRow->addWidget(new QLabel("sizeU")); ftRow->addWidget(edProtoFileSizeU_);
+    ftRow->addWidget(new QLabel("sizeC")); ftRow->addWidget(edProtoFileSizeC_);
+    auto* ftBtn = new QPushButton("Run (0x38)");
+    ftRow->addWidget(ftBtn);
+    se->addRow("RequestFileTransfer", ftRow);
+    se->addRow("Path", edProtoFilePath_);
+    outer->addWidget(secEvtCard);
+
+    connect(secBtn, &QPushButton::clicked, this, [this] {
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        auto data = parseHexBytes(edProtoSecData_->text().toStdString());
+        startWorker([this, tgt, data] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("SecuredDataTransmission: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            std::vector<uint8_t> out;
+            if (uds.securedDataTransmission(tgt, data, out, err))
+                protoLine("SecuredDataTransmission: OK" +
+                          (out.empty() ? "" : " " + toHex(out.data(), out.size())));
+            else
+                protoLine("SecuredDataTransmission: " + err);
+        });
+    });
+
+    connect(roeBtn, &QPushButton::clicked, this, [this] {
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint8_t eventType = (uint8_t)parseHex16(edProtoRoeEventType_->text(), 0x01);
+        uint8_t window = (uint8_t)parseHex16(edProtoRoeWindow_->text(), 0x00);
+        auto eventRec = parseHexBytes(edProtoRoeEventRec_->text().toStdString());
+        auto svcRec = parseHexBytes(edProtoRoeSvcRec_->text().toStdString());
+        if (svcRec.empty()) { protoLine("ResponseOnEvent: service record cannot be empty."); return; }
+        startWorker([this, tgt, eventType, window, eventRec, svcRec] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("ResponseOnEvent: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            std::vector<uint8_t> out;
+            if (uds.responseOnEvent(tgt, eventType, window, eventRec, svcRec, out, err))
+                protoLine("ResponseOnEvent: OK" +
+                          (out.empty() ? "" : " " + toHex(out.data(), out.size())));
+            else
+                protoLine("ResponseOnEvent: " + err);
+        });
+    });
+
+    connect(ftBtn, &QPushButton::clicked, this, [this, ftBtn] {
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        auto mode = (FileTransferMode)(cbProtoFileMode_->currentIndex() + 1);
+        std::string path = edProtoFilePath_->text().toStdString();
+        uint8_t fmt = (uint8_t)parseHex16(edProtoFileFmt_->text(), 0x00);
+        uint64_t sizeU = std::strtoull(edProtoFileSizeU_->text().trimmed().toStdString().c_str(), nullptr, 0);
+        uint64_t sizeC = std::strtoull(edProtoFileSizeC_->text().trimmed().toStdString().c_str(), nullptr, 0);
+        if (path.empty()) { protoLine("RequestFileTransfer: file path is required."); return; }
+
+        bool invasive = (mode == FileTransferMode::AddFile ||
+                         mode == FileTransferMode::DeleteFile ||
+                         mode == FileTransferMode::ReplaceFile ||
+                         mode == FileTransferMode::ResumeFile);
+        if (invasive &&
+            !confirmPopup(ftBtn, "RequestFileTransfer",
+                          QString("Run file-transfer mode 0x%1 for path '%2' on ECU 0x%3? "
+                                  "This can modify ECU storage.")
+                              .arg((int)mode, 2, 16, QChar('0'))
+                              .arg(QString::fromStdString(path))
+                              .arg(tgt, 4, 16, QChar('0')),
+                          "Run"))
+            return;
+
+        startWorker([this, tgt, mode, path, fmt, sizeU, sizeC] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("RequestFileTransfer: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            std::vector<uint8_t> out;
+            if (uds.requestFileTransfer(tgt, mode, path, fmt, sizeU, sizeC, out, err))
+                protoLine("RequestFileTransfer: OK" +
+                          (out.empty() ? "" : " " + toHex(out.data(), out.size())));
+            else
+                protoLine("RequestFileTransfer: " + err);
         });
     });
 
@@ -3621,6 +3842,8 @@ void Gui::syncSettingsFromUi() {
     if (cbSession_)    sessionType_  = cbSession_->currentIndex() + 1;
     if (cbAutoExt_)    autoExtendedOnClear_ = cbAutoExt_->isChecked();
     if (cbKeepAlive_)  keepAlive_    = cbKeepAlive_->isChecked();
+    if (edKeepAliveTarget_) keepAliveTarget_ = parseHex16(edKeepAliveTarget_->text(), 0x1001);
+    if (edSecurityTarget_) securityTarget_ = parseHex16(edSecurityTarget_->text(), 0x1001);
     if (edSeedLevel_)  securityLevel_= parseHex16(edSeedLevel_->text(), 0x01);
     if (edKey_)        securityKeyHex_ = edKey_->text().toStdString();
     if (edSweepStart_) sweepStart_   = parseHex16(edSweepStart_->text(), 0x1000);
@@ -3685,7 +3908,8 @@ void Gui::startKeepAlive() {
                 std::lock_guard<std::mutex> n(netMutex_);
                 UDSClient uds(client_, (uint16_t)testerAddr_);
                 std::string err;
-                uds.testerPresent((uint16_t)gatewayAddr_, err, /*suppress=*/true);
+                uint16_t tgt = (uint16_t)(keepAliveTarget_ ? keepAliveTarget_ : gatewayAddr_);
+                uds.testerPresent(tgt, err, /*suppress=*/true);
             }
             for (int i = 0; i < 20 && keepAliveRun_; ++i)
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));

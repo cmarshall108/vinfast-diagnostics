@@ -16,8 +16,14 @@
 //   0x2E WriteDataByIdentifier
 //   0x2F InputOutputControlByIdentifier (returnControlToECU)
 //   0x31 RoutineControl (start / stop / requestResults)
+//   0x35 RequestUpload / 0x36 TransferData / 0x37 RequestTransferExit
+//   0x38 RequestFileTransfer
 //   0x3E TesterPresent
+//   0x83 AccessTimingParameter
+//   0x84 SecuredDataTransmission
 //   0x85 ControlDTCSetting
+//   0x86 ResponseOnEvent
+//   0x87 LinkControl
 //
 #include "DoIPClient.hpp"
 #include <cstdint>
@@ -427,6 +433,25 @@ public:
                              const std::string& filePath, uint8_t dataFormatId,
                              uint64_t fileSizeUncompressed, uint64_t fileSizeCompressed,
                              std::vector<uint8_t>& out, std::string& err);
+
+    // 0x84 SecuredDataTransmission - sends a security-protected payload record
+    // (e.g. MAC/nonce/ciphertext wrapper defined by the ECU's security layer).
+    // Returns the response record in `out`.
+    bool securedDataTransmission(uint16_t target,
+                                 const std::vector<uint8_t>& in,
+                                 std::vector<uint8_t>& out,
+                                 std::string& err);
+
+    // 0x86 ResponseOnEvent - configures/stops event-triggered responses.
+    // `eventType` carries the ISO eventType byte, `eventWindowTime` is the
+    // window-time parameter, `eventTypeRecord` is event-specific data, and
+    // `serviceRequestRecord` is the UDS request to trigger when the event fires.
+    // Returns the ECU response record in `out`.
+    bool responseOnEvent(uint16_t target, uint8_t eventType,
+                         uint8_t eventWindowTime,
+                         const std::vector<uint8_t>& eventTypeRecord,
+                         const std::vector<uint8_t>& serviceRequestRecord,
+                         std::vector<uint8_t>& out, std::string& err);
 
     // Best-effort recovery: returns control of every touched I/O DID to the
     // ECU, re-enables DTC logging (0x85 on) and drops back to the default

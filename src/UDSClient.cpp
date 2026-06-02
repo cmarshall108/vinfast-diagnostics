@@ -23,10 +23,16 @@ static const char* udsServiceName(uint8_t sid) {
         case 0x2C: return "DynamicallyDefineDataIdentifier";
         case 0x31: return "RoutineControl";
         case 0x34: return "RequestDownload";
+        case 0x35: return "RequestUpload";
         case 0x36: return "TransferData";
         case 0x37: return "RequestTransferExit";
+        case 0x38: return "RequestFileTransfer";
         case 0x3E: return "TesterPresent";
+        case 0x83: return "AccessTimingParameter";
+        case 0x84: return "SecuredDataTransmission";
         case 0x85: return "ControlDTCSetting";
+        case 0x86: return "ResponseOnEvent";
+        case 0x87: return "LinkControl";
         default:   return "Unknown service";
     }
 }
@@ -878,6 +884,12 @@ bool UDSClient::uploadBlock(uint16_t target, uint32_t memoryAddress, uint32_t si
     if (!requestUpload(target, memoryAddress, size, addrBytes, sizeBytes,
                        dataFormatId, maxBlockLength, err))
         return false;
+    if (maxBlockLength <= 2) {
+        err = "ECU-reported maxBlockLength too small (" +
+              std::to_string(maxBlockLength) + ")";
+        return false;
+    }
+    const size_t maxPayloadPerBlock = (size_t)(maxBlockLength - 2);
 
     // For an upload the ECU pushes data in its TransferData (0x36) responses;
     // the tester requests each block with an incrementing sequence counter.
@@ -891,7 +903,17 @@ bool UDSClient::uploadBlock(uint16_t target, uint32_t memoryAddress, uint32_t si
         if (resp.size() < 2 || resp[1] != bsc) {
             err = "TransferData (upload) block-counter mismatch"; return false;
         }
-        image.insert(image.end(), resp.begin() + 2, resp.end());
+        size_t payloadLen = resp.size() - 2;
+        if (payloadLen > maxPayloadPerBlock) {
+            err = "TransferData (upload) payload exceeds ECU max block length";
+            return false;
+        }
+        size_t remaining = (size_t)size - image.size();
+        if (payloadLen > remaining) {
+            Logger::instance().warn("Upload block larger than requested size; truncating to requested length");
+            payloadLen = remaining;
+        }
+        image.insert(image.end(), resp.begin() + 2, resp.begin() + 2 + payloadLen);
         bsc = (uint8_t)(bsc + 1);
         if (progress) progress(image.size(), size);
         if (resp.size() <= 2) break;   // ECU returned no payload -> stop
@@ -899,6 +921,11 @@ bool UDSClient::uploadBlock(uint16_t target, uint32_t memoryAddress, uint32_t si
 
     std::vector<uint8_t> exitResp;
     if (!requestTransferExit(target, {}, exitResp, err)) return false;
+    if (image.size() != size) {
+        err = "Upload incomplete: received " + std::to_string(image.size()) +
+              " of " + std::to_string(size) + " byte(s)";
+        return false;
+    }
     Logger::instance().log(LogLevel::Info,
         "Block upload from 0x" + addr16(target) + " complete: " +
         std::to_string(image.size()) + " byte(s) received");
@@ -983,6 +1010,44 @@ bool UDSClient::requestFileTransfer(uint16_t target, FileTransferMode mode,
     Logger::instance().log(LogLevel::Info,
         "RequestFileTransfer 0x" + addr16(target) + " mode 0x" + byteHex((uint8_t)mode) +
         " '" + filePath + "' accepted (" + std::to_string(out.size()) + " byte(s))");
+    return true;
+}
+
+bool UDSClient::securedDataTransmission(uint16_t target,
+                                        const std::vector<uint8_t>& in,
+                                        std::vector<uint8_t>& out,
+                                        std::string& err) {
+    // Request: 0x84 <securityDataRequestRecord...>
+    std::vector<uint8_t> req = {0x84};
+    req.insert(req.end(), in.begin(), in.end());
+    std::vector<uint8_t> resp;
+    if (!request(target, req, resp, err)) return false;
+    // Positive: 0xC4 <securityDataResponseRecord...>
+    out.assign(resp.begin() + 1, resp.end());
+    Logger::instance().log(LogLevel::Info,
+        "SecuredDataTransmission 0x" + addr16(target) +
+        " accepted (" + std::to_string(out.size()) + " byte(s))");
+    return true;
+}
+
+bool UDSClient::responseOnEvent(uint16_t target, uint8_t eventType,
+                                uint8_t eventWindowTime,
+                                const std::vector<uint8_t>& eventTypeRecord,
+                                const std::vector<uint8_t>& serviceRequestRecord,
+                                std::vector<uint8_t>& out, std::string& err) {
+    // Request: 0x86 <eventType> <eventWindowTime>
+    //          <eventTypeRecord...> <serviceToRespondToRecord...>
+    std::vector<uint8_t> req = {0x86, eventType, eventWindowTime};
+    req.insert(req.end(), eventTypeRecord.begin(), eventTypeRecord.end());
+    req.insert(req.end(), serviceRequestRecord.begin(), serviceRequestRecord.end());
+    std::vector<uint8_t> resp;
+    if (!request(target, req, resp, err)) return false;
+    // Positive: 0xC6 <responseOnEventParameterRecord...>
+    out.assign(resp.begin() + 1, resp.end());
+    Logger::instance().log(LogLevel::Info,
+        "ResponseOnEvent 0x" + addr16(target) + " eventType 0x" +
+        byteHex(eventType) + " accepted (" + std::to_string(out.size()) +
+        " byte(s))");
     return true;
 }
 

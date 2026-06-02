@@ -168,6 +168,8 @@ private:
     int  sessionType_    = (int)UdsSession::Extended;
     bool autoExtendedOnClear_ = true;
     bool keepAlive_      = false;
+    int  keepAliveTarget_= 0x1001;
+    int  securityTarget_ = 0x1001;
     int  securityLevel_  = 0x01;
     std::string securityKeyHex_;
     std::string lastSeedHex_;
@@ -237,6 +239,8 @@ private:
     QComboBox* cbSession_   = nullptr;
     QCheckBox* cbAutoExt_   = nullptr;
     QCheckBox* cbKeepAlive_ = nullptr;
+    QLineEdit* edKeepAliveTarget_ = nullptr;
+    QLineEdit* edSecurityTarget_ = nullptr;
     QLineEdit* edSeedLevel_ = nullptr;
     QLineEdit* edKey_       = nullptr;
     QLabel*    seedLabel_   = nullptr;
@@ -301,12 +305,28 @@ private:
     QSpinBox*       sbProtoWmbaSizeB_  = nullptr;
     QLineEdit*      edProtoUpAddr_     = nullptr;
     QSpinBox*       sbProtoUpSize_     = nullptr;
+    // full memory dump (chunked 0x35 upload streamed to a .bin file)
+    QLineEdit*      edDumpAddr_        = nullptr;
+    QLineEdit*      edDumpSize_        = nullptr;
+    QLineEdit*      edDumpChunk_       = nullptr;
+    QSpinBox*       sbDumpAddrB_       = nullptr;
+    QSpinBox*       sbDumpSizeB_       = nullptr;
     QComboBox*      cbProtoLinkSub_    = nullptr;
     QLineEdit*      edProtoLinkParam_  = nullptr;
     QComboBox*      cbProtoTimingSub_  = nullptr;
     QLineEdit*      edProtoTimingVals_ = nullptr;
     QLineEdit*      edProtoAuthSub_    = nullptr;
     QLineEdit*      edProtoAuthData_   = nullptr;
+    QLineEdit*      edProtoSecData_    = nullptr;
+    QLineEdit*      edProtoRoeEventType_ = nullptr;
+    QLineEdit*      edProtoRoeWindow_    = nullptr;
+    QLineEdit*      edProtoRoeEventRec_  = nullptr;
+    QLineEdit*      edProtoRoeSvcRec_    = nullptr;
+    QComboBox*      cbProtoFileMode_   = nullptr;
+    QLineEdit*      edProtoFilePath_   = nullptr;
+    QLineEdit*      edProtoFileFmt_    = nullptr;
+    QLineEdit*      edProtoFileSizeU_  = nullptr;
+    QLineEdit*      edProtoFileSizeC_  = nullptr;
     QLineEdit*      edProtoFlashAddr_  = nullptr;
     QLineEdit*      edProtoFlashFile_  = nullptr;
     QPlainTextEdit* protoView_         = nullptr;
