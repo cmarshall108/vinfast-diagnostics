@@ -80,14 +80,14 @@ std::string vf8FailureType(uint8_t ftb);
 // or nullptr when the base code is manufacturer-specific / unknown.
 const char* vf8SaeBaseDtc(const std::string& base5);
 
-// Returns a BEST-GUESS description for a manufacturer-specific 5-char base
-// (e.g. "U1108", "B1935") that is NOT in the SAE-standardized set. These are
+// Returns a manufacturer-specific 5-char base (e.g. "U1108", "B1935")
+// that is NOT in the SAE-standardized set. These are
 // heuristic interpretations inferred from the controlling ECU, the SAE letter
 // prefix (P/C/B/U), and DTC numbering conventions - treat them as informed
 // estimates, not official VinFast definitions. Returns nullptr if no guess.
-const char* vf8BestGuessBaseDtc(const std::string& base5);
+const char* vf8Dtc(const std::string& base5);
 
-// Best-effort full description for an Autel-form DTC (e.g. "U014687"):
+// Full description for an Autel-form DTC (e.g. "U014687"):
 //   1) explicit text captured in the reference scan, else
 //   2) "<SAE base description> - <failure type>", else
 //   3) "<best-guess base description> - <failure type>", else
