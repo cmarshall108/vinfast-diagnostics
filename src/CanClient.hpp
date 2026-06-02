@@ -35,6 +35,14 @@ struct Config {
     bool        extendedId = false;    // true = 29-bit CAN identifiers
 };
 
+// One ECU's reply to a functional (broadcast) request. `source` is a 16-bit
+// key distinguishing responders (derived from the VCI's unique response
+// identifier) so callers can de-duplicate per ECU.
+struct MultiResponse {
+    uint16_t             source = 0;
+    std::vector<uint8_t> uds;
+};
+
 class Client {
 public:
     Client();
@@ -65,6 +73,15 @@ public:
                         const std::vector<uint8_t>& uds,
                         std::vector<uint8_t>& response, int timeoutMs,
                         std::string& err, bool functional = false);
+
+    // Sends a single functional request and collects EVERY UDS response that
+    // arrives within collectMs (de-duplicated per responder). Mirrors
+    // doip::Client::sendDiagnosticMulti so it can back up functional ECU
+    // enumeration over CAN.
+    bool sendDiagnosticMulti(uint16_t source, uint16_t target,
+                             const std::vector<uint8_t>& uds,
+                             std::vector<MultiResponse>& responses,
+                             int collectMs, std::string& err);
 
     // True only on platforms where the mvci32.dll integration is compiled in
     // (Windows). Lets callers skip CAN setup with a clear message elsewhere.

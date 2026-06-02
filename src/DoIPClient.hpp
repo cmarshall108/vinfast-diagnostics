@@ -179,6 +179,13 @@ private:
                             std::vector<uint8_t>& response, int timeoutMs,
                             std::string& err, bool functional);
 
+    // Core DoIP-only functional collect (no CAN fallback). The public
+    // sendDiagnosticMulti wraps this and adds the CAN backup retry.
+    bool sendDiagnosticMultiDoIP(uint16_t source, uint16_t target,
+                                 const std::vector<uint8_t>& uds,
+                                 std::vector<DiagResponse>& responses,
+                                 int collectMs, std::string& err);
+
     static socket_t invalidSocket();
     bool sendAll(socket_t s, const uint8_t* data, size_t len);
     bool recvAll(socket_t s, uint8_t* data, size_t len, int timeoutMs);

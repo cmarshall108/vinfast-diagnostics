@@ -675,6 +675,36 @@ bool Client::sendDiagnosticMulti(uint16_t source, uint16_t target,
                                  const std::vector<uint8_t>& uds,
                                  std::vector<DiagResponse>& responses,
                                  int collectMs, std::string& err) {
+    lastUsedCanBackup_ = false;
+    std::string doipErr;
+    if (sendDiagnosticMultiDoIP(source, target, uds, responses, collectMs, doipErr))
+        return true;
+
+    // DoIP functional collect failed - retry the enumeration over the CAN
+    // backup when one is registered and connected.
+    if (canBackup_ && canBackup_->isConnected()) {
+        Logger::instance().warn("DoIP functional collect failed (" + doipErr +
+                                "); retrying over CAN backup");
+        std::vector<can::MultiResponse> canResp;
+        std::string canErr;
+        if (canBackup_->sendDiagnosticMulti(source, target, uds, canResp, collectMs,
+                                            canErr)) {
+            for (auto& mr : canResp)
+                responses.push_back({mr.source, std::move(mr.uds)});
+            lastUsedCanBackup_ = true;
+            return true;
+        }
+        err = "DoIP failed (" + doipErr + ") and CAN backup failed (" + canErr + ")";
+        return false;
+    }
+    err = doipErr;
+    return false;
+}
+
+bool Client::sendDiagnosticMultiDoIP(uint16_t source, uint16_t target,
+                                     const std::vector<uint8_t>& uds,
+                                     std::vector<DiagResponse>& responses,
+                                     int collectMs, std::string& err) {
     if (!isConnected()) { err = "Not connected"; return false; }
 
     std::vector<uint8_t> pl;

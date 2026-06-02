@@ -414,6 +414,71 @@ bool Client::sendDiagnostic(uint16_t /*source*/, uint16_t /*target*/,
     }
 }
 
+bool Client::sendDiagnosticMulti(uint16_t /*source*/, uint16_t /*target*/,
+                                 const std::vector<uint8_t>& uds,
+                                 std::vector<MultiResponse>& responses,
+                                 int collectMs, std::string& err) {
+    if (!isConnected()) { err = "CAN link not connected"; return false; }
+    if (uds.empty())    { err = "Empty UDS request"; return false; }
+
+    PDU_COP_CTRL_DATA ctrl{};
+    ctrl.Time             = 0;
+    ctrl.NumSendCycles    = 1;
+    ctrl.NumReceiveCycles = -1;   // unlimited: collect every responder
+    ctrl.TempParamUpdate  = 0;
+    ctrl.TxFlag.NumFlagBytes = 0;
+    ctrl.TxFlag.pFlagData    = nullptr;
+
+    UNUM32 hCoP = PDU_HANDLE_UNDEF;
+    T_PDU_ERROR e = impl_->StartComPrimitive(
+        impl_->hMod, impl_->hCLL, PDU_COPT_SENDRECV,
+        (UNUM32)uds.size(), const_cast<UNUM8*>(uds.data()),
+        &ctrl, nullptr, &hCoP);
+    if (e != PDU_STATUS_NOERROR) {
+        err = "PDUStartComPrimitive(SENDRECV) failed (err 0x" + byteHex((uint8_t)e) + ")";
+        return false;
+    }
+
+    // Collect for the whole window; multiple ECUs in the functional group may
+    // each answer, so never stop on the first reply.
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::milliseconds(collectMs > 0 ? collectMs : 1000);
+
+    while (std::chrono::steady_clock::now() < deadline) {
+        PDU_EVENT_ITEM* item = nullptr;
+        T_PDU_ERROR ge = impl_->GetEventItem(impl_->hMod, impl_->hCLL, &item);
+        if (ge == PDU_ERR_EVENT_QUEUE_EMPTY || item == nullptr) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            continue;
+        }
+        if (ge != PDU_STATUS_NOERROR) {
+            if (item) impl_->DestroyItem(item);
+            break;  // treat as end of window
+        }
+
+        if (item->ItemType == PDU_IT_RESULT && item->pData) {
+            auto* r = reinterpret_cast<PDU_RESULT_DATA*>(item->pData);
+            if (r->pDataBytes && r->NumDataBytes > 0) {
+                std::vector<uint8_t> rx(r->pDataBytes, r->pDataBytes + r->NumDataBytes);
+                bool pending = rx.size() >= 3 && rx[0] == 0x7F && rx[2] == 0x78;
+                if (!pending) {
+                    // Distinguish responders by the VCI's unique response id.
+                    uint16_t src = (uint16_t)(r->UniqueRespIdentifier & 0xFFFF);
+                    bool dup = false;
+                    for (auto& mr : responses)
+                        if (mr.source == src && mr.uds == rx) { dup = true; break; }
+                    if (!dup) responses.push_back({src, std::move(rx)});
+                }
+            }
+        }
+        // PDU_IT_ERROR / status events are non-fatal here; keep collecting.
+        impl_->DestroyItem(item);
+    }
+
+    if (responses.empty()) { err = "No ECUs responded to functional CAN request"; return false; }
+    return true;
+}
+
 void Client::disconnect() {
     if (!impl_) return;
     if (impl_->linkConnected && impl_->Disconnect)
@@ -459,6 +524,12 @@ void Client::setAddressing(uint32_t, uint32_t, std::string& err) {
 
 bool Client::sendDiagnostic(uint16_t, uint16_t, const std::vector<uint8_t>&,
                             std::vector<uint8_t>&, int, std::string& err, bool) {
+    err = "CAN backup unavailable on this platform";
+    return false;
+}
+
+bool Client::sendDiagnosticMulti(uint16_t, uint16_t, const std::vector<uint8_t>&,
+                                 std::vector<MultiResponse>&, int, std::string& err) {
     err = "CAN backup unavailable on this platform";
     return false;
 }
