@@ -160,6 +160,80 @@ std::string UDSClient::readEcuIdentification(uint16_t target, bool& anyOk) {
     return out;
 }
 
+std::vector<UDSClient::IdentField>
+UDSClient::sweepIdentificationDids(uint16_t target, int& answered, int timeoutMs) {
+    // Well-known ISO 14229 identification DIDs in the 0xF1xx block. Unlisted
+    // DIDs that still answer are reported with a generic label.
+    static const std::unordered_map<uint16_t, const char*> kKnown = {
+        {0xF180, "Boot Software ID"},
+        {0xF181, "Application Software ID"},
+        {0xF182, "Application Data ID"},
+        {0xF183, "Boot Software Fingerprint"},
+        {0xF184, "Application Software Fingerprint"},
+        {0xF185, "Application Data Fingerprint"},
+        {0xF186, "Active Diagnostic Session"},
+        {0xF187, "Spare Part Number"},
+        {0xF188, "ECU SW Number"},
+        {0xF189, "ECU SW Version"},
+        {0xF18A, "System Supplier ID"},
+        {0xF18B, "ECU Manufacturing Date"},
+        {0xF18C, "ECU Serial Number"},
+        {0xF18D, "Supported Functional Units"},
+        {0xF190, "VIN"},
+        {0xF191, "HW Part Number"},
+        {0xF192, "System Supplier HW Number"},
+        {0xF193, "System Supplier HW Version"},
+        {0xF194, "System Supplier SW Number"},
+        {0xF195, "System Supplier SW Version"},
+        {0xF196, "Exhaust Regulation / Type Approval"},
+        {0xF197, "System Name / Engineering Name"},
+        {0xF198, "Repair Shop Code / Tester Serial"},
+        {0xF199, "Programming Date"},
+        {0xF19D, "ECU Installation Date"},
+        {0xF19E, "ODX File Identifier"},
+        {0xF1A0, "Vehicle Manufacturer Spare Part Number"},
+        {0xF1A1, "Vehicle Manufacturer ECU SW Number"},
+    };
+
+    answered = 0;
+    std::vector<IdentField> fields;
+    // Sweep the whole standard identification block. probeDID uses read-only
+    // 0x22 and classifies absent DIDs quickly, so this stays responsive.
+    for (uint16_t did = 0xF180; did <= 0xF1FF; ++did) {
+        std::vector<uint8_t> resp;
+        std::string err;
+        int r = probeDID(target, did, resp, err, timeoutMs);
+        if (r != 1) continue;                    // only keep positive reads (data present)
+        if (resp.size() < 3) continue;           // need 0x62 <DID_hi> <DID_lo> [data]
+        std::vector<uint8_t> data(resp.begin() + 3, resp.end());
+
+        IdentField f;
+        f.did = did;
+        auto it = kKnown.find(did);
+        if (it != kKnown.end()) f.label = it->second;
+        else {
+            char buf[16];
+            std::snprintf(buf, sizeof buf, "DID %04X", did);
+            f.label = buf;
+        }
+        f.printable = !data.empty();
+        for (uint8_t b : data)
+            if (b != 0 && (b < 0x20 || b > 0x7E)) { f.printable = false; break; }
+        if (f.printable) {
+            for (uint8_t b : data) if (b) f.value.push_back((char)b);
+        } else {
+            f.value = toHex(data.data(), data.size());
+        }
+        fields.push_back(std::move(f));
+        ++answered;
+    }
+
+    Logger::instance().log(LogLevel::Info,
+        "DID sweep 0x" + addr16(target) + ": " + std::to_string(answered) +
+        " identification DID(s) answered");
+    return fields;
+}
+
 bool UDSClient::readDTCByStatusMask(uint16_t target, uint8_t mask,
                                     std::vector<Dtc>& out, std::string& err) {
     std::vector<uint8_t> req = {0x19, 0x02, mask};
@@ -700,6 +774,215 @@ bool UDSClient::obdRequest(uint16_t target, const std::vector<uint8_t>& modePid,
         "OBD-II 0x" + addr16(target) + " mode 0x" +
         byteHex(modePid.empty() ? 0 : modePid[0]) + ": " +
         std::to_string(out.size()) + " byte(s)");
+    return true;
+}
+
+bool UDSClient::inputOutputControl(uint16_t target, uint16_t did,
+                                   IoControlOption option,
+                                   const std::vector<uint8_t>& controlState,
+                                   const std::vector<uint8_t>& controlEnableMask,
+                                   std::vector<uint8_t>& out, std::string& err) {
+    // Request: 0x2F <DID hi lo> <controlOptionRecord> [controlEnableMaskRecord]
+    // The controlOptionRecord is the option byte followed (for short-term
+    // adjustment) by the desired control state bytes.
+    std::vector<uint8_t> req = {0x2F, (uint8_t)((did >> 8) & 0xFF),
+                                (uint8_t)(did & 0xFF), (uint8_t)option};
+    if (option == IoControlOption::ShortTermAdjustment)
+        req.insert(req.end(), controlState.begin(), controlState.end());
+    req.insert(req.end(), controlEnableMask.begin(), controlEnableMask.end());
+    std::vector<uint8_t> resp;
+    if (!request(target, req, resp, err)) return false;
+    // Positive: 0x6F <DID hi lo> <controlStatusRecord...>
+    if (resp.size() > 3) out.assign(resp.begin() + 3, resp.end());
+    else out.clear();
+    static const char* kOpt[] = {"returnControl", "resetToDefault",
+                                 "freezeState", "shortTermAdjust"};
+    Logger::instance().log(LogLevel::Info,
+        "InputOutputControl 0x" + addr16(target) + " DID 0x" + addr16(did) + " " +
+        kOpt[(uint8_t)option & 0x03] + " accepted (" +
+        std::to_string(out.size()) + " status byte(s))");
+    return true;
+}
+
+bool UDSClient::readScalingDataByIdentifier(uint16_t target, uint16_t did,
+                                            std::vector<uint8_t>& out, std::string& err) {
+    std::vector<uint8_t> req = {0x24, (uint8_t)((did >> 8) & 0xFF),
+                                (uint8_t)(did & 0xFF)};
+    std::vector<uint8_t> resp;
+    if (!request(target, req, resp, err)) return false;
+    // Positive: 0x64 <DID hi lo> <scalingByte + scalingByteExtension...>
+    if (resp.size() < 3) { err = "ReadScalingData response too short"; return false; }
+    out.assign(resp.begin() + 3, resp.end());
+    Logger::instance().log(LogLevel::Info,
+        "ReadScalingDataByIdentifier 0x" + addr16(target) + " DID 0x" + addr16(did) +
+        ": " + std::to_string(out.size()) + " scaling byte(s)");
+    return true;
+}
+
+bool UDSClient::writeMemoryByAddress(uint16_t target, uint32_t address,
+                                     const std::vector<uint8_t>& data,
+                                     uint8_t addrBytes, uint8_t sizeBytes,
+                                     std::string& err) {
+    if (addrBytes < 1 || addrBytes > 4 || sizeBytes < 1 || sizeBytes > 4) {
+        err = "addrBytes/sizeBytes must be 1-4"; return false;
+    }
+    if (data.empty()) { err = "WriteMemoryByAddress needs data"; return false; }
+    uint32_t size = (uint32_t)data.size();
+    uint8_t alfid = (uint8_t)((sizeBytes << 4) | addrBytes);
+    std::vector<uint8_t> req = {0x3D, alfid};
+    for (int i = addrBytes - 1; i >= 0; --i) req.push_back((uint8_t)((address >> (8 * i)) & 0xFF));
+    for (int i = sizeBytes - 1; i >= 0; --i) req.push_back((uint8_t)((size >> (8 * i)) & 0xFF));
+    req.insert(req.end(), data.begin(), data.end());
+    std::vector<uint8_t> resp;
+    if (!request(target, req, resp, err)) return false;
+    Logger::instance().log(LogLevel::Info,
+        "WriteMemoryByAddress 0x" + addr16(target) + " <- " +
+        std::to_string(data.size()) + " byte(s) accepted");
+    return true;
+}
+
+bool UDSClient::requestUpload(uint16_t target, uint32_t memoryAddress, uint32_t size,
+                              uint8_t addrBytes, uint8_t sizeBytes, uint8_t dataFormatId,
+                              uint32_t& maxBlockLength, std::string& err) {
+    if (addrBytes < 1 || addrBytes > 4 || sizeBytes < 1 || sizeBytes > 4) {
+        err = "addrBytes/sizeBytes must be 1-4"; return false;
+    }
+    uint8_t alfid = (uint8_t)((sizeBytes << 4) | addrBytes);
+    std::vector<uint8_t> req = {0x35, dataFormatId, alfid};
+    for (int i = addrBytes - 1; i >= 0; --i) req.push_back((uint8_t)((memoryAddress >> (8 * i)) & 0xFF));
+    for (int i = sizeBytes - 1; i >= 0; --i) req.push_back((uint8_t)((size >> (8 * i)) & 0xFF));
+    std::vector<uint8_t> resp;
+    if (!request(target, req, resp, err)) return false;
+    // Positive: 0x75 <lengthFormatIdentifier> <maxNumberOfBlockLength...>
+    if (resp.size() < 3) { err = "RequestUpload response too short"; return false; }
+    uint8_t lenWidth = (resp[1] >> 4) & 0x0F;
+    if (lenWidth < 1 || lenWidth > 4 || resp.size() < (size_t)(2 + lenWidth)) {
+        err = "RequestUpload maxBlockLength width invalid"; return false;
+    }
+    uint32_t mbl = 0;
+    for (uint8_t i = 0; i < lenWidth; ++i) mbl = (mbl << 8) | resp[2 + i];
+    maxBlockLength = mbl;
+    Logger::instance().log(LogLevel::Info,
+        "RequestUpload 0x" + addr16(target) + ": " + std::to_string(size) +
+        " byte(s) accepted, maxBlockLength=" + std::to_string(mbl));
+    return true;
+}
+
+bool UDSClient::uploadBlock(uint16_t target, uint32_t memoryAddress, uint32_t size,
+                            uint8_t addrBytes, uint8_t sizeBytes, uint8_t dataFormatId,
+                            std::vector<uint8_t>& image,
+                            const std::function<void(size_t, size_t)>& progress,
+                            std::string& err) {
+    if (size == 0) { err = "Upload size is zero"; return false; }
+    uint32_t maxBlockLength = 0;
+    if (!requestUpload(target, memoryAddress, size, addrBytes, sizeBytes,
+                       dataFormatId, maxBlockLength, err))
+        return false;
+
+    // For an upload the ECU pushes data in its TransferData (0x36) responses;
+    // the tester requests each block with an incrementing sequence counter.
+    image.clear();
+    image.reserve(size);
+    uint8_t bsc = 0x01;
+    while (image.size() < size) {
+        std::vector<uint8_t> req = {0x36, bsc};
+        std::vector<uint8_t> resp;
+        if (!request(target, req, resp, err)) return false;
+        if (resp.size() < 2 || resp[1] != bsc) {
+            err = "TransferData (upload) block-counter mismatch"; return false;
+        }
+        image.insert(image.end(), resp.begin() + 2, resp.end());
+        bsc = (uint8_t)(bsc + 1);
+        if (progress) progress(image.size(), size);
+        if (resp.size() <= 2) break;   // ECU returned no payload -> stop
+    }
+
+    std::vector<uint8_t> exitResp;
+    if (!requestTransferExit(target, {}, exitResp, err)) return false;
+    Logger::instance().log(LogLevel::Info,
+        "Block upload from 0x" + addr16(target) + " complete: " +
+        std::to_string(image.size()) + " byte(s) received");
+    return true;
+}
+
+bool UDSClient::linkControl(uint16_t target, LinkControlType sub,
+                            const std::vector<uint8_t>& param, std::string& err) {
+    std::vector<uint8_t> req = {0x87, (uint8_t)sub};
+    if (sub != LinkControlType::TransitionMode)
+        req.insert(req.end(), param.begin(), param.end());
+    std::vector<uint8_t> resp;
+    if (!request(target, req, resp, err)) return false;
+    Logger::instance().log(LogLevel::Info,
+        "LinkControl 0x" + addr16(target) + " sub 0x" + byteHex((uint8_t)sub) + " accepted");
+    return true;
+}
+
+bool UDSClient::accessTimingParameter(uint16_t target, TimingParamAccess sub,
+                                      const std::vector<uint8_t>& request_,
+                                      std::vector<uint8_t>& out, std::string& err) {
+    std::vector<uint8_t> req = {0x83, (uint8_t)sub};
+    if (sub == TimingParamAccess::SetToGivenValues)
+        req.insert(req.end(), request_.begin(), request_.end());
+    std::vector<uint8_t> resp;
+    if (!request(target, req, resp, err)) return false;
+    // Positive: 0xC3 <sub> [timingParameterResponseRecord...]
+    if (resp.size() > 2) out.assign(resp.begin() + 2, resp.end());
+    else out.clear();
+    Logger::instance().log(LogLevel::Info,
+        "AccessTimingParameter 0x" + addr16(target) + " sub 0x" + byteHex((uint8_t)sub) +
+        " accepted (" + std::to_string(out.size()) + " byte(s))");
+    return true;
+}
+
+bool UDSClient::authentication(uint16_t target, uint8_t subFunction,
+                               const std::vector<uint8_t>& data,
+                               std::vector<uint8_t>& out, std::string& err) {
+    std::vector<uint8_t> req = {0x29, subFunction};
+    req.insert(req.end(), data.begin(), data.end());
+    std::vector<uint8_t> resp;
+    if (!request(target, req, resp, err)) return false;
+    // Positive: 0x69 <sub> <authReturnParameter> [data...]
+    if (resp.size() > 2) out.assign(resp.begin() + 2, resp.end());
+    else out.clear();
+    Logger::instance().log(LogLevel::Info,
+        "Authentication 0x" + addr16(target) + " sub 0x" + byteHex(subFunction) +
+        " accepted (" + std::to_string(out.size()) + " byte(s))");
+    return true;
+}
+
+bool UDSClient::requestFileTransfer(uint16_t target, FileTransferMode mode,
+                                    const std::string& filePath, uint8_t dataFormatId,
+                                    uint64_t fileSizeUncompressed,
+                                    uint64_t fileSizeCompressed,
+                                    std::vector<uint8_t>& out, std::string& err) {
+    // Request: 0x38 <modeOfOperation> <filePathLen(2)> <filePath...>
+    //          [dataFormatId] [fileSizeParamLen] [uncompressed][compressed]
+    std::vector<uint8_t> req = {0x38, (uint8_t)mode};
+    uint16_t pathLen = (uint16_t)filePath.size();
+    req.push_back((uint8_t)((pathLen >> 8) & 0xFF));
+    req.push_back((uint8_t)(pathLen & 0xFF));
+    req.insert(req.end(), filePath.begin(), filePath.end());
+
+    const bool needsSize = (mode == FileTransferMode::AddFile ||
+                            mode == FileTransferMode::ReplaceFile ||
+                            mode == FileTransferMode::ResumeFile);
+    if (mode != FileTransferMode::DeleteFile && mode != FileTransferMode::ReadDir)
+        req.push_back(dataFormatId);
+    if (needsSize) {
+        // Pick the minimum width that holds the larger of the two sizes.
+        uint64_t big = (std::max)(fileSizeUncompressed, fileSizeCompressed);
+        uint8_t width = 1;
+        while (width < 8 && (big >> (8 * width)) != 0) ++width;
+        req.push_back(width);
+        for (int i = width - 1; i >= 0; --i) req.push_back((uint8_t)((fileSizeUncompressed >> (8 * i)) & 0xFF));
+        for (int i = width - 1; i >= 0; --i) req.push_back((uint8_t)((fileSizeCompressed   >> (8 * i)) & 0xFF));
+    }
+    std::vector<uint8_t> resp;
+    if (!request(target, req, resp, err)) return false;
+    out.assign(resp.begin() + 1, resp.end());
+    Logger::instance().log(LogLevel::Info,
+        "RequestFileTransfer 0x" + addr16(target) + " mode 0x" + byteHex((uint8_t)mode) +
+        " '" + filePath + "' accepted (" + std::to_string(out.size()) + " byte(s))");
     return true;
 }
 

@@ -289,6 +289,26 @@ private:
     QLineEdit*      edProtoPdid_       = nullptr;
     QLineEdit*      edProtoDddid_      = nullptr;
     QLineEdit*      edProtoDddSrc_     = nullptr;
+    // actuator control (0x2F) + memory/scaling/upload + link/timing/auth + flash
+    QLineEdit*      edProtoIoDid_      = nullptr;
+    QComboBox*      cbProtoIoOption_   = nullptr;
+    QLineEdit*      edProtoIoState_    = nullptr;
+    QLineEdit*      edProtoIoMask_     = nullptr;
+    QLineEdit*      edProtoScalingDid_ = nullptr;
+    QLineEdit*      edProtoWmbaAddr_   = nullptr;
+    QLineEdit*      edProtoWmbaData_   = nullptr;
+    QSpinBox*       sbProtoWmbaAddrB_  = nullptr;
+    QSpinBox*       sbProtoWmbaSizeB_  = nullptr;
+    QLineEdit*      edProtoUpAddr_     = nullptr;
+    QSpinBox*       sbProtoUpSize_     = nullptr;
+    QComboBox*      cbProtoLinkSub_    = nullptr;
+    QLineEdit*      edProtoLinkParam_  = nullptr;
+    QComboBox*      cbProtoTimingSub_  = nullptr;
+    QLineEdit*      edProtoTimingVals_ = nullptr;
+    QLineEdit*      edProtoAuthSub_    = nullptr;
+    QLineEdit*      edProtoAuthData_   = nullptr;
+    QLineEdit*      edProtoFlashAddr_  = nullptr;
+    QLineEdit*      edProtoFlashFile_  = nullptr;
     QPlainTextEdit* protoView_         = nullptr;
     size_t          protoViewRev_      = (size_t)-1;
 

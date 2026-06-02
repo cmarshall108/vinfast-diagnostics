@@ -80,6 +80,40 @@ struct DddSource {
     uint8_t  size      = 1;   // number of bytes to copy
 };
 
+// ISO 14229-1 InputOutputControlByIdentifier (0x2F) control-option parameters.
+enum class IoControlOption : uint8_t {
+    ReturnControlToECU  = 0x00,  // hand the actuator back to the ECU (safe)
+    ResetToDefault      = 0x01,  // command the ECU's default value
+    FreezeCurrentState  = 0x02,  // hold the present value
+    ShortTermAdjustment = 0x03,  // drive a caller-specified value (active test)
+};
+
+// ISO 14229-1 LinkControl (0x87) sub-functions. Used to negotiate a faster
+// DoIP/diagnostic link (e.g. before reprogramming).
+enum class LinkControlType : uint8_t {
+    VerifyModeFixedParameter    = 0x01,  // verify a fixed baudrate identifier
+    VerifyModeSpecificParameter = 0x02,  // verify a specific baudrate value
+    TransitionMode              = 0x03,  // switch to the verified baudrate
+};
+
+// ISO 14229-1 AccessTimingParameter (0x83) sub-functions.
+enum class TimingParamAccess : uint8_t {
+    ReadExtendedSet     = 0x01,  // read the ECU's supported timing limits
+    SetToDefault        = 0x02,  // restore default P2/P2* timing
+    ReadCurrentlyActive = 0x03,  // read the currently active timing
+    SetToGivenValues    = 0x04,  // apply caller-supplied timing values
+};
+
+// ISO 14229-1 RequestFileTransfer (0x38) modeOfOperation values.
+enum class FileTransferMode : uint8_t {
+    AddFile     = 0x01,
+    DeleteFile  = 0x02,
+    ReplaceFile = 0x03,
+    ReadFile    = 0x04,
+    ReadDir     = 0x05,
+    ResumeFile  = 0x06,
+};
+
 
 class UDSClient {
 public:
@@ -110,6 +144,23 @@ public:
     // DIDs are skipped silently. `anyOk` reports whether at least one read
     // succeeded (a useful reachability signal).
     std::string readEcuIdentification(uint16_t target, bool& anyOk);
+
+    // One discovered identification DID from a sweep.
+    struct IdentField {
+        uint16_t    did    = 0;
+        std::string label;        // human label if the DID is well-known
+        std::string value;        // decoded ASCII if printable, else hex
+        bool        printable = false;
+    };
+
+    // Sweeps the standard ISO 14229 identification block (0xF180-0xF1FF) with
+    // read-only 0x22 requests and returns every DID that answers. This both
+    // CONFIRMS the address (a positive read proves a live ECU) and harvests the
+    // real part/serial/version numbers without any destructive action. `answered`
+    // receives the number of DIDs that responded. Absent DIDs are skipped fast.
+    std::vector<IdentField> sweepIdentificationDids(uint16_t target, int& answered,
+                                                    int timeoutMs = 800);
+
 
     // 0x19 / 0x02 - reads DTCs matching the status mask (e.g. 0x08 confirmed).
     bool readDTCByStatusMask(uint16_t target, uint8_t mask,
@@ -303,6 +354,79 @@ public:
     // the positive-response service byte. Works on any emissions-compliant ECU.
     bool obdRequest(uint16_t target, const std::vector<uint8_t>& modePid,
                     std::vector<uint8_t>& out, std::string& err);
+
+    // 0x2F InputOutputControlByIdentifier - the bidirectional "active test" /
+    // actuator-control service. `option` selects the control behaviour;
+    // `controlState` carries the value bytes for ShortTermAdjustment (empty for
+    // the other options). `controlEnableMask` is appended after the state bytes
+    // when non-empty (records-with-mask ECUs). The positive-response payload
+    // after the echoed DID is returned in `out`. INVASIVE for non-return
+    // options - gate behind confirmation and restore with ReturnControlToECU.
+    bool inputOutputControl(uint16_t target, uint16_t did, IoControlOption option,
+                            const std::vector<uint8_t>& controlState,
+                            const std::vector<uint8_t>& controlEnableMask,
+                            std::vector<uint8_t>& out, std::string& err);
+
+    // 0x24 ReadScalingDataByIdentifier - returns the scaling/format description
+    // for a DID (data type, byte count, unit, formula bytes) so a raw 0x22 value
+    // can be interpreted. Raw scaling record returned in `out`.
+    bool readScalingDataByIdentifier(uint16_t target, uint16_t did,
+                                     std::vector<uint8_t>& out, std::string& err);
+
+    // 0x3D WriteMemoryByAddress - writes `data` to `address`. addrBytes/sizeBytes
+    // are the byte-widths packed into the addressAndLengthFormatIdentifier.
+    // INVASIVE - changes raw ECU memory; gate behind confirmation.
+    bool writeMemoryByAddress(uint16_t target, uint32_t address,
+                              const std::vector<uint8_t>& data,
+                              uint8_t addrBytes, uint8_t sizeBytes, std::string& err);
+
+    // 0x35 RequestUpload - announces an upload (ECU -> tester) of `size` bytes
+    // from `memoryAddress`. Mirrors RequestDownload; reports the ECU's maximum
+    // TransferData block length in `maxBlockLength`.
+    bool requestUpload(uint16_t target, uint32_t memoryAddress, uint32_t size,
+                       uint8_t addrBytes, uint8_t sizeBytes, uint8_t dataFormatId,
+                       uint32_t& maxBlockLength, std::string& err);
+
+    // Orchestrates a full memory READOUT: RequestUpload (0x35) -> TransferData
+    // (0x36) receive loop -> RequestTransferExit (0x37). The uploaded image is
+    // appended to `image`. Caller must already be in a session that permits the
+    // read (often the programming session with security unlocked).
+    bool uploadBlock(uint16_t target, uint32_t memoryAddress, uint32_t size,
+                     uint8_t addrBytes, uint8_t sizeBytes, uint8_t dataFormatId,
+                     std::vector<uint8_t>& image,
+                     const std::function<void(size_t, size_t)>& progress,
+                     std::string& err);
+
+    // 0x87 LinkControl - negotiates a faster diagnostic link. For VerifyMode*
+    // `param` is the baudrate identifier/value; TransitionMode takes no param.
+    bool linkControl(uint16_t target, LinkControlType sub,
+                     const std::vector<uint8_t>& param, std::string& err);
+
+    // 0x83 AccessTimingParameter - reads or sets the session P2/P2* timing.
+    // `request` carries the timing values for SetToGivenValues (empty otherwise);
+    // the ECU's timing record is returned in `out` for the Read sub-functions.
+    bool accessTimingParameter(uint16_t target, TimingParamAccess sub,
+                               const std::vector<uint8_t>& request,
+                               std::vector<uint8_t>& out, std::string& err);
+
+    // 0x29 Authentication - generic ISO 14229:2020 authentication exchange (PKI
+    // certificate / challenge-response). `subFunction` selects the step (e.g.
+    // 0x00 deAuthenticate, 0x01 verifyCertificateUnidirectional,
+    // 0x03 proofOfOwnership, 0x08 requestChallengeForAuthentication). `data`
+    // carries the step-specific payload; the response after the echoed
+    // sub-function is returned in `out`.
+    bool authentication(uint16_t target, uint8_t subFunction,
+                        const std::vector<uint8_t>& data,
+                        std::vector<uint8_t>& out, std::string& err);
+
+    // 0x38 RequestFileTransfer - file-system operation against an ECU that
+    // exposes one (OTA staging, log retrieval). `filePath` is the ASCII path;
+    // size params apply to Add/Replace/Resume. The response record is returned
+    // in `out`. INVASIVE for write/delete modes.
+    bool requestFileTransfer(uint16_t target, FileTransferMode mode,
+                             const std::string& filePath, uint8_t dataFormatId,
+                             uint64_t fileSizeUncompressed, uint64_t fileSizeCompressed,
+                             std::vector<uint8_t>& out, std::string& err);
 
     // Best-effort recovery: returns control of every touched I/O DID to the
     // ECU, re-enables DTC logging (0x85 on) and drops back to the default

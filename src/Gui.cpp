@@ -16,6 +16,8 @@
 #include <QSpinBox>
 #include <QComboBox>
 #include <QCheckBox>
+#include <QFileDialog>
+#include <QFile>
 #include <QPlainTextEdit>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -1030,10 +1032,12 @@ QWidget* Gui::buildEcuPage() {
     auto* toolbar = new QHBoxLayout;
     auto* scanBtn  = new QPushButton("Scan all (read DTCs)");
     auto* probeBtn = new QPushButton("Probe addresses");
+    auto* idBtn    = new QPushButton("Identify (DID sweep)");
     auto* clearBtn = new QPushButton("Clear DTCs on ALL"); clearBtn->setObjectName("danger");
     auto* addBtn   = new QPushButton("Add ECU");
     toolbar->addWidget(scanBtn);
     toolbar->addWidget(probeBtn);
+    toolbar->addWidget(idBtn);
     toolbar->addWidget(clearBtn);
     toolbar->addStretch(1);
     toolbar->addWidget(addBtn);
@@ -1206,6 +1210,53 @@ QWidget* Gui::buildEcuPage() {
             }
             Logger::instance().info("Probe complete: " + std::to_string(reachable) +
                                     "/" + std::to_string(count) + " replied");
+        });
+    });
+    connect(idBtn, &QPushButton::clicked, this, [this] {
+        syncSettingsFromUi();
+        startWorker([this] {
+            std::string err;
+            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            size_t count; { std::lock_guard<std::mutex> g(mutex_); count = ecus_.size(); }
+            int identified = 0;
+            for (size_t i = 0; i < count; ++i) {
+                uint16_t addr, alt;
+                { std::lock_guard<std::mutex> g(mutex_);
+                  addr = ecus_[i].logicalAddr; alt = ecus_[i].altAddr; }
+
+                int answered = 0;
+                auto fields = uds.sweepIdentificationDids(addr, answered);
+                uint16_t hit = addr;
+                if (answered == 0 && alt != 0 && alt != addr) {
+                    auto altFields = uds.sweepIdentificationDids(alt, answered);
+                    if (answered > 0) { fields = std::move(altFields); hit = alt; }
+                }
+
+                std::lock_guard<std::mutex> g(mutex_);
+                if (i >= ecus_.size()) break;
+                if (answered == 0) {
+                    ecus_[i].statusMsg = "DID sweep: no identification DIDs answered";
+                    continue;
+                }
+                // A positive identification read confirms the address is live.
+                ecus_[i].reachable = 1;
+                if (hit != ecus_[i].logicalAddr) {
+                    ecus_[i].logicalAddr = hit;   // adopt the address that actually answered
+                }
+                std::string info;
+                for (const auto& f : fields) {
+                    char did[8]; std::snprintf(did, sizeof did, "%04X", f.did);
+                    info += f.label + " (" + did + "): " + f.value + "\n";
+                }
+                ecus_[i].idInfo = info;
+                ecus_[i].statusMsg = "identified via DID sweep (" +
+                                     std::to_string(answered) + " DID, 0x" +
+                                     [hit] { char b[8]; std::snprintf(b, sizeof b, "%04X", hit); return std::string(b); }() + ")";
+                ++identified;
+            }
+            Logger::instance().info("DID sweep complete: " + std::to_string(identified) +
+                                    "/" + std::to_string(count) + " identified");
         });
     });
     connect(clearBtn, &QPushButton::clicked, this, [this, clearBtn] {
@@ -2014,6 +2065,338 @@ QWidget* Gui::buildProtocolPage() {
             if (uds.clearDynamicDataIdentifier(tgt, dddid, err))
                 protoLine("Clear DDDID 0x" + byteHex((dddid>>8)&0xFF) + byteHex(dddid&0xFF) + ": OK.");
             else protoLine("Clear DDDID: " + err);
+        });
+    });
+
+    // ---- Actuator control / active tests (0x2F) ----
+    auto* ioCard = card("Actuator control / active test (0x2F, confirm required)");
+    auto* iol = new QFormLayout(ioCard);
+    auto* ioNote = new QLabel(
+        "InputOutputControlByIdentifier drives an actuator directly (open a "
+        "valve, cycle a relay, command a value). Often needs an extended/diagnostic "
+        "session and security unlock first. <b>Always</b> hand control back to the "
+        "ECU when finished.");
+    ioNote->setWordWrap(true);
+    iol->addRow(ioNote);
+    edProtoIoDid_    = hexEdit("F010", 4);
+    cbProtoIoOption_ = new QComboBox;
+    cbProtoIoOption_->addItems({"shortTermAdjustment (03)", "freezeCurrentState (02)",
+                                "resetToDefault (01)", "returnControlToECU (00)"});
+    edProtoIoState_  = new QLineEdit; edProtoIoState_->setPlaceholderText("control state, hex e.g. 01 FF");
+    edProtoIoMask_   = new QLineEdit; edProtoIoMask_->setPlaceholderText("optional enable mask, hex");
+    auto* ioRow = new QHBoxLayout;
+    ioRow->addWidget(new QLabel("DID")); ioRow->addWidget(edProtoIoDid_);
+    ioRow->addWidget(cbProtoIoOption_);
+    iol->addRow("Identifier / option", ioRow);
+    iol->addRow("Control state", edProtoIoState_);
+    iol->addRow("Enable mask", edProtoIoMask_);
+    auto* ioBtnRow = new QHBoxLayout;
+    auto* ioRunBtn = new QPushButton("Execute (0x2F)"); ioRunBtn->setObjectName("primary");
+    auto* ioRetBtn = new QPushButton("Return control to ECU");
+    ioBtnRow->addWidget(ioRunBtn); ioBtnRow->addWidget(ioRetBtn); ioBtnRow->addStretch(1);
+    iol->addRow(ioBtnRow);
+    outer->addWidget(ioCard);
+
+    connect(ioRunBtn, &QPushButton::clicked, this, [this, ioRunBtn] {
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t did = parseHex16(edProtoIoDid_->text(), 0xF010);
+        int optIdx = cbProtoIoOption_->currentIndex();   // 0..3 -> ShortTerm..Return
+        auto state = parseHexBytes(edProtoIoState_->text().toStdString());
+        auto mask  = parseHexBytes(edProtoIoMask_->text().toStdString());
+        static const IoControlOption kOpt[] = {
+            IoControlOption::ShortTermAdjustment, IoControlOption::FreezeCurrentState,
+            IoControlOption::ResetToDefault, IoControlOption::ReturnControlToECU};
+        IoControlOption opt = kOpt[optIdx];
+        if (opt != IoControlOption::ReturnControlToECU &&
+            !confirmPopup(ioRunBtn, "Actuator control",
+                          QString("Drive actuator DID 0x%1 on ECU 0x%2? This physically "
+                                  "actuates a component - keep clear and be ready to "
+                                  "return control.")
+                              .arg(did, 4, 16, QChar('0')).arg(tgt, 4, 16, QChar('0')),
+                          "Execute"))
+            return;
+        startWorker([this, tgt, did, opt, state, mask] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("Actuator: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            std::vector<uint8_t> out;
+            if (uds.inputOutputControl(tgt, did, opt, state, mask, out, err))
+                protoLine("Actuator 0x" + byteHex((did>>8)&0xFF) + byteHex(did&0xFF) +
+                          ": OK" + (out.empty() ? "" : " status " + toHex(out.data(), out.size())));
+            else protoLine("Actuator 0x" + byteHex((did>>8)&0xFF) + byteHex(did&0xFF) + ": " + err);
+        });
+    });
+    connect(ioRetBtn, &QPushButton::clicked, this, [this] {
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t did = parseHex16(edProtoIoDid_->text(), 0xF010);
+        startWorker([this, tgt, did] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("Return control: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            std::vector<uint8_t> out;
+            if (uds.inputOutputControl(tgt, did, IoControlOption::ReturnControlToECU, {}, {}, out, err))
+                protoLine("Return control 0x" + byteHex((did>>8)&0xFF) + byteHex(did&0xFF) + ": OK.");
+            else protoLine("Return control 0x" + byteHex((did>>8)&0xFF) + byteHex(did&0xFF) + ": " + err);
+        });
+    });
+
+    // ---- Memory & scaling (0x3D / 0x24 / 0x35) ----
+    auto* memCard = card("Memory & scaling (0x3D write / 0x24 scaling / 0x35 upload)");
+    auto* ml = new QFormLayout(memCard);
+    auto* memNote = new QLabel(
+        "WriteMemoryByAddress and memory upload read/modify raw ECU memory - "
+        "use only with a confirmed memory map. ReadScalingData describes how to "
+        "interpret a DID's raw bytes (type, length, unit, formula).");
+    memNote->setWordWrap(true);
+    ml->addRow(memNote);
+
+    edProtoScalingDid_ = hexEdit("F190", 4);
+    auto* scRow = new QHBoxLayout;
+    scRow->addWidget(new QLabel("DID")); scRow->addWidget(edProtoScalingDid_);
+    auto* scBtn = new QPushButton("Read scaling (0x24)");
+    scRow->addWidget(scBtn); scRow->addStretch(1);
+    ml->addRow("ReadScalingData", scRow);
+
+    edProtoWmbaAddr_  = hexEdit("00000000", 8);
+    edProtoWmbaData_  = new QLineEdit; edProtoWmbaData_->setPlaceholderText("hex bytes to write");
+    sbProtoWmbaAddrB_ = new QSpinBox; sbProtoWmbaAddrB_->setRange(1, 4); sbProtoWmbaAddrB_->setValue(4);
+    sbProtoWmbaSizeB_ = new QSpinBox; sbProtoWmbaSizeB_->setRange(1, 4); sbProtoWmbaSizeB_->setValue(1);
+    auto* wmRow = new QHBoxLayout;
+    wmRow->addWidget(new QLabel("Addr")); wmRow->addWidget(edProtoWmbaAddr_);
+    wmRow->addWidget(new QLabel("addrB")); wmRow->addWidget(sbProtoWmbaAddrB_);
+    wmRow->addWidget(new QLabel("sizeB")); wmRow->addWidget(sbProtoWmbaSizeB_);
+    wmRow->addWidget(edProtoWmbaData_, 1);
+    auto* wmBtn = new QPushButton("Write memory (0x3D)");
+    wmRow->addWidget(wmBtn);
+    ml->addRow("WriteMemoryByAddress", wmRow);
+
+    edProtoUpAddr_ = hexEdit("00000000", 8);
+    sbProtoUpSize_ = new QSpinBox; sbProtoUpSize_->setRange(1, 65536); sbProtoUpSize_->setValue(256);
+    auto* upRow = new QHBoxLayout;
+    upRow->addWidget(new QLabel("Addr")); upRow->addWidget(edProtoUpAddr_);
+    upRow->addWidget(new QLabel("Size")); upRow->addWidget(sbProtoUpSize_);
+    auto* upBtn = new QPushButton("Upload memory (0x35)");
+    upRow->addWidget(upBtn); upRow->addStretch(1);
+    ml->addRow("RequestUpload", upRow);
+    outer->addWidget(memCard);
+
+    connect(scBtn, &QPushButton::clicked, this, [this] {
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t did = parseHex16(edProtoScalingDid_->text(), 0xF190);
+        startWorker([this, tgt, did] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("Scaling: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            std::vector<uint8_t> out;
+            if (uds.readScalingDataByIdentifier(tgt, did, out, err))
+                protoLine("Scaling 0x" + byteHex((did>>8)&0xFF) + byteHex(did&0xFF) +
+                          ": " + toHex(out.data(), out.size()));
+            else protoLine("Scaling 0x" + byteHex((did>>8)&0xFF) + byteHex(did&0xFF) + ": " + err);
+        });
+    });
+    connect(wmBtn, &QPushButton::clicked, this, [this, wmBtn] {
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint32_t addr = (uint32_t)edProtoWmbaAddr_->text().toUInt(nullptr, 16);
+        auto data = parseHexBytes(edProtoWmbaData_->text().toStdString());
+        int addrB = sbProtoWmbaAddrB_->value(), sizeB = sbProtoWmbaSizeB_->value();
+        if (data.empty()) { protoLine("Write memory: no data bytes given."); return; }
+        if (!confirmPopup(wmBtn, "Write memory",
+                          QString("Write %1 byte(s) to address 0x%2 on ECU 0x%3? This "
+                                  "modifies raw ECU memory and can be irreversible.")
+                              .arg(data.size()).arg(addr, 0, 16).arg(tgt, 4, 16, QChar('0')),
+                          "Write"))
+            return;
+        startWorker([this, tgt, addr, data, addrB, sizeB] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("Write memory: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            if (uds.writeMemoryByAddress(tgt, addr, data, (uint8_t)addrB, (uint8_t)sizeB, err))
+                protoLine("Write memory 0x" + std::to_string(addr) + ": OK (" +
+                          std::to_string(data.size()) + " byte(s)).");
+            else protoLine("Write memory: " + err);
+        });
+    });
+    connect(upBtn, &QPushButton::clicked, this, [this] {
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint32_t addr = (uint32_t)edProtoUpAddr_->text().toUInt(nullptr, 16);
+        uint32_t size = (uint32_t)sbProtoUpSize_->value();
+        startWorker([this, tgt, addr, size] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("Upload: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            std::vector<uint8_t> image;
+            if (uds.uploadBlock(tgt, addr, size, 4, 4, 0x00, image, nullptr, err)) {
+                protoLine("Upload 0x" + std::to_string(addr) + ": " +
+                          std::to_string(image.size()) + " byte(s) received.");
+                size_t show = (std::min)((size_t)64, image.size());
+                if (show) protoLine("  " + toHex(image.data(), show) +
+                                    (show < image.size() ? " ..." : ""));
+            } else protoLine("Upload: " + err);
+        });
+    });
+
+    // ---- Link, timing & authentication (0x87 / 0x83 / 0x29) ----
+    auto* linkCard = card("Link, timing & authentication (0x87 / 0x83 / 0x29)");
+    auto* ll = new QFormLayout(linkCard);
+
+    cbProtoLinkSub_ = new QComboBox;
+    cbProtoLinkSub_->addItems({"verifyFixedBaudrate (01)", "verifySpecificBaudrate (02)",
+                               "transitionBaudrate (03)"});
+    edProtoLinkParam_ = new QLineEdit; edProtoLinkParam_->setPlaceholderText("baudrate id/value, hex");
+    auto* lkRow = new QHBoxLayout;
+    lkRow->addWidget(cbProtoLinkSub_); lkRow->addWidget(edProtoLinkParam_, 1);
+    auto* lkBtn = new QPushButton("Run (0x87)");
+    lkRow->addWidget(lkBtn);
+    ll->addRow("LinkControl", lkRow);
+
+    cbProtoTimingSub_ = new QComboBox;
+    cbProtoTimingSub_->addItems({"readExtendedSet (01)", "setToDefault (02)",
+                                 "readCurrentlyActive (03)", "setToGivenValues (04)"});
+    edProtoTimingVals_ = new QLineEdit; edProtoTimingVals_->setPlaceholderText("timing values for set (hex)");
+    auto* tmRow = new QHBoxLayout;
+    tmRow->addWidget(cbProtoTimingSub_); tmRow->addWidget(edProtoTimingVals_, 1);
+    auto* tmBtn = new QPushButton("Run (0x83)");
+    tmRow->addWidget(tmBtn);
+    ll->addRow("AccessTimingParameter", tmRow);
+
+    edProtoAuthSub_  = hexEdit("08", 2);
+    edProtoAuthData_ = new QLineEdit; edProtoAuthData_->setPlaceholderText("sub-function payload, hex");
+    auto* auRow = new QHBoxLayout;
+    auRow->addWidget(new QLabel("Sub")); auRow->addWidget(edProtoAuthSub_);
+    auRow->addWidget(edProtoAuthData_, 1);
+    auto* auBtn = new QPushButton("Run (0x29)");
+    auRow->addWidget(auBtn);
+    ll->addRow("Authentication", auRow);
+    outer->addWidget(linkCard);
+
+    connect(lkBtn, &QPushButton::clicked, this, [this, lkBtn] {
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        int subIdx = cbProtoLinkSub_->currentIndex();   // 0..2 -> 0x01..0x03
+        auto param = parseHexBytes(edProtoLinkParam_->text().toStdString());
+        auto sub = (LinkControlType)(subIdx + 1);
+        if (sub == LinkControlType::TransitionMode &&
+            !confirmPopup(lkBtn, "Link control",
+                          "Transition the diagnostic link to the verified baudrate? "
+                          "An unsupported rate can drop the connection.", "Transition"))
+            return;
+        startWorker([this, tgt, sub, param] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("LinkControl: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            if (uds.linkControl(tgt, sub, param, err))
+                protoLine("LinkControl sub 0x" + byteHex((uint8_t)sub) + ": OK.");
+            else protoLine("LinkControl: " + err);
+        });
+    });
+    connect(tmBtn, &QPushButton::clicked, this, [this] {
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        int subIdx = cbProtoTimingSub_->currentIndex();   // 0..3 -> 0x01..0x04
+        auto vals = parseHexBytes(edProtoTimingVals_->text().toStdString());
+        auto sub = (TimingParamAccess)(subIdx + 1);
+        startWorker([this, tgt, sub, vals] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("Timing: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            std::vector<uint8_t> out;
+            if (uds.accessTimingParameter(tgt, sub, vals, out, err))
+                protoLine("AccessTimingParameter sub 0x" + byteHex((uint8_t)sub) + ": OK" +
+                          (out.empty() ? "" : " " + toHex(out.data(), out.size())));
+            else protoLine("AccessTimingParameter: " + err);
+        });
+    });
+    connect(auBtn, &QPushButton::clicked, this, [this] {
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint8_t sub = (uint8_t)parseHex16(edProtoAuthSub_->text(), 0x08);
+        auto data = parseHexBytes(edProtoAuthData_->text().toStdString());
+        startWorker([this, tgt, sub, data] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("Authentication: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            std::vector<uint8_t> out;
+            if (uds.authentication(tgt, sub, data, out, err))
+                protoLine("Authentication sub 0x" + byteHex(sub) + ": OK" +
+                          (out.empty() ? "" : " " + toHex(out.data(), out.size())));
+            else protoLine("Authentication: " + err);
+        });
+    });
+
+    // ---- Reprogramming / flash (0x34 -> 0x36 -> 0x37) ----
+    auto* flashCard = card("Reprogramming / flash download (0x34/0x36/0x37, confirm required)");
+    auto* fl = new QFormLayout(flashCard);
+    auto* flashNote = new QLabel(
+        "<b>Invasive.</b> Downloads a binary image to ECU memory using the "
+        "RequestDownload -> TransferData -> RequestTransferExit sequence. The ECU "
+        "must already be in a <i>programming session</i> with security unlocked "
+        "(use the UDS write/control and Security panels first). A wrong or "
+        "interrupted flash can brick the module.");
+    flashNote->setWordWrap(true);
+    fl->addRow(flashNote);
+    edProtoFlashAddr_ = hexEdit("00000000", 8);
+    edProtoFlashFile_ = new QLineEdit; edProtoFlashFile_->setReadOnly(true);
+    edProtoFlashFile_->setPlaceholderText("no file selected");
+    auto* flBrowse = new QPushButton("Browse...");
+    auto* flRow = new QHBoxLayout;
+    flRow->addWidget(new QLabel("Addr")); flRow->addWidget(edProtoFlashAddr_);
+    flRow->addWidget(edProtoFlashFile_, 1); flRow->addWidget(flBrowse);
+    fl->addRow("Image", flRow);
+    auto* flBtnRow = new QHBoxLayout;
+    auto* flProgBtn  = new QPushButton("Enter programming session (0x10 02)");
+    auto* flFlashBtn = new QPushButton("Flash image"); flFlashBtn->setObjectName("primary");
+    flBtnRow->addWidget(flProgBtn); flBtnRow->addWidget(flFlashBtn); flBtnRow->addStretch(1);
+    fl->addRow(flBtnRow);
+    outer->addWidget(flashCard);
+
+    connect(flBrowse, &QPushButton::clicked, this, [this] {
+        QString f = QFileDialog::getOpenFileName(this, "Select firmware image", QString(),
+                                                 "Firmware (*.bin *.hex *.s19 *.srec *.fls);;All files (*)");
+        if (!f.isEmpty()) edProtoFlashFile_->setText(f);
+    });
+    connect(flProgBtn, &QPushButton::clicked, this, [this] {
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        startWorker([this, tgt] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("Programming session: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            if (uds.diagnosticSessionControl(tgt, UdsSession::Programming, err))
+                protoLine("Programming session on 0x" + byteHex((tgt>>8)&0xFF) + byteHex(tgt&0xFF) +
+                          ": active. Unlock security before flashing.");
+            else protoLine("Programming session: " + err);
+        });
+    });
+    connect(flFlashBtn, &QPushButton::clicked, this, [this, flFlashBtn] {
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint32_t addr = (uint32_t)edProtoFlashAddr_->text().toUInt(nullptr, 16);
+        QString path = edProtoFlashFile_->text();
+        if (path.isEmpty()) { protoLine("Flash: select an image file first."); return; }
+        QFile imgFile(path);
+        if (!imgFile.open(QIODevice::ReadOnly)) {
+            protoLine("Flash: cannot open " + path.toStdString()); return;
+        }
+        QByteArray raw = imgFile.readAll();
+        imgFile.close();
+        std::vector<uint8_t> image(raw.begin(), raw.end());
+        if (image.empty()) { protoLine("Flash: image is empty."); return; }
+        if (!confirmPopup(flFlashBtn, "Flash firmware",
+                          QString("Download %1 byte(s) to address 0x%2 on ECU 0x%3? "
+                                  "The module must be in a programming session with security "
+                                  "unlocked. An interrupted flash can brick the ECU.")
+                              .arg(image.size()).arg(addr, 0, 16).arg(tgt, 4, 16, QChar('0')),
+                          "Flash now"))
+            return;
+        startWorker([this, tgt, addr, image] {
+            std::string err;
+            if (!ensureConnected(err)) { protoLine("Flash: " + err); return; }
+            UDSClient uds(client_, (uint16_t)testerAddr_);
+            protoLine("Flash: starting download of " + std::to_string(image.size()) +
+                      " byte(s) to 0x" + std::to_string(addr) + " ...");
+            auto progress = [this](size_t done, size_t total) {
+                if (total && (done == total || done % (64 * 1024) < 4096))
+                    protoLine("  flashed " + std::to_string(done) + "/" +
+                              std::to_string(total) + " byte(s)");
+            };
+            if (uds.downloadBlock(tgt, addr, image, 4, 4, 0x00, progress, err))
+                protoLine("Flash: download complete. Run any required check routine, then reset the ECU.");
+            else protoLine("Flash: " + err);
         });
     });
 
