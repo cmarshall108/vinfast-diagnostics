@@ -1,0 +1,2 @@
+doipclient>=1.1.7
+udsoncan>=1.25.0
