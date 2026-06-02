@@ -45,3 +45,11 @@ qrc_*.cpp
 
 # Logs / local artifacts
 *.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
