@@ -117,6 +117,10 @@ private:
     bool confirmPopup(QWidget* anchor, const QString& title,
                       const QString& body, const QString& okText);
 
+    // Extensive CAN discovery scan (every protocol/baud/addressing/id the MVCI
+    // supports) shown in its own window.
+    void openCanScanDialog(QWidget* anchor);
+
     // --- periodic refresh of dynamic views ---
     void refreshHeader();
     void refreshDashboard();

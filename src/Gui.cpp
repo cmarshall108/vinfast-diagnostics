@@ -22,6 +22,7 @@
 #include <QTableWidget>
 #include <QTableWidgetItem>
 #include <QHeaderView>
+#include <QProgressBar>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QGridLayout>
@@ -54,9 +55,13 @@
 #include <cstring>
 #include <cstdio>
 #include <ctime>
+#include <algorithm>
 #include <set>
 #include <thread>
 #include <vector>
+#include <atomic>
+#include <memory>
+#include <mutex>
 
 #ifdef _WIN32
   #include <direct.h>
@@ -1024,6 +1029,12 @@ QWidget* Gui::buildConnectionPage() {
         "handled by the VCI.</i>");
     canNote->setWordWrap(true);
     cvf->addRow(canNote);
+    auto* btnCanScan = new QPushButton("CAN Bus Scan...");
+    btnCanScan->setToolTip("Probe every protocol, baud rate, addressing mode "
+                           "and ID the MVCI supports to find responding ECUs.");
+    cvf->addRow(btnCanScan);
+    connect(btnCanScan, &QPushButton::clicked, this,
+            [this, btnCanScan] { syncSettingsFromUi(); openCanScanDialog(btnCanScan); });
     lay->addWidget(canc);
 
     lay->addStretch(1);
@@ -3722,6 +3733,361 @@ void Gui::refreshLog() {
 // ==========================================================================
 // Popups (positioned relative to the triggering widget)
 // ==========================================================================
+// ----- CAN bus discovery scan ---------------------------------------------
+namespace {
+
+// A single CAN diagnostic target (one request/response identifier pair).
+struct CanTarget {
+    uint32_t req  = 0;
+    uint32_t resp = 0;
+    bool     functional = false;
+    QString  label;
+};
+
+// A UDS/OBD probe service sent to each target. Any reply (even a negative
+// 0x7F response) proves the ECU is alive on that protocol/baud/id.
+struct CanProbe {
+    const char*          name;
+    std::vector<uint8_t> bytes;
+};
+
+// One responder discovered during the scan (queued for the UI thread).
+struct CanHit {
+    uint32_t baud = 0;
+    bool     ext  = false;
+    uint32_t req  = 0;
+    uint32_t resp = 0;
+    QString  service;
+    QString  response;
+};
+
+// Shared state between the scan worker thread and the dialog's UI timer.
+struct CanScanState {
+    std::atomic<bool> cancel{false};
+    std::atomic<bool> running{false};
+    std::atomic<bool> done{false};
+    std::atomic<int>  progress{0};   // 0..1000 (per-mille for smoothness)
+    std::atomic<int>  found{0};
+    std::mutex        mtx;
+    std::string       status;
+    std::vector<CanHit> pending;     // drained by the UI timer
+};
+
+// Builds the list of identifier targets for one addressing width / scope.
+static std::vector<CanTarget> buildCanTargets(bool ext, bool sweep) {
+    std::vector<CanTarget> t;
+    if (!ext) {
+        // ISO 15765-4 11-bit OBD-II.
+        t.push_back({0x7DF, 0x7E8, true,  "11b OBD functional"});
+        for (uint32_t i = 0; i < 8; ++i)
+            t.push_back({0x7E0 + i, 0x7E8 + i, false,
+                         QString::asprintf("11b phys %03X", 0x7E0 + i)});
+        if (sweep) {
+            // Manufacturer-specific 11-bit range, resp = req + 8 heuristic.
+            for (uint32_t id = 0x700; id <= 0x7FF; ++id) {
+                if (id >= 0x7DF && id <= 0x7EF) continue;  // already covered
+                t.push_back({id, id + 8, false,
+                             QString::asprintf("11b sweep %03X", id)});
+            }
+        }
+    } else {
+        // ISO 15765-4 29-bit OBD-II.
+        t.push_back({0x18DB33F1u, 0x18DAF111u, true, "29b OBD functional"});
+        uint32_t maxTa = sweep ? 0xFF : 0x3F;
+        for (uint32_t ta = 0; ta <= maxTa; ++ta) {
+            uint32_t req  = 0x18DA0000u | (ta << 8) | 0xF1u;
+            uint32_t resp = 0x18DAF100u | ta;
+            t.push_back({req, resp, false,
+                         QString::asprintf("29b phys TA=%02X", ta)});
+        }
+    }
+    return t;
+}
+
+// The probe services tried against every target.
+static std::vector<CanProbe> canProbeSet() {
+    return {
+        {"TesterPresent (3E 00)",      {0x3E, 0x00}},
+        {"DefaultSession (10 01)",     {0x10, 0x01}},
+        {"OBD PIDs (01 00)",           {0x01, 0x00}},
+        {"Read VIN DID (22 F1 90)",    {0x22, 0xF1, 0x90}},
+        {"OBD VIN (09 02)",            {0x09, 0x02}},
+    };
+}
+
+static QString hexBytes(const std::vector<uint8_t>& v) {
+    QString s;
+    for (uint8_t b : v) s += QString::asprintf("%02X ", b);
+    return s.trimmed();
+}
+
+} // namespace
+
+void Gui::openCanScanDialog(QWidget* anchor) {
+    auto* dlg = new QDialog(this);
+    dlg->setWindowTitle("CAN Bus Scan - ISO 15765 / MVCI D-PDU");
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    dlg->setMinimumSize(760, 560);
+    auto* root = new QVBoxLayout(dlg);
+
+    auto* intro = new QLabel(
+        "<b>Extensive CAN discovery.</b> Probes every selected baud rate, "
+        "addressing width and identifier with a battery of UDS/OBD services "
+        "via the MVCI D-PDU API (mvci32.dll). Any reply - positive or negative "
+        "- proves the vehicle answers on that protocol/ID.");
+    intro->setWordWrap(true);
+    root->addWidget(intro);
+
+    if (!can::Client::platformSupported()) {
+        auto* warn = new QLabel(
+            "<span style='color:#c0392b'><b>CAN scanning requires Windows</b> "
+            "with the MVCI pass-thru driver (mvci32.dll). This platform will "
+            "report the API as unavailable.</span>");
+        warn->setWordWrap(true);
+        root->addWidget(warn);
+    }
+
+    // --- scan scope options ---
+    auto* opt = new QGroupBox("Scan scope");
+    auto* og = new QGridLayout(opt);
+    auto* cb500  = new QCheckBox("500 kbit/s");  cb500->setChecked(true);
+    auto* cb250  = new QCheckBox("250 kbit/s");  cb250->setChecked(true);
+    auto* cb125  = new QCheckBox("125 kbit/s");
+    auto* cb1m   = new QCheckBox("1 Mbit/s");
+    auto* cb11   = new QCheckBox("11-bit IDs");  cb11->setChecked(true);
+    auto* cb29   = new QCheckBox("29-bit IDs");  cb29->setChecked(true);
+    auto* cbSweep= new QCheckBox("Thorough sweep (slow: scans full ID space)");
+    og->addWidget(new QLabel("<b>Baud rates</b>"), 0, 0);
+    og->addWidget(cb500, 1, 0); og->addWidget(cb250, 1, 1);
+    og->addWidget(cb125, 1, 2); og->addWidget(cb1m, 1, 3);
+    og->addWidget(new QLabel("<b>Addressing</b>"), 2, 0);
+    og->addWidget(cb11, 3, 0); og->addWidget(cb29, 3, 1);
+    og->addWidget(cbSweep, 4, 0, 1, 4);
+    root->addWidget(opt);
+
+    // --- progress + status ---
+    auto* bar = new QProgressBar();
+    bar->setRange(0, 1000);
+    bar->setValue(0);
+    bar->setTextVisible(true);
+    bar->setFormat("%p%");
+    root->addWidget(bar);
+    auto* status = new QLabel("Idle. Choose a scope and press Start.");
+    status->setWordWrap(true);
+    root->addWidget(status);
+
+    // --- results table ---
+    auto* table = new QTableWidget(0, 6);
+    table->setHorizontalHeaderLabels(
+        {"Baud", "Width", "Req ID", "Resp ID", "Service", "Response"});
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->verticalHeader()->setVisible(false);
+    root->addWidget(table, 1);
+
+    // --- buttons ---
+    auto* btnRow = new QHBoxLayout();
+    auto* btnStart = new QPushButton("Start scan");
+    btnStart->setObjectName("primary");
+    auto* btnStop  = new QPushButton("Stop");
+    btnStop->setEnabled(false);
+    auto* btnClose = new QPushButton("Close");
+    btnRow->addWidget(btnStart);
+    btnRow->addWidget(btnStop);
+    btnRow->addStretch(1);
+    btnRow->addWidget(btnClose);
+    root->addLayout(btnRow);
+
+    auto st = std::make_shared<CanScanState>();
+    auto threadHolder = std::make_shared<std::thread*>(nullptr);
+    std::string dll = canDll_;
+
+    // Drain worker output into the widgets on the UI thread.
+    auto* timer = new QTimer(dlg);
+    timer->setInterval(120);
+    QObject::connect(timer, &QTimer::timeout, dlg,
+                     [st, bar, status, table, btnStart, btnStop] {
+        std::vector<CanHit> hits;
+        std::string s;
+        {
+            std::lock_guard<std::mutex> g(st->mtx);
+            hits.swap(st->pending);
+            s = st->status;
+        }
+        bar->setValue(st->progress.load());
+        status->setText(QString::fromStdString(s));
+        for (const auto& h : hits) {
+            int r = table->rowCount();
+            table->insertRow(r);
+            table->setItem(r, 0, new QTableWidgetItem(
+                QString::number(h.baud) + " bps"));
+            table->setItem(r, 1, new QTableWidgetItem(h.ext ? "29-bit" : "11-bit"));
+            table->setItem(r, 2, new QTableWidgetItem(
+                QString::asprintf("0x%X", h.req)));
+            table->setItem(r, 3, new QTableWidgetItem(
+                QString::asprintf("0x%X", h.resp)));
+            table->setItem(r, 4, new QTableWidgetItem(h.service));
+            table->setItem(r, 5, new QTableWidgetItem(h.response));
+            table->scrollToBottom();
+        }
+        if (st->done.load() && !st->running.load()) {
+            btnStart->setEnabled(true);
+            btnStop->setEnabled(false);
+        }
+    });
+    timer->start();
+
+    QObject::connect(btnStart, &QPushButton::clicked, dlg,
+        [=]() mutable {
+            if (st->running.load()) return;
+            std::vector<uint32_t> bauds;
+            if (cb500->isChecked()) bauds.push_back(500000);
+            if (cb250->isChecked()) bauds.push_back(250000);
+            if (cb125->isChecked()) bauds.push_back(125000);
+            if (cb1m->isChecked())  bauds.push_back(1000000);
+            std::vector<bool> widths;
+            if (cb11->isChecked()) widths.push_back(false);
+            if (cb29->isChecked()) widths.push_back(true);
+            if (bauds.empty() || widths.empty()) {
+                status->setText("Select at least one baud rate and addressing width.");
+                return;
+            }
+            bool sweep = cbSweep->isChecked();
+
+            // Clear previous run.
+            table->setRowCount(0);
+            st->cancel = false;
+            st->done = false;
+            st->found = 0;
+            st->progress = 0;
+            { std::lock_guard<std::mutex> g(st->mtx); st->pending.clear(); st->status = "Starting..."; }
+            st->running = true;
+            btnStart->setEnabled(false);
+            btnStop->setEnabled(true);
+
+            // Join any finished previous thread before launching a new one.
+            if (*threadHolder) {
+                if ((*threadHolder)->joinable()) (*threadHolder)->join();
+                delete *threadHolder;
+                *threadHolder = nullptr;
+            }
+
+            *threadHolder = new std::thread([st, dll, bauds, widths, sweep]() {
+                auto probes = canProbeSet();
+
+                // Precompute total probe count for the progress bar.
+                long total = 0;
+                for (bool ext : widths)
+                    total += (long)buildCanTargets(ext, sweep).size() *
+                             (long)probes.size() * (long)bauds.size();
+                if (total <= 0) total = 1;
+                long step = 0;
+                auto bump = [&] {
+                    ++step;
+                    st->progress = (int)std::min<long>(1000, (step * 1000) / total);
+                };
+
+                can::Client scanner;
+                for (uint32_t baud : bauds) {
+                    if (st->cancel.load()) break;
+                    for (bool ext : widths) {
+                        if (st->cancel.load()) break;
+                        auto targets = buildCanTargets(ext, sweep);
+                        if (targets.empty()) continue;
+
+                        can::Config cfg;
+                        cfg.dllPath    = dll;
+                        cfg.baudrate   = baud;
+                        cfg.extendedId = ext;
+                        cfg.reqId      = targets.front().req;
+                        cfg.respId     = targets.front().resp;
+                        {
+                            std::lock_guard<std::mutex> g(st->mtx);
+                            st->status = "Opening link @ " + std::to_string(baud) +
+                                         " bps, " + (ext ? "29-bit" : "11-bit") + "...";
+                        }
+                        std::string err;
+                        if (!scanner.connect(cfg, err)) {
+                            {
+                                std::lock_guard<std::mutex> g(st->mtx);
+                                st->status = "Link unavailable @ " + std::to_string(baud) +
+                                             " bps (" + err + ")";
+                            }
+                            // Skip this whole (baud,width) block; advance progress.
+                            for (size_t i = 0; i < targets.size() * probes.size(); ++i) bump();
+                            continue;
+                        }
+
+                        for (const auto& tgt : targets) {
+                            if (st->cancel.load()) break;
+                            std::string e2;
+                            scanner.setAddressing(tgt.req, tgt.resp, e2);
+                            {
+                                std::lock_guard<std::mutex> g(st->mtx);
+                                st->status = "Probing " + tgt.label.toStdString() +
+                                             " @ " + std::to_string(baud) + " bps";
+                            }
+                            for (const auto& pr : probes) {
+                                if (st->cancel.load()) break;
+                                std::vector<uint8_t> resp;
+                                std::string e3;
+                                int timeout = tgt.functional ? 250 : 120;
+                                bool ok = scanner.sendDiagnostic(
+                                    0, 0, pr.bytes, resp, timeout, e3, tgt.functional);
+                                bump();
+                                if (ok && !resp.empty()) {
+                                    st->found = st->found.load() + 1;
+                                    CanHit hit;
+                                    hit.baud = baud;
+                                    hit.ext  = ext;
+                                    hit.req  = tgt.req;
+                                    hit.resp = tgt.resp;
+                                    hit.service  = QString::fromUtf8(pr.name);
+                                    hit.response = hexBytes(resp);
+                                    std::lock_guard<std::mutex> g(st->mtx);
+                                    st->pending.push_back(std::move(hit));
+                                }
+                            }
+                        }
+                        scanner.disconnect();
+                    }
+                }
+
+                {
+                    std::lock_guard<std::mutex> g(st->mtx);
+                    if (st->cancel.load())
+                        st->status = "Scan stopped. " + std::to_string(st->found.load()) +
+                                     " responder(s) found.";
+                    else
+                        st->status = "Scan complete. " + std::to_string(st->found.load()) +
+                                     " responder(s) found.";
+                }
+                st->progress = 1000;
+                st->running = false;
+                st->done = true;
+            });
+        });
+
+    QObject::connect(btnStop, &QPushButton::clicked, dlg,
+                     [st, btnStop]() { st->cancel = true; btnStop->setEnabled(false); });
+    QObject::connect(btnClose, &QPushButton::clicked, dlg, [dlg]() { dlg->close(); });
+
+    // Ensure the worker is stopped and joined when the dialog is destroyed.
+    QObject::connect(dlg, &QObject::destroyed, dlg,
+                     [st, threadHolder]() {
+        st->cancel = true;
+        if (*threadHolder) {
+            if ((*threadHolder)->joinable()) (*threadHolder)->join();
+            delete *threadHolder;
+            *threadHolder = nullptr;
+        }
+    });
+
+    if (anchor) dlg->move(anchor->mapToGlobal(QPoint(0, anchor->height() + 6)));
+    dlg->show();
+}
+
 bool Gui::confirmPopup(QWidget* anchor, const QString& title,
                        const QString& body, const QString& okText) {
     QMessageBox box(this);
