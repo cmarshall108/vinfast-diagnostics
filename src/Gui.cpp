@@ -9,6 +9,9 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QToolButton>
+#include <QDateTimeEdit>
+#include <QDateTime>
+#include <QTimeZone>
 #include <QLineEdit>
 #include <QSpinBox>
 #include <QComboBox>
@@ -114,6 +117,182 @@ uint16_t Gui::parseHex16(const QString& s, uint16_t def) {
     uint v = t.toUInt(&ok, 16);
     return ok ? (uint16_t)v : def;
 }
+
+// ==========================================================================
+// Engineering-menu TOTP candidate generation
+//
+// The VF8 engineering menu shows a 6-digit seed and uses a 30s time window.
+// The real algorithm is not published, so we generate the most plausible
+// 6-digit codes for a given (seed, time-step): the standard RFC 6238 TOTP
+// (HMAC-SHA1, the canonical "TOTP" definition) under a few seed encodings,
+// plus common ad-hoc arithmetic schemes. Self-contained SHA-1/HMAC so the GUI
+// does not depend on CloudClient's internal (SHA-256-only) crypto.
+// ==========================================================================
+namespace {
+
+struct Sha1Ctx { uint32_t h[5]; };
+static uint32_t rol32(uint32_t v, int b) { return (v << b) | (v >> (32 - b)); }
+
+static void sha1Block(Sha1Ctx& s, const uint8_t* p) {
+    uint32_t w[80];
+    for (int i = 0; i < 16; ++i)
+        w[i] = ((uint32_t)p[i*4] << 24) | ((uint32_t)p[i*4+1] << 16) |
+               ((uint32_t)p[i*4+2] << 8) | (uint32_t)p[i*4+3];
+    for (int i = 16; i < 80; ++i)
+        w[i] = rol32(w[i-3] ^ w[i-8] ^ w[i-14] ^ w[i-16], 1);
+    uint32_t a = s.h[0], b = s.h[1], c = s.h[2], d = s.h[3], e = s.h[4];
+    for (int i = 0; i < 80; ++i) {
+        uint32_t f, k;
+        if (i < 20)      { f = (b & c) | ((~b) & d);          k = 0x5A827999; }
+        else if (i < 40) { f = b ^ c ^ d;                     k = 0x6ED9EBA1; }
+        else if (i < 60) { f = (b & c) | (b & d) | (c & d);   k = 0x8F1BBCDC; }
+        else             { f = b ^ c ^ d;                     k = 0xCA62C1D6; }
+        uint32_t t = rol32(a, 5) + f + e + k + w[i];
+        e = d; d = c; c = rol32(b, 30); b = a; a = t;
+    }
+    s.h[0] += a; s.h[1] += b; s.h[2] += c; s.h[3] += d; s.h[4] += e;
+}
+
+static std::string sha1Raw(const std::string& msg) {
+    Sha1Ctx s = {{0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0}};
+    size_t len = msg.size(), full = len / 64;
+    for (size_t i = 0; i < full; ++i)
+        sha1Block(s, (const uint8_t*)msg.data() + i * 64);
+    uint8_t block[64] = {0};
+    size_t rem = len - full * 64;
+    std::memcpy(block, msg.data() + full * 64, rem);
+    block[rem] = 0x80;
+    if (rem >= 56) { sha1Block(s, block); std::memset(block, 0, 64); }
+    uint64_t bits = (uint64_t)len * 8;
+    for (int i = 0; i < 8; ++i) block[63 - i] = (uint8_t)(bits >> (i * 8));
+    sha1Block(s, block);
+    std::string out(20, '\0');
+    for (int i = 0; i < 5; ++i) {
+        out[i*4]   = (char)(s.h[i] >> 24); out[i*4+1] = (char)(s.h[i] >> 16);
+        out[i*4+2] = (char)(s.h[i] >> 8);  out[i*4+3] = (char)(s.h[i]);
+    }
+    return out;
+}
+
+static std::string hmacSha1Raw(const std::string& keyIn, const std::string& msg) {
+    std::string k = keyIn;
+    if (k.size() > 64) k = sha1Raw(k);
+    k.resize(64, '\0');
+    std::string ipad(64, '\0'), opad(64, '\0');
+    for (int i = 0; i < 64; ++i) { ipad[i] = k[i] ^ 0x36; opad[i] = k[i] ^ 0x5c; }
+    return sha1Raw(opad + sha1Raw(ipad + msg));
+}
+
+// RFC 4226 / 6238 dynamic truncation to `digits` decimal digits.
+static QString hotp(const std::string& keyRaw, uint64_t counter, int digits) {
+    uint8_t msg[8];
+    for (int i = 0; i < 8; ++i) msg[7 - i] = (uint8_t)(counter >> (i * 8));
+    std::string hs = hmacSha1Raw(keyRaw, std::string((const char*)msg, 8));
+    int off = hs[19] & 0x0f;
+    uint32_t bin = (((uint32_t)(hs[off] & 0x7f)) << 24) |
+                   ((uint32_t)(uint8_t)hs[off+1] << 16) |
+                   ((uint32_t)(uint8_t)hs[off+2] << 8)  |
+                   ((uint32_t)(uint8_t)hs[off+3]);
+    uint32_t mod = 1; for (int i = 0; i < digits; ++i) mod *= 10;
+    char buf[16]; std::snprintf(buf, sizeof buf, "%0*u", digits, bin % mod);
+    return buf;
+}
+
+static QString to6(uint64_t v) {
+    char buf[8];
+    std::snprintf(buf, sizeof buf, "%06llu", (unsigned long long)(v % 1000000ULL));
+    return buf;
+}
+
+// All candidate (method, 6-digit code) pairs for one 30s time-step.
+// dtTs is the adjusted (region-offset) unix time for this step, used to build
+// the broken-down UTC datetime values the engineering menu actually keys off.
+static std::vector<std::pair<QString, QString>>
+totpCandidates(uint64_t seed, const QString& seedStr, uint64_t step, long long dtTs) {
+    std::vector<std::pair<QString, QString>> out;
+
+    // RFC 6238 standard TOTP (HMAC-SHA1) - the canonical, most-likely method.
+    // Try the plausible encodings of the 6-digit seed as the shared secret.
+    auto beBytes = [](uint64_t v, int n) {
+        std::string s((size_t)n, '\0');
+        for (int i = 0; i < n; ++i) s[n - 1 - i] = (char)(v >> (i * 8));
+        return s;
+    };
+    out.push_back({"RFC6238 TOTP (seed ASCII)",  hotp(seedStr.toStdString(), step, 6)});
+    out.push_back({"RFC6238 TOTP (seed u32 BE)", hotp(beBytes(seed, 4), step, 6)});
+    out.push_back({"RFC6238 TOTP (seed u64 BE)", hotp(beBytes(seed, 8), step, 6)});
+
+    // Ad-hoc arithmetic schemes against the 30s step (speculative but cheap).
+    uint64_t key = seed;
+    struct M { QString name; uint64_t val; };
+    const std::vector<M> arith = {
+        {"key + step",                        key + step},
+        {"key * step",                        key * step},
+        {"key ^ step",                        key ^ step},
+        {"(key*step) ^ (key+step)",           (key * step) ^ (key + step)},
+        {"key*step + step",                   key * step + step},
+        {"(key+step)*1234567 % 999999",       (key + step) * 1234567ULL % 999999ULL},
+        {"key*1234567 % 999999",              key * 1234567ULL % 999999ULL},
+        {"key*31 + step",                     key * 31 + step},
+        {"step*131 + key",                    step * 131 + key},
+        {"(key<<5) ^ step",                   (key << 5) ^ step},
+        {"step ^ (key*17)",                   step ^ (key * 17)},
+        {"(key ^ 0xAAAAAAAA) + step",         (key ^ 0xAAAAAAAAULL) + step},
+        {"key*step % 999983",                 key * step % 999983ULL},
+        {"(key + step*step) % 1000000",       (key + step * step) % 1000000ULL},
+        {"key*6364136223846793005 ^ step",    (key * 6364136223846793005ULL) ^ step},
+    };
+    for (const auto& m : arith) out.push_back({m.name, to6(m.val)});
+
+    // Datetime-based schemes: the engineering menu keys off a UTC datetime
+    // value (broken-down calendar fields), not the raw 30s counter.
+    std::time_t tt = (std::time_t)dtTs;
+    std::tm g{};
+#ifdef _WIN32
+    gmtime_s(&g, &tt);
+#else
+    gmtime_r(&tt, &g);
+#endif
+    uint64_t Y  = (uint64_t)(g.tm_year + 1900);
+    uint64_t Mo = (uint64_t)(g.tm_mon + 1);
+    uint64_t D  = (uint64_t)g.tm_mday;
+    uint64_t H  = (uint64_t)g.tm_hour;
+    uint64_t Mi = (uint64_t)g.tm_min;
+    uint64_t S  = (uint64_t)g.tm_sec;
+
+    uint64_t ymdhms = ((((Y * 100 + Mo) * 100 + D) * 100 + H) * 100 + Mi) * 100 + S; // YYYYMMDDHHMMSS
+    uint64_t ymdhm  = (((Y * 100 + Mo) * 100 + D) * 100 + H) * 100 + Mi;             // YYYYMMDDHHMM
+    uint64_t ymdh   = ((Y * 100 + Mo) * 100 + D) * 100 + H;                          // YYYYMMDDHH
+    uint64_t ymd    = (Y * 100 + Mo) * 100 + D;                                      // YYYYMMDD
+    uint64_t hms    = (H * 100 + Mi) * 100 + S;                                      // HHMMSS
+    uint64_t hm     = H * 100 + Mi;                                                  // HHMM
+
+    const std::vector<M> dt = {
+        {"YYYYMMDDHHMM (raw)",                ymdhm},
+        {"key + YYYYMMDDHHMM",                key + ymdhm},
+        {"key * YYYYMMDDHHMM % 1000000",      key * ymdhm % 1000000ULL},
+        {"key ^ YYYYMMDDHHMM",                key ^ ymdhm},
+        {"(key + YYYYMMDDHHMM) % 1000000",    (key + ymdhm) % 1000000ULL},
+        {"key + YYYYMMDDHH",                  key + ymdh},
+        {"key ^ YYYYMMDDHH",                  key ^ ymdh},
+        {"key + YYYYMMDDHHMMSS",              key + ymdhms},
+        {"key ^ YYYYMMDDHHMMSS",              key ^ ymdhms},
+        {"key + YYYYMMDD",                    key + ymd},
+        {"(key * YYYYMMDD) % 999999",         key * ymd % 999999ULL},
+        {"key + HHMMSS",                      key + hms},
+        {"key + HHMM",                        key + hm},
+        {"key ^ HHMM",                        key ^ hm},
+        {"(key + HHMM) * 1234567 % 999999",   (key + hm) * 1234567ULL % 999999ULL},
+    };
+    for (const auto& m : dt) out.push_back({m.name, to6(m.val)});
+
+    // RFC 6238 with the datetime value used as the moving counter.
+    out.push_back({"RFC6238(YYYYMMDDHHMM ctr, ASCII)", hotp(seedStr.toStdString(), ymdhm, 6)});
+    out.push_back({"RFC6238(YYYYMMDDHH ctr, ASCII)",   hotp(seedStr.toStdString(), ymdh,  6)});
+    return out;
+}
+
+} // namespace
 
 // ==========================================================================
 // Construction
@@ -325,6 +504,7 @@ QWidget* Gui::buildConnectionPage() {
     auto* scroll = new QScrollArea;
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     auto* inner = new QWidget;
     scroll->setWidget(inner);
     auto* outer = new QVBoxLayout(page);
@@ -418,9 +598,11 @@ QWidget* Gui::buildConnectionPage() {
     enumRow->addStretch(1);
     enumRow->addWidget(enumBtn);
     df->addLayout(enumRow);
-    df->addWidget(new QLabel(
+    auto* discNote = new QLabel(
         "<i>A reply (even a negative one) proves an address is routable - the "
-        "fastest way to find the real VF8 ECU addresses.</i>"));
+        "fastest way to find the real VF8 ECU addresses.</i>");
+    discNote->setWordWrap(true);
+    df->addWidget(discNote);
     lay->addWidget(disc);
 
     // --- SOVD backup (REST/HTTP fallback when UDS does not answer) ---
@@ -433,10 +615,12 @@ QWidget* Gui::buildConnectionPage() {
     edSovdToken_->setEchoMode(QLineEdit::Password);
     svf->addRow("SOVD base URL", edSovdUrl_);
     svf->addRow("Bearer token", edSovdToken_);
-    svf->addRow(new QLabel(
+    auto* sovdNote = new QLabel(
         "<i>When an ECU does not respond to UDS/DoIP, Probe falls back to this "
         "SOVD endpoint and marks the module reachable if its component is "
-        "listed.</i>"));
+        "listed.</i>");
+    sovdNote->setWordWrap(true);
+    svf->addRow(sovdNote);
     lay->addWidget(sovd);
 
     lay->addStretch(1);
@@ -600,19 +784,24 @@ QWidget* Gui::buildEcuPage() {
     toolbar->addWidget(addBtn);
     lay->addLayout(toolbar);
 
-    lay->addWidget(new QLabel(
+    auto* ecuHint = new QLabel(
         "<i>Tap an ECU to open its diagnostics. Addresses are placeholders - "
-        "edit them in the popup to match the VF8 routing.</i>"));
-    lay->addWidget(new QLabel(
+        "edit them in the popup to match the VF8 routing.</i>");
+    ecuHint->setWordWrap(true);
+    lay->addWidget(ecuHint);
+    auto* ecuLegend = new QLabel(
         "<span style='color:#43d17a'>● connected</span> &nbsp;&nbsp; "
         "<span style='color:#e0556a'>○ no response</span> &nbsp;&nbsp; "
         "<span style='color:#9fb0c0'>· not probed</span> &nbsp;&nbsp; "
         "<span style='color:#f2b134'>●N = DTC count</span> &nbsp;&nbsp; "
-        "<i>run \"Probe addresses\" to test connectivity.</i>"));
+        "<i>run \"Probe addresses\" to test connectivity.</i>");
+    ecuLegend->setWordWrap(true);
+    lay->addWidget(ecuLegend);
 
     auto* scroll = new QScrollArea;
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     ecuTileHost_ = new QWidget;
     ecuTileGrid_ = new QGridLayout(ecuTileHost_);
     ecuTileGrid_->setSpacing(10);
@@ -796,11 +985,13 @@ QWidget* Gui::buildServicePage() {
     lay->setContentsMargins(18, 18, 18, 18);
     lay->setSpacing(12);
 
-    lay->addWidget(new QLabel(
+    auto* svcIntro = new QLabel(
         "<b>Safe service enumerator.</b> Finds which DIDs / routines / I/O "
         "channels an ECU implements <i>without executing anything</i> - only "
         "read-only or restorative sub-functions are sent (0x22 read, 0x31 0x03 "
-        "request-results, 0x2F 0x00 return-control)."));
+        "request-results, 0x2F 0x00 return-control).");
+    svcIntro->setWordWrap(true);
+    lay->addWidget(svcIntro);
 
     auto* cfg = card("Scan");
     auto* f = new QFormLayout(cfg);
@@ -946,6 +1137,7 @@ QWidget* Gui::buildProtocolPage() {
     auto* scroll = new QScrollArea;
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     auto* inner = new QWidget;
     scroll->setWidget(inner);
     auto* pageLay = new QVBoxLayout(page);
@@ -1528,6 +1720,7 @@ QWidget* Gui::buildCloudPage() {
     auto* scroll = new QScrollArea;
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     auto* inner = new QWidget;
     scroll->setWidget(inner);
     auto* pageLay = new QVBoxLayout(page);
@@ -1538,12 +1731,14 @@ QWidget* Gui::buildCloudPage() {
     outer->setContentsMargins(18, 18, 18, 18);
     outer->setSpacing(12);
 
-    outer->addWidget(new QLabel(
+    auto* introLabel = new QLabel(
         "<b>VinFast connected-car cloud.</b> Talks to VinFast's app back-end "
         "(Auth0 + signed REST + AWS IoT) the same way the phone app does. This "
         "uses <i>community reverse-engineered</i> endpoints, not an official "
         "SDK - they may change without notice. Credentials are kept in memory, "
-        "sent only over HTTPS to VinFast, and never logged or written to disk."));
+        "sent only over HTTPS to VinFast, and never logged or written to disk.");
+    introLabel->setWordWrap(true);
+    outer->addWidget(introLabel);
 
     // ---- account / login -------------------------------------------------
     auto* acctCard = card("Account");
@@ -1661,10 +1856,12 @@ QWidget* Gui::buildCloudPage() {
     // ---- MQTT real-time --------------------------------------------------
     auto* mqttCard = card("Real-time (AWS IoT MQTT)");
     auto* ml = new QVBoxLayout(mqttCard);
-    ml->addWidget(new QLabel(
+    auto* mqttInfo = new QLabel(
         "Builds a presigned wss:// AWS IoT URL (Cognito identity + SigV4). The "
         "scanner generates and shows the endpoint; opening the MQTT socket is "
-        "not done here. Only available where the region's Cognito pool is known."));
+        "not done here. Only available where the region's Cognito pool is known.");
+    mqttInfo->setWordWrap(true);
+    ml->addWidget(mqttInfo);
     auto* mqttBtn = new QPushButton("Build presigned MQTT URL");
     auto* mqttRow = new QHBoxLayout;
     mqttRow->addWidget(mqttBtn); mqttRow->addStretch(1);
@@ -1684,13 +1881,15 @@ QWidget* Gui::buildCloudPage() {
     // ---- BMS characterization (bus <-> cloud correlation) ----------------
     auto* bmsCard = card("BMS characterization (bus <-> cloud)");
     auto* bl = new QVBoxLayout(bmsCard);
-    bl->addWidget(new QLabel(
+    auto* bmsInfo = new QLabel(
         "The CATL BMS exposes no public CAN/UDS map, so identify battery DIDs "
         "empirically: sweep the BMS's read-only 0x22 DIDs, timestamp the raw "
         "values, and capture the cloud SOC/charging at the same instant. Take "
         "two snapshots at different battery states (e.g. before/after charging), "
         "then compare - DIDs whose raw value tracks the cloud SOC delta are "
-        "battery-data candidates. Read-only; nothing is written to the ECU."));
+        "battery-data candidates. Read-only; nothing is written to the ECU.");
+    bmsInfo->setWordWrap(true);
+    bl->addWidget(bmsInfo);
     auto* bf = new QHBoxLayout;
     edBmsTarget_ = hexEdit("1003", 4);
     edBmsStart_  = hexEdit("0000", 4);
@@ -1832,6 +2031,146 @@ QWidget* Gui::buildCloudPage() {
         cloudLine("BMS snapshots cleared.");
     });
 
+    // ---- Engineering-menu TOTP candidate generator -----------------------
+    auto* totpCard = card("Engineering menu TOTP (candidate generator)");
+    auto* tv = new QVBoxLayout(totpCard);
+    auto* totpInfo = new QLabel(
+        "The engineering menu shows a 6-digit <b>seed</b> and uses a 30-second "
+        "time window. The real key derivation is not published, so this lists "
+        "the most likely 6-digit codes for the seed + timestamp - standard "
+        "RFC&nbsp;6238 TOTP (HMAC-SHA1) plus common arithmetic schemes - and "
+        "includes the neighbouring 30s steps for clock skew. Enter the UTC "
+        "date/time the menu is showing (defaults to now). Nothing is "
+        "sent to the car; enter the candidates one at a time in the menu.");
+    totpInfo->setWordWrap(true);
+    tv->addWidget(totpInfo);
+    auto* tf = new QHBoxLayout;
+    edTotpSeed_ = new QLineEdit;
+    edTotpSeed_->setMaxLength(6);
+    edTotpSeed_->setPlaceholderText("6-digit seed");
+    edTotpSeed_->setMaximumWidth(120);
+    edTotpTs_ = new QDateTimeEdit;
+    edTotpTs_->setDisplayFormat("yyyy-MM-dd HH:mm:ss");
+    edTotpTs_->setTimeZone(QTimeZone::UTC);
+    edTotpTs_->setCalendarPopup(true);
+    edTotpTs_->setDateTime(QDateTime::currentDateTimeUtc());
+    edTotpTs_->setToolTip("UTC date/time the engineering menu is showing "
+                          "(defaults to now).");
+    edTotpTs_->setMaximumWidth(220);
+    edTotpTsText_ = new QLineEdit;
+    edTotpTsText_->setPlaceholderText("e.g. Wed May 20 20:24:05 2026 (UTC)");
+    edTotpTsText_->setToolTip("Optional: type a UTC date/time string and press "
+                              "Enter to set the picker. Accepts forms like "
+                              "'Wed May 20 20:24:05 2026' or '2026-05-20 20:24:05'.");
+    edTotpTsText_->setMinimumWidth(260);
+    tf->addWidget(new QLabel("Seed"));              tf->addWidget(edTotpSeed_);
+    tf->addWidget(new QLabel("UTC date/time"));     tf->addWidget(edTotpTs_);
+    tf->addStretch(1);
+    tv->addLayout(tf);
+    auto* tf2 = new QHBoxLayout;
+    tf2->addWidget(new QLabel("or type UTC"));      tf2->addWidget(edTotpTsText_);
+    tf2->addStretch(1);
+    tv->addLayout(tf2);
+    auto* tb = new QHBoxLayout;
+    auto* totpBtn = new QPushButton("Generate candidates");
+    totpBtn->setObjectName("primary");
+    tb->addWidget(totpBtn); tb->addStretch(1);
+    tv->addLayout(tb);
+    outer->addWidget(totpCard);
+
+    // Parse a typed UTC string into a QDateTime (UTC). Accepts the C asctime
+    // form ("Wed May 20 20:24:05 2026") and a few common ISO-ish variants.
+    auto parseUtcText = [](const QString& raw) -> QDateTime {
+        QString s = raw.simplified();   // collapse runs of whitespace
+        if (s.isEmpty()) return QDateTime();
+        static const char* fmts[] = {
+            "ddd MMM d HH:mm:ss yyyy",   // Wed May 20 20:24:05 2026 (asctime)
+            "ddd MMM d yyyy HH:mm:ss",   // Wed May 20 2026 20:24:05
+            "yyyy-MM-dd HH:mm:ss",       // 2026-05-20 20:24:05
+            "yyyy-MM-ddTHH:mm:ss",       // 2026-05-20T20:24:05
+            "yyyy-MM-dd HH:mm",          // 2026-05-20 20:24
+        };
+        for (const char* f : fmts) {
+            QDateTime dt = QDateTime::fromString(s, QString::fromLatin1(f));
+            if (dt.isValid()) { dt.setTimeZone(QTimeZone::UTC); return dt; }
+        }
+        QDateTime iso = QDateTime::fromString(s, Qt::ISODate);
+        if (iso.isValid()) { iso.setTimeZone(QTimeZone::UTC); return iso; }
+        return QDateTime();
+    };
+
+    // Typing a UTC string and committing it updates the picker.
+    connect(edTotpTsText_, &QLineEdit::editingFinished, this,
+            [this, parseUtcText] {
+        const QString raw = edTotpTsText_->text().trimmed();
+        if (raw.isEmpty()) return;
+        QDateTime dt = parseUtcText(raw);
+        if (dt.isValid()) {
+            edTotpTs_->setDateTime(dt);
+        } else {
+            cloudLine("TOTP: could not parse UTC date/time '" +
+                      raw.toStdString() + "'. Try 'Wed May 20 20:24:05 2026'.");
+        }
+    });
+
+    connect(totpBtn, &QPushButton::clicked, this, [this, parseUtcText] {
+        QString seedStr = edTotpSeed_->text().trimmed();
+        bool okSeed = false;
+        uint64_t seed = seedStr.toULongLong(&okSeed);
+        if (seedStr.isEmpty() || !okSeed) {
+            cloudLine("TOTP: enter the 6-digit seed shown by the car.");
+            return;
+        }
+        // Prefer a freshly typed UTC string if present; else use the picker.
+        const QString typed = edTotpTsText_->text().trimmed();
+        QDateTime dt;
+        if (!typed.isEmpty()) {
+            dt = parseUtcText(typed);
+            if (!dt.isValid()) {
+                cloudLine("TOTP: could not parse UTC date/time '" +
+                          typed.toStdString() +
+                          "'. Try 'Wed May 20 20:24:05 2026'.");
+                return;
+            }
+            edTotpTs_->setDateTime(dt);
+        } else {
+            dt = edTotpTs_->dateTime();
+        }
+        dt.setTimeZone(QTimeZone::UTC);
+        long long ts = (long long)dt.toSecsSinceEpoch();
+        long long adjTs = ts;   // datetime is already UTC; no offset needed
+        uint64_t baseStep = (uint64_t)(adjTs / 30);
+
+        std::time_t att = (std::time_t)adjTs;
+        std::tm ag{};
+#ifdef _WIN32
+        gmtime_s(&ag, &att);
+#else
+        gmtime_r(&att, &ag);
+#endif
+        char dtbuf[32];
+        std::strftime(dtbuf, sizeof dtbuf, "%Y-%m-%d %H:%M:%S", &ag);
+
+        cloudLine("==== Engineering-menu TOTP candidates ====");
+        cloudLine(QString("seed %1 | ts %2 | datetime %3 UTC | base step %4")
+                      .arg(seedStr).arg(ts)
+                      .arg(dtbuf)
+                      .arg((qulonglong)baseStep)
+                      .toStdString());
+        for (int skew = -1; skew <= 1; ++skew) {
+            uint64_t step = baseStep + skew;
+            long long stepTs = adjTs + (long long)skew * 30;
+            cloudLine(QString("---- step %1 (%2) ----")
+                          .arg((qulonglong)step)
+                          .arg(skew == 0 ? "current"
+                                         : (skew < 0 ? "previous 30s" : "next 30s"))
+                          .toStdString());
+            for (const auto& c : totpCandidates(seed, seedStr, step, stepTs))
+                cloudLine(("  " + c.first.leftJustified(34, ' ') + c.second).toStdString());
+        }
+        cloudLine("Try each code in the engineering menu within its 30s window.");
+    });
+
     // ---- account handlers ------------------------------------------------
     connect(cbCloudRegion_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int idx) {
@@ -1893,10 +2232,12 @@ QWidget* Gui::buildReferencePage() {
 
     int total = 0;
     for (const auto& s : kVF8ReferenceScan) total += (int)s.dtcs.size();
-    lay->addWidget(new QLabel(QString(
+    auto* refIntro = new QLabel(QString(
         "<b>Reference scan</b> (Autel MaxiCOM) - %1 systems, %2 DTCs stored for "
         "this VIN. Expand a system to compare against a live scan.")
-        .arg((int)kVF8ReferenceScan.size()).arg(total)));
+        .arg((int)kVF8ReferenceScan.size()).arg(total));
+    refIntro->setWordWrap(true);
+    lay->addWidget(refIntro);
 
     refTree_ = new QTreeWidget;
     refTree_->setColumnCount(3);

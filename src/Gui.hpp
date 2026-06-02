@@ -27,6 +27,7 @@ class QListWidget;
 class QLabel;
 class QPushButton;
 class QLineEdit;
+class QDateTimeEdit;
 class QSpinBox;
 class QComboBox;
 class QCheckBox;
@@ -310,6 +311,11 @@ private:
     QLabel*         cloudVehLabel_  = nullptr;
     QPlainTextEdit* cloudView_      = nullptr;
     size_t          cloudViewRev_   = (size_t)-1;
+
+    // engineering-menu TOTP candidate generator
+    QLineEdit*      edTotpSeed_     = nullptr;
+    QDateTimeEdit*  edTotpTs_       = nullptr;
+    QLineEdit*      edTotpTsText_   = nullptr;
 
     // BMS characterization (bus <-> cloud correlation)
     QLineEdit*      edBmsTarget_ = nullptr;
