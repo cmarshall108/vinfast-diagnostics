@@ -377,12 +377,24 @@ public:
         setMinimumSize(760, 500);
         setMouseTracking(true);
         setCursor(Qt::PointingHandCursor);
+
+        // Separate animation repaint cadence from data refresh cadence so
+        // scanning sweeps stay fluid.
+        animTimer_.setInterval(33);
+        connect(&animTimer_, &QTimer::timeout, this, [this] {
+            if (hasScanningNodes_) update();
+        });
+        animTimer_.start();
     }
 
     std::function<void(int, QWidget*)> onClick;
 
     void setNodes(std::vector<Node> nodes) {
         nodes_ = std::move(nodes);
+        hasScanningNodes_ = false;
+        for (const auto& n : nodes_) {
+            if (n.state == 4) { hasScanningNodes_ = true; break; }
+        }
         relayout();
         update();
     }
@@ -468,6 +480,8 @@ private:
     int   spineX_    = 154;
     QRect gwRect_;
     QRect obdRect_;
+    QTimer animTimer_;
+    bool hasScanningNodes_ = false;
 };
 
 void EcuTopologyView::drawNode(QPainter& p, const Node& n) {
@@ -477,18 +491,30 @@ void EcuTopologyView::drawNode(QPainter& p, const Node& n) {
     p.drawRoundedRect(n.rect, 6, 6);
 
     if (n.state == 4) {
-        // Animated scan halo and sweep line for in-progress module scans.
+        // Animated scan halo and clear left-to-right sweep for in-progress scans.
         const qint64 t = QDateTime::currentMSecsSinceEpoch();
-        const int cyc = (int)((t / 36 + n.ecuIndex * 5) % 26);
-        const int pad = cyc / 4;
+        const int periodMs = 900;
+        const int tick = (int)((t + (qint64)n.ecuIndex * 70) % periodMs);
+        const int pad = (tick * 6) / periodMs;
         const QRect halo = n.rect.adjusted(-4 - pad, -4 - pad, 4 + pad, 4 + pad);
         const int a = 140 - pad * 14;
         p.setPen(QPen(QColor(0x2e, 0x7d, 0xd1, a > 30 ? a : 30), 2));
         p.setBrush(Qt::NoBrush);
         p.drawRoundedRect(halo, 7 + pad, 7 + pad);
 
-        const int sx = n.rect.left() + (cyc * n.rect.width()) / 25;
-        p.setPen(QPen(QColor(0xff, 0xff, 0xff, 155), 2));
+        const int trail = 16;
+        const int span = n.rect.width() + trail * 2;
+        const int sx = n.rect.left() - trail + (tick * span) / periodMs;
+
+        // trailing beam body
+        QRect sweepBody(sx - trail, n.rect.top() + 4, trail, n.rect.height() - 8);
+        sweepBody = sweepBody.intersected(n.rect.adjusted(2, 3, -2, -3));
+        if (!sweepBody.isEmpty()) {
+            p.fillRect(sweepBody, QColor(0xff, 0xff, 0xff, 85));
+        }
+
+        // bright scan head
+        p.setPen(QPen(QColor(0xff, 0xff, 0xff, 210), 2));
         p.drawLine(sx, n.rect.top() + 4, sx, n.rect.bottom() - 4);
     }
 
@@ -1246,8 +1272,8 @@ QWidget* Gui::buildEcuPage() {
                                          "/" + std::to_string(count) + "...";
                 }
 
-                // Intentional pacing so the topology animation can show each ECU scan step.
-                std::this_thread::sleep_for(std::chrono::milliseconds(140));
+                // Intentional pacing so the topology animation clearly shows each ECU sweep.
+                std::this_thread::sleep_for(std::chrono::milliseconds(480));
 
                 uint16_t target = functional ? funcAddr : addr;
 
