@@ -3825,30 +3825,171 @@ static QString hexBytes(const std::vector<uint8_t>& v) {
 
 void Gui::openCanScanDialog(QWidget* anchor) {
     auto* dlg = new QDialog(this);
-    dlg->setWindowTitle("CAN Bus Scan - ISO 15765 / MVCI D-PDU");
+    dlg->setWindowTitle("CAN / OBD-II Bus Scan - Toyota Mini-VCI (J2534)");
     dlg->setAttribute(Qt::WA_DeleteOnClose);
-    dlg->setMinimumSize(760, 560);
+    dlg->setMinimumSize(760, 620);
     auto* root = new QVBoxLayout(dlg);
 
     auto* intro = new QLabel(
         "<b>Extensive CAN discovery.</b> Probes every selected baud rate, "
         "addressing width and identifier with a battery of UDS/OBD services "
-        "via the MVCI D-PDU API (mvci32.dll). Any reply - positive or negative "
-        "- proves the vehicle answers on that protocol/ID.");
+        "via the Toyota Mini-VCI (J2534 PassThru, mvci32.dll). Any reply - "
+        "positive or negative - proves the vehicle answers on that protocol/ID.");
     intro->setWordWrap(true);
     root->addWidget(intro);
 
     if (!can::Client::platformSupported()) {
         auto* warn = new QLabel(
             "<span style='color:#c0392b'><b>CAN scanning requires Windows</b> "
-            "with the MVCI pass-thru driver (mvci32.dll). This platform will "
-            "report the API as unavailable.</span>");
+            "with the Toyota Mini-VCI J2534 driver (mvci32.dll). This platform "
+            "will report the API as unavailable.</span>");
         warn->setWordWrap(true);
         root->addWidget(warn);
     }
 
+    // =====================================================================
+    //  OBD-II protocol discovery - figure out HOW the vehicle communicates
+    // =====================================================================
+    // We don't yet know whether the VF8 uses CAN, K-line or J1850, so this
+    // sweeps every standard OBD-II protocol the Mini-VCI can attempt and
+    // reports which one(s) the vehicle actually answers on.
+    struct ProtoState {
+        std::mutex                 mtx;
+        std::vector<can::ProtocolProbe> pending;
+        std::atomic<int>           progress{0};   // 0..1000
+        std::atomic<bool>          running{false};
+        std::atomic<bool>          cancel{false};
+        std::atomic<bool>          done{false};
+        std::string                status;
+    };
+    auto ps = std::make_shared<ProtoState>();
+    auto pThreadHolder = std::make_shared<std::thread*>(nullptr);
+
+    auto* discBox = new QGroupBox("Step 1 - Discover OBD-II protocol");
+    auto* dl = new QVBoxLayout(discBox);
+    auto* discIntro = new QLabel(
+        "Sweeps ISO 15765-4 CAN (11/29-bit @ 500k & 250k), a passive raw-CAN "
+        "sniff, SAE J1850 PWM/VPW and ISO 9141-2 / ISO 14230-4 KWP (K-line) to "
+        "find which transport the vehicle responds on.");
+    discIntro->setWordWrap(true);
+    dl->addWidget(discIntro);
+
+    auto* discBar = new QProgressBar();
+    discBar->setRange(0, 1000); discBar->setValue(0);
+    discBar->setTextVisible(true); discBar->setFormat("%p%");
+    dl->addWidget(discBar);
+    auto* discStatus = new QLabel("Idle. Press \"Discover protocol\" to begin.");
+    discStatus->setWordWrap(true);
+    dl->addWidget(discStatus);
+
+    auto* discTable = new QTableWidget(0, 3);
+    discTable->setHorizontalHeaderLabels({"Protocol", "Result", "Detail"});
+    discTable->horizontalHeader()->setStretchLastSection(true);
+    discTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    discTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    discTable->verticalHeader()->setVisible(false);
+    discTable->setMinimumHeight(150);
+    dl->addWidget(discTable);
+
+    auto* discBtnRow = new QHBoxLayout();
+    auto* btnDiscover = new QPushButton("Discover protocol");
+    btnDiscover->setObjectName("primary");
+    auto* btnDiscStop = new QPushButton("Stop"); btnDiscStop->setEnabled(false);
+    discBtnRow->addWidget(btnDiscover);
+    discBtnRow->addWidget(btnDiscStop);
+    discBtnRow->addStretch(1);
+    dl->addLayout(discBtnRow);
+    root->addWidget(discBox);
+
+    std::string protoDll = canDll_;
+    auto* discTimer = new QTimer(dlg);
+    discTimer->setInterval(120);
+    QObject::connect(discTimer, &QTimer::timeout, dlg,
+                     [ps, discBar, discStatus, discTable, btnDiscover, btnDiscStop] {
+        std::vector<can::ProtocolProbe> rows;
+        std::string s;
+        {
+            std::lock_guard<std::mutex> g(ps->mtx);
+            rows.swap(ps->pending);
+            s = ps->status;
+        }
+        discBar->setValue(ps->progress.load());
+        if (!s.empty()) discStatus->setText(QString::fromStdString(s));
+        for (const auto& p : rows) {
+            int r = discTable->rowCount();
+            discTable->insertRow(r);
+            discTable->setItem(r, 0, new QTableWidgetItem(QString::fromStdString(p.protocol)));
+            QString result = !p.linkUp ? "link failed"
+                                       : (p.responded ? "RESPONDED" : "no reply");
+            auto* it = new QTableWidgetItem(result);
+            if (p.responded) it->setForeground(QColor("#1e8449"));
+            else if (!p.linkUp) it->setForeground(QColor("#7f8c8d"));
+            discTable->setItem(r, 1, it);
+            discTable->setItem(r, 2, new QTableWidgetItem(QString::fromStdString(p.detail)));
+            discTable->scrollToBottom();
+        }
+        if (ps->done.load() && !ps->running.load()) {
+            btnDiscover->setEnabled(true);
+            btnDiscStop->setEnabled(false);
+        }
+    });
+    discTimer->start();
+
+    QObject::connect(btnDiscover, &QPushButton::clicked, dlg,
+        [=]() mutable {
+            if (ps->running.load()) return;
+            discTable->setRowCount(0);
+            ps->cancel = false; ps->done = false; ps->progress = 0;
+            { std::lock_guard<std::mutex> g(ps->mtx); ps->pending.clear(); ps->status = "Scanning protocols..."; }
+            ps->running = true;
+            btnDiscover->setEnabled(false);
+            btnDiscStop->setEnabled(true);
+
+            if (*pThreadHolder) {
+                if ((*pThreadHolder)->joinable()) (*pThreadHolder)->join();
+                delete *pThreadHolder;
+                *pThreadHolder = nullptr;
+            }
+            *pThreadHolder = new std::thread([ps, protoDll]() {
+                can::Client scanner;
+                std::string err;
+                bool ok = scanner.scanObdProtocols(
+                    protoDll,
+                    [ps](float f) { ps->progress = (int)(f * 1000); },
+                    [ps](const can::ProtocolProbe& p) {
+                        std::lock_guard<std::mutex> g(ps->mtx);
+                        ps->pending.push_back(p);
+                    },
+                    ps->cancel,
+                    err);
+                {
+                    std::lock_guard<std::mutex> g(ps->mtx);
+                    if (!ok)
+                        ps->status = "Protocol discovery failed: " + err;
+                    else if (ps->cancel.load())
+                        ps->status = "Protocol discovery stopped.";
+                    else
+                        ps->status = "Protocol discovery complete. Check the "
+                                     "\"RESPONDED\" rows for the vehicle's transport.";
+                }
+                ps->progress = 1000;
+                ps->running = false;
+                ps->done = true;
+            });
+        });
+    QObject::connect(btnDiscStop, &QPushButton::clicked, dlg,
+                     [ps, btnDiscStop]() { ps->cancel = true; btnDiscStop->setEnabled(false); });
+    QObject::connect(dlg, &QObject::destroyed, dlg, [ps, pThreadHolder]() {
+        ps->cancel = true;
+        if (*pThreadHolder) {
+            if ((*pThreadHolder)->joinable()) (*pThreadHolder)->join();
+            delete *pThreadHolder;
+            *pThreadHolder = nullptr;
+        }
+    });
+
     // --- scan scope options ---
-    auto* opt = new QGroupBox("Scan scope");
+    auto* opt = new QGroupBox("Step 2 - CAN ID / service sweep (ISO 15765)");
     auto* og = new QGridLayout(opt);
     auto* cb500  = new QCheckBox("500 kbit/s");  cb500->setChecked(true);
     auto* cb250  = new QCheckBox("250 kbit/s");  cb250->setChecked(true);

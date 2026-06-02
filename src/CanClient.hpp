@@ -1,7 +1,7 @@
 #pragma once
 //
 // CanClient.hpp - UDS-over-CAN (ISO 14229 on ISO 15765-2) transport backed by
-// an MVCI (ISO 22900-2 D-PDU API) pass-thru device exposing `mvci32.dll`.
+// Toyota's Mini-VCI, whose `mvci32.dll` is a SAE J2534 PassThru library.
 //
 // This is the CAN fallback used when the primary DoIP (Ethernet) transport is
 // unavailable. The public surface deliberately mirrors doip::Client so the UDS
@@ -10,14 +10,16 @@
 //     bool sendDiagnostic(source, target, uds, response, timeoutMs, err, functional)
 //
 // On Windows the implementation dynamically loads mvci32.dll and drives the
-// standardized D-PDU API (PDUConstruct / PDUModuleConnect /
-// PDUCreateComLogicalLink(ISO_15765) / PDUStartComPrimitive(SENDRECV) ...).
-// The MVCI handles ISO 15765-2 (ISO-TP) segmentation/flow-control internally,
-// so a full UDS request is sent in one primitive and the assembled response is
+// standardized J2534 PassThru API (PassThruOpen / PassThruConnect(ISO15765) /
+// PassThruStartMsgFilter(FLOW_CONTROL) / PassThruWriteMsgs / PassThruReadMsgs).
+// The device handles ISO 15765-2 (ISO-TP) segmentation/flow-control internally,
+// so a full UDS request is written in one message and the assembled response is
 // returned. On non-Windows platforms the class compiles to a graceful stub
 // that always reports the backup as unavailable.
 //
+#include <atomic>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -26,8 +28,8 @@ namespace can {
 
 // CAN / ISO 15765 link configuration.
 struct Config {
-    // Filename (or full path) of the MVCI D-PDU API library. The default is the
-    // common ISO 22900-2 name; vendors may ship a differently named DLL.
+    // Filename (or full path) of the J2534 PassThru library. The default is
+    // Toyota's Mini-VCI driver; other vendors ship a differently named DLL.
     std::string dllPath    = "mvci32.dll";
     uint32_t    baudrate   = 500000;   // CAN bit rate (500 kbit/s is typical)
     uint32_t    reqId      = 0x7E0;    // physical request CAN ID (tester -> ECU)
@@ -41,6 +43,16 @@ struct Config {
 struct MultiResponse {
     uint16_t             source = 0;
     std::vector<uint8_t> uds;
+};
+
+// Outcome of probing one standard OBD-II communication protocol candidate while
+// trying to discover how an unknown vehicle talks. Produced by
+// Client::scanObdProtocols (one per candidate attempted).
+struct ProtocolProbe {
+    std::string protocol;          // human-readable candidate, e.g. "ISO 15765-4 CAN 500k 11-bit"
+    bool        linkUp    = false; // the VCI accepted/opened the protocol channel
+    bool        responded = false; // the vehicle answered (or live bus traffic seen)
+    std::string detail;            // response hex / sniffed frame / status text
 };
 
 class Client {
@@ -86,6 +98,21 @@ public:
     // True only on platforms where the mvci32.dll integration is compiled in
     // (Windows). Lets callers skip CAN setup with a clear message elsewhere.
     static bool platformSupported();
+
+    // Discovers how an unknown vehicle communicates by sweeping every standard
+    // OBD-II protocol the Mini-VCI can attempt: ISO 15765-4 CAN (11/29-bit at
+    // 500k & 250k, active OBD probe), raw CAN (passive bus sniff at 500k &
+    // 250k), SAE J1850 PWM & VPW, ISO 9141-2 and ISO 14230-4 KWP2000 (K-line).
+    // Self-contained: opens and tears down its own device/channels, so it can
+    // run independently of any active backup link. `progress` is called with a
+    // 0..1 fraction, `report` once per candidate as results arrive, and the
+    // sweep stops early when `cancel` becomes true. Windows-only; the stub
+    // returns false with an explanatory `err`.
+    bool scanObdProtocols(const std::string& dllPath,
+                          const std::function<void(float)>& progress,
+                          const std::function<void(const ProtocolProbe&)>& report,
+                          const std::atomic<bool>& cancel,
+                          std::string& err);
 
 private:
     struct Impl;
