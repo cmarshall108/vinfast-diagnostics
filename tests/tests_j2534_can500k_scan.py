@@ -8,6 +8,11 @@ This is a self-contained, dependency-free probe used to confirm how a vehicle
 @ 500k) communicates on the OBD-II port, using the same Toyota Mini-VCI cable
 the C++ app drives.
 
+Vehicle wiring (VF8): the diagnostic bus is on the standard SAE J1962 OBD-II
+high-speed CAN pins - pin 6 = D-CAN H (CAN High), pin 14 = D-CAN L (CAN Low).
+The Mini-VCI's OBD plug maps to these directly, so no adapter/pin-swap is
+needed; this is the bus this probe talks to.
+
 By default it sweeps ALL standard automotive CAN bit rates (1M, 500k, 250k,
 125k, 100k, 83.333k, 50k, 33.333k), fastest first, and for each rate does two
 things over the raw ISO 11898-1 CAN data-link layer (J2534 `CAN` protocol)
@@ -20,10 +25,10 @@ rather than the ISO 15765-4 transport layer:
      a functional OBD-II "Mode 01 PID 00" request (and a UDS "tester present"),
      then reads raw CAN frames back, collecting every responder.
 
-Note: because this uses ISO 11898-1 raw frames, the device does NOT reassemble
-multi-frame (ISO-TP) responses; this probe reports single-frame replies and the
-first frame of any multi-frame response, which is sufficient to prove the
-vehicle communicates on CAN @ a given baud.
+Note: this probe sends ISO-TP flow-control frames itself, so multi-frame
+(ISO-TP) responses ARE reassembled - a single-frame reply is reported whole,
+and a multi-frame reply (e.g. a DTC list) is streamed via a flow-control frame
+and reassembled into the complete UDS payload.
 
 IMPORTANT: mvci32.dll is a 32-bit DLL. You MUST run this with a 32-bit Python
 interpreter on Windows; a 64-bit process cannot load it (WinError 193).
@@ -145,6 +150,11 @@ def _hex(data, n):
     return " ".join(f"{data[i]:02X}" for i in range(n))
 
 
+def _hex_bytes(data):
+    """Hex-format a bytes/bytearray of reassembled UDS payload."""
+    return " ".join(f"{b:02X}" for b in data) if data else "(empty)"
+
+
 def resolve_dll(explicit):
     if explicit:
         return explicit if os.path.isfile(explicit) else None
@@ -197,7 +207,9 @@ def passive_sniff(fns, device_id, baud, listen_s):
 
 def active_probe(fns, device_id, baud, req_id, resp_id, ext, requests):
     """Open raw ISO 11898-1 CAN @ baud and collect responders to hand-built
-    single CAN frames (manual ISO-TP single-frame PCI; no device flow control).
+    single CAN frames (manual ISO-TP single-frame PCI). When an ECU answers
+    with a multi-frame (ISO-TP) reply we send a flow-control frame ourselves
+    and reassemble the consecutive frames so the full payload is recovered.
     """
     width = "29-bit" if ext else "11-bit"
     print(f"\n[2] Active ISO 11898-1 raw-CAN probe @ {baud} bps, {width}, "
@@ -210,6 +222,20 @@ def active_probe(fns, device_id, baud, req_id, resp_id, ext, requests):
         return 0
 
     txf = CAN_29BIT_ID if ext else 0
+
+    def send_flow_control(flow_id):
+        """Send an ISO-TP flow-control frame (CTS, BS=0, STmin=0) to flow_id so
+        a responding ECU will stream its consecutive frames to us."""
+        fc = PASSTHRU_MSG(ProtocolID=CAN, TxFlags=txf)
+        _put_id(fc, flow_id)
+        fc.Data[4] = 0x30        # FlowStatus = ContinueToSend
+        fc.Data[5] = 0x00        # BlockSize = 0 (send all)
+        fc.Data[6] = 0x00        # STmin = 0 (no separation delay)
+        for i in range(7, 12):   # pad to a full 8-byte CAN frame
+            fc.Data[i] = 0x00
+        fc.DataSize = 12
+        n = c_ulong(1)
+        fns["PassThruWriteMsgs"](channel_id, byref(fc), byref(n), 200)
 
     # Pass-all filter so reads return every raw CAN frame (we match responders
     # ourselves rather than relying on an ISO-TP flow-control filter).
@@ -261,10 +287,49 @@ def active_probe(fns, device_id, baud, req_id, resp_id, ext, requests):
             pci_type = (rx.Data[4] >> 4) & 0x0F
             if pci_type not in (0x0, 0x1):
                 continue
-            frame = _hex((ctypes.c_ubyte * (rx.DataSize - 4))(
-                *rx.Data[4:rx.DataSize]), rx.DataSize - 4)
-            kind = "single" if pci_type == 0x0 else "first-frame"
-            print(f"    {name}: RESPONSE from 0x{src:X} ({kind}) -> {frame}")
+
+            if pci_type == 0x0:
+                # Single-frame: the whole UDS payload fits in this CAN frame.
+                length = rx.Data[4] & 0x0F
+                uds = bytes(rx.Data[5:5 + length])
+                print(f"    {name}: RESPONSE from 0x{src:X} (single) -> "
+                      f"{_hex_bytes(uds)}")
+            else:
+                # First-frame of a multi-frame ISO-TP message. Total UDS length
+                # is a 12-bit field; the first 6 payload bytes are in this frame.
+                total = ((rx.Data[4] & 0x0F) << 8) | rx.Data[5]
+                uds = bytearray(rx.Data[6:12])
+                # Reply with a flow-control frame so the ECU streams the rest.
+                # Functional/physical convention: the ECU listens on its own
+                # request id, which for OBD/UDS is the response id minus 8.
+                flow_id = src - 8 if src >= 8 else req_id
+                send_flow_control(flow_id)
+                expected_sn = 1
+                cf_deadline = time.time() + 1.0
+                while len(uds) < total and time.time() < cf_deadline:
+                    cf = PASSTHRU_MSG()
+                    cn = c_ulong(1)
+                    rc = fns["PassThruReadMsgs"](channel_id, byref(cf), byref(cn), 200)
+                    if rc != STATUS_NOERROR or cn.value == 0:
+                        continue
+                    if cf.RxStatus & TX_MSG_TYPE or cf.DataSize < 5:
+                        continue
+                    csrc = (cf.Data[0] << 24) | (cf.Data[1] << 16) | \
+                           (cf.Data[2] << 8) | cf.Data[3]
+                    if csrc != src:
+                        continue
+                    if (cf.Data[4] >> 4) & 0x0F != 0x2:   # consecutive frame
+                        continue
+                    if (cf.Data[4] & 0x0F) != (expected_sn & 0x0F):
+                        continue                          # out-of-order / gap
+                    uds += bytes(cf.Data[5:cf.DataSize - 0])[:total - len(uds)]
+                    expected_sn += 1
+                uds = bytes(uds[:total])
+                status = "complete" if len(uds) >= total else \
+                    f"partial {len(uds)}/{total}"
+                print(f"    {name}: RESPONSE from 0x{src:X} (multi-frame, "
+                      f"{status}) -> {_hex_bytes(uds)}")
+
             found += 1
             got_any = True
             break
@@ -348,11 +413,18 @@ def main():
                   f"J2534: {api.value.decode(errors='replace')}")
 
     try:
-        # Functional OBD-II Mode 01 PID 00 (supported PIDs) + UDS tester-present.
+        # Functional OBD-II Mode 01 PID 00 (supported PIDs) + UDS tester-present
+        # + DTC reads (both the generic OBD-II and the manufacturer UDS forms
+        # the VF8 stack uses).
         requests = [
             ("OBD Mode01 PID00", [0x01, 0x00]),
             ("UDS TesterPresent", [0x3E, 0x00]),
             ("UDS DiagSessionDefault", [0x10, 0x01]),
+            # OBD-II Mode 03 "Show stored DTCs" (single-byte request, SID 0x03).
+            ("OBD Mode03 StoredDTCs", [0x03]),
+            # UDS ReadDTCInformation (SID 0x19) sub-function 0x02
+            # reportDTCByStatusMask, status mask 0xFF = match all DTC statuses.
+            ("UDS ReadDTC 19 02 FF", [0x19, 0x02, 0xFF]),
         ]
 
         results = []  # (baud, passive_hits, active_resp)
