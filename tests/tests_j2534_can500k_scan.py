@@ -1,28 +1,38 @@
 #!/usr/bin/env python3
 """
 tests_j2534_can500k_scan.py - Load Toyota's Mini-VCI J2534 driver (mvci32.dll)
-and scan a CAN 500 kbit/s bus for any ECU responses.
+and scan CAN buses for any ECU responses, sweeping every standard CAN bit rate.
 
 This is a self-contained, dependency-free probe used to confirm how a vehicle
 (e.g. a VinFast VF8 - whose diagnostics, like the VF6, run on ISO 15765-4 CAN
 @ 500k) communicates on the OBD-II port, using the same Toyota Mini-VCI cable
 the C++ app drives.
 
-It does two things at 500 kbit/s:
+By default it sweeps ALL standard automotive CAN bit rates (1M, 500k, 250k,
+125k, 100k, 83.333k, 50k, 33.333k), fastest first, and for each rate does two
+things over the raw ISO 11898-1 CAN data-link layer (J2534 `CAN` protocol)
+rather than the ISO 15765-4 transport layer:
   1. Passive sniff - opens a raw CAN channel and listens for any live bus
      traffic (a modern EV constantly broadcasts, so this alone proves the bus
-     is CAN @ 500k).
-  2. Active OBD/UDS probe - opens an ISO 15765 channel and sends a functional
-     OBD-II "Mode 01 PID 00" request (and a UDS "tester present"), collecting
-     every responder.
+     is CAN @ that rate).
+  2. Active OBD/UDS probe - sends hand-built ISO 11898-1 single CAN frames
+     (manual ISO-TP single-frame PCI, no device-managed flow control) carrying
+     a functional OBD-II "Mode 01 PID 00" request (and a UDS "tester present"),
+     then reads raw CAN frames back, collecting every responder.
+
+Note: because this uses ISO 11898-1 raw frames, the device does NOT reassemble
+multi-frame (ISO-TP) responses; this probe reports single-frame replies and the
+first frame of any multi-frame response, which is sufficient to prove the
+vehicle communicates on CAN @ a given baud.
 
 IMPORTANT: mvci32.dll is a 32-bit DLL. You MUST run this with a 32-bit Python
 interpreter on Windows; a 64-bit process cannot load it (WinError 193).
 
 Usage (Windows, 32-bit Python):
-    py -3-32 tests/tests_j2534_can500k_scan.py
+    py -3-32 tests/tests_j2534_can500k_scan.py                       # sweep all bauds
+    py -3-32 tests/tests_j2534_can500k_scan.py --baud 500000         # one baud only
+    py -3-32 tests/tests_j2534_can500k_scan.py --baud 500000 --baud 250000
     py -3-32 tests/tests_j2534_can500k_scan.py --dll "C:\\Program Files (x86)\\XHorse Electronics\\MVCI Driver for TOYOTA TIS\\mvci32.dll"
-    py -3-32 tests/tests_j2534_can500k_scan.py --baud 500000 --listen 3.0
 """
 
 import argparse
@@ -186,39 +196,45 @@ def passive_sniff(fns, device_id, baud, listen_s):
 
 
 def active_probe(fns, device_id, baud, req_id, resp_id, ext, requests):
-    """Open ISO 15765 @ baud and collect responders to UDS/OBD requests."""
+    """Open raw ISO 11898-1 CAN @ baud and collect responders to hand-built
+    single CAN frames (manual ISO-TP single-frame PCI; no device flow control).
+    """
     width = "29-bit" if ext else "11-bit"
-    print(f"\n[2] Active ISO 15765-4 probe @ {baud} bps, {width}, "
+    print(f"\n[2] Active ISO 11898-1 raw-CAN probe @ {baud} bps, {width}, "
           f"req=0x{req_id:X} resp=0x{resp_id:X} ...")
     flags = CAN_29BIT_ID if ext else 0
     channel_id = c_ulong(0)
-    rc = fns["PassThruConnect"](device_id, ISO15765, flags, baud, byref(channel_id))
+    rc = fns["PassThruConnect"](device_id, CAN, flags, baud, byref(channel_id))
     if rc != STATUS_NOERROR:
-        print(f"    link failed: VCI could not open ISO 15765 ({_last_error(fns)})")
+        print(f"    link failed: VCI could not open raw CAN ({_last_error(fns)})")
         return 0
 
-    txf = ISO15765_FRAME_PAD | (CAN_29BIT_ID if ext else 0)
+    txf = CAN_29BIT_ID if ext else 0
 
-    def mk(can_id):
-        m = PASSTHRU_MSG(ProtocolID=ISO15765, TxFlags=txf, DataSize=4)
-        _put_id(m, can_id)
-        return m
-
-    mask, patt, flow = mk(0xFFFFFFFF), mk(resp_id), mk(req_id)
+    # Pass-all filter so reads return every raw CAN frame (we match responders
+    # ourselves rather than relying on an ISO-TP flow-control filter).
+    mask = PASSTHRU_MSG(ProtocolID=CAN, DataSize=4)
+    patt = PASSTHRU_MSG(ProtocolID=CAN, DataSize=4)
     fid = c_ulong(0)
-    rc = fns["PassThruStartMsgFilter"](channel_id, FLOW_CONTROL_FILTER,
-                                       byref(mask), byref(patt), byref(flow), byref(fid))
+    rc = fns["PassThruStartMsgFilter"](channel_id, PASS_FILTER,
+                                       byref(mask), byref(patt), None, byref(fid))
     if rc != STATUS_NOERROR:
-        print(f"    warning: flow-control filter failed ({_last_error(fns)}); "
-              "multi-frame responses may not assemble")
+        print(f"    warning: pass filter failed ({_last_error(fns)}); "
+              "reads may return nothing")
 
     found = 0
     for name, payload in requests:
-        tx = PASSTHRU_MSG(ProtocolID=ISO15765, TxFlags=txf)
+        # ISO 11898-1 classic single CAN frame: 4-byte BE id, then an ISO-TP
+        # single-frame header (PCI = payload length in the low nibble) followed
+        # by the UDS/OBD bytes, padded to a full 8-byte CAN frame.
+        tx = PASSTHRU_MSG(ProtocolID=CAN, TxFlags=txf)
         _put_id(tx, req_id)
+        tx.Data[4] = len(payload) & 0x0F          # single-frame PCI
         for i, b in enumerate(payload):
-            tx.Data[4 + i] = b
-        tx.DataSize = 4 + len(payload)
+            tx.Data[5 + i] = b
+        for i in range(5 + len(payload), 12):     # pad remaining bytes to 0x00
+            tx.Data[i] = 0x00
+        tx.DataSize = 12                            # 4 id + 8 data (full frame)
 
         num = c_ulong(1)
         rc = fns["PassThruWriteMsgs"](channel_id, byref(tx), byref(num), 1000)
@@ -234,14 +250,21 @@ def active_probe(fns, device_id, baud, req_id, resp_id, ext, requests):
             rc = fns["PassThruReadMsgs"](channel_id, byref(rx), byref(n), 200)
             if rc != STATUS_NOERROR or n.value == 0:
                 continue
-            if rx.RxStatus & TX_MSG_TYPE or rx.RxStatus & ISO15765_FIRST_FRAME:
+            if rx.RxStatus & TX_MSG_TYPE:          # our own loopback echo
                 continue
-            if rx.DataSize <= 4:
+            if rx.DataSize < 5:                    # need id + at least 1 data byte
                 continue
             src = (rx.Data[0] << 24) | (rx.Data[1] << 16) | (rx.Data[2] << 8) | rx.Data[3]
-            uds = _hex((ctypes.c_ubyte * (rx.DataSize - 4))(
+            # Ignore frames that are clearly not a diagnostic reply to us. A
+            # genuine response's first PCI nibble is single (0x0n) or first
+            # frame (0x1n); other broadcast traffic is skipped.
+            pci_type = (rx.Data[4] >> 4) & 0x0F
+            if pci_type not in (0x0, 0x1):
+                continue
+            frame = _hex((ctypes.c_ubyte * (rx.DataSize - 4))(
                 *rx.Data[4:rx.DataSize]), rx.DataSize - 4)
-            print(f"    {name}: RESPONSE from 0x{src:X} -> {uds}")
+            kind = "single" if pci_type == 0x0 else "first-frame"
+            print(f"    {name}: RESPONSE from 0x{src:X} ({kind}) -> {frame}")
             found += 1
             got_any = True
             break
@@ -255,19 +278,28 @@ def active_probe(fns, device_id, baud, req_id, resp_id, ext, requests):
 
 def main():
     ap = argparse.ArgumentParser(
-        description="Load Toyota's Mini-VCI mvci32.dll and scan CAN 500k for responses.")
+        description="Load Toyota's Mini-VCI mvci32.dll and scan CAN for responses "
+                    "across all standard baud rates.")
     ap.add_argument("--dll", help="Full path to mvci32.dll "
                     "(default: auto-detect under Program Files Toyota/XHorse).")
-    ap.add_argument("--baud", type=int, default=500000, help="CAN bit rate (default 500000).")
+    ap.add_argument("--baud", type=int, action="append", metavar="BPS",
+                    help="CAN bit rate to scan. Repeat to scan several, e.g. "
+                    "--baud 500000 --baud 250000. Default: scan ALL standard "
+                    "CAN bauds (1M, 500k, 250k, 125k, 100k, 83.333k, 50k, 33.333k).")
     ap.add_argument("--req", type=lambda x: int(x, 0), default=0x7DF,
                     help="ISO 15765 functional request id (default 0x7DF).")
     ap.add_argument("--resp", type=lambda x: int(x, 0), default=0x7E8,
-                    help="Expected response id for the flow-control filter (default 0x7E8).")
+                    help="Expected response id (informational; raw ISO 11898-1 "
+                    "matching is done on PCI, default 0x7E8).")
     ap.add_argument("--ext", action="store_true", help="Use 29-bit CAN identifiers.")
     ap.add_argument("--listen", type=float, default=3.0,
                     help="Passive sniff duration in seconds (default 3.0).")
     args = ap.parse_args()
 
+    # Default sweep: every standard automotive CAN bit rate, fastest first so
+    # the most likely (500k diagnostic bus) is found early.
+    ALL_BAUDS = [1000000, 500000, 250000, 125000, 100000, 83333, 50000, 33333]
+    bauds = args.baud if args.baud else ALL_BAUDS
     if sys.platform != "win32":
         print("ERROR: J2534 / mvci32.dll is Windows-only. Run this on Windows "
               "with a 32-bit Python interpreter.")
@@ -316,24 +348,36 @@ def main():
                   f"J2534: {api.value.decode(errors='replace')}")
 
     try:
-        hits = passive_sniff(fns, device_id, args.baud, args.listen)
-
         # Functional OBD-II Mode 01 PID 00 (supported PIDs) + UDS tester-present.
         requests = [
             ("OBD Mode01 PID00", [0x01, 0x00]),
             ("UDS TesterPresent", [0x3E, 0x00]),
             ("UDS DiagSessionDefault", [0x10, 0x01]),
         ]
-        resp = active_probe(fns, device_id, args.baud, args.req, args.resp,
-                            args.ext, requests)
 
-        print("\n=== Summary ===")
-        print(f"  Passive: {hits} distinct CAN id(s) @ {args.baud} bps")
-        print(f"  Active : {resp} ISO 15765 response(s)")
-        if hits or resp:
-            print(f"  RESULT : vehicle communicates over CAN @ {args.baud} bps.")
+        results = []  # (baud, passive_hits, active_resp)
+        for baud in bauds:
+            print("\n" + "=" * 60)
+            print(f"  Scanning CAN @ {baud} bps")
+            print("=" * 60)
+            hits = passive_sniff(fns, device_id, baud, args.listen)
+            resp = active_probe(fns, device_id, baud, args.req, args.resp,
+                                args.ext, requests)
+            results.append((baud, hits, resp))
+
+        print("\n=== Summary (all bauds) ===")
+        any_hit = False
+        for baud, hits, resp in results:
+            mark = "  <-- responsive" if (hits or resp) else ""
+            any_hit = any_hit or bool(hits or resp)
+            print(f"  {baud:>7} bps : passive {hits:>2} id(s), "
+                  f"active {resp} response(s){mark}")
+        if any_hit:
+            live = ", ".join(str(b) for b, h, r in results if (h or r))
+            print(f"  RESULT : vehicle communicates over CAN at: {live} bps.")
         else:
-            print("  RESULT : no responses. Try --baud 250000, --ext, or check the cable.")
+            print("  RESULT : no responses on any baud. Try --ext (29-bit), "
+                  "check the cable/ignition, or confirm the bus is on the OBD pins.")
     finally:
         fns["PassThruClose"](device_id)
         print("\nPassThruClose OK. Done.")
