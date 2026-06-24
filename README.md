@@ -1,8 +1,7 @@
-# VinFast VF8 and VF9 US DoIP/UDS Diagnostic Scanner
+# VinFast VF8 and VF9 OpenXC Bluetooth UDS Scanner
 
 A modular **C++20 / Qt6** diagnostic application that connects to a vehicle over
-**DoIP (ISO 13400-2)** using a standard DoIP Ethernet interface such as the
-**GODIAG GT109 DOIP ENET** adapter, discovers ECUs, and reads/clears Diagnostic
+an **OpenXC Bluetooth** vehicle interface, reads/clears Diagnostic
 Trouble Codes via **UDS (ISO 14229)**. It also includes an optional
 community-reverse-engineered **connected-car cloud client** for remote
 telemetry and commands.
@@ -15,11 +14,8 @@ telemetry and commands.
 
 ## Features
 
-- **Connection settings** — broadcast IP, gateway IP, port, tester source
-  address, gateway logical address, routing-activation type,
-  functional/physical addressing toggle.
-- **ECU discovery** — UDP broadcast Vehicle Identification Request (port 13400);
-  lists IP, logical address, VIN, EID for each responding DoIP entity.
+- **Connection settings** — OpenXC Bluetooth MAC, tester source address,
+  functional/physical addressing toggle, and fallback CAN parameters.
 - **Address probing** — sends TesterPresent to every configured ECU and marks
   which addresses actually respond (a negative response still proves the
   address is routable), so you can find the real addresses by trial.
@@ -75,6 +71,7 @@ telemetry and commands.
 - A C++20 compiler (MSVC 2022 / Clang / GCC)
 - **Qt 6** (Widgets)
 - **libcurl**
+- **Python 3** with OpenXC Bluetooth support (`openxc` + `pybluez`)
 
 Install the dependencies:
 

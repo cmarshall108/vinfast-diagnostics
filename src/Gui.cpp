@@ -1,4 +1,5 @@
 #include "Gui.hpp"
+#include "BtDiscovery.hpp"
 #include "Logger.hpp"
 #include "VF8Data.hpp"
 #include "CloudData.hpp"
@@ -32,6 +33,7 @@
 #include <QGroupBox>
 #include <QScrollArea>
 #include <QDialog>
+#include <QMenu>
 #include <QMessageBox>
 #include <QTimer>
 #include <QFont>
@@ -650,15 +652,14 @@ Gui::Gui() {
     buildUi();
     applyStyle();
 
-    // Wire the CAN transport in as the DoIP fallback. doip::Client will retry
-    // failed exchanges over it automatically.
+    // Wire CAN as optional fallback for OpenXC transport failures.
     client_.setCanBackup(&canBackup_);
 
     timer_ = new QTimer(this);
     connect(timer_, &QTimer::timeout, this, &Gui::onTick);
     timer_->start(200);
 
-    setWindowTitle("VinFast VF8 - DoIP/UDS Diagnostic Scanner");
+    setWindowTitle("VinFast VF8 - OpenXC Bluetooth UDS Scanner");
     resize(1180, 800);
 }
 
@@ -774,7 +775,7 @@ QWidget* Gui::buildHeader() {
             std::string err;
             if (ensureConnected(err)) {
                 std::lock_guard<std::mutex> g(mutex_);
-                connStatus_ = "Connected to " + gatewayIp_;
+                connStatus_ = "Connected to OpenXC " + gatewayIp_;
             } else {
                 Logger::instance().error(err);
                 std::lock_guard<std::mutex> g(mutex_);
@@ -832,16 +833,12 @@ QWidget* Gui::buildDashboardPage() {
         connect(b, &QToolButton::clicked, this, fn);
         grid->addWidget(b, r, c);
     };
-    addTile(0, 0, "Discover ECUs\n(UDP broadcast)", [this] {
+    addTile(0, 0, "OpenXC link\nstatus check", [this] {
         syncSettingsFromUi();
         startWorker([this] {
-            std::vector<doip::Entity> found; std::string err;
-            if (client_.discover(broadcastIp_, (uint16_t)port_, 2000, found, err)) {
-                std::lock_guard<std::mutex> g(mutex_);
-                entities_ = std::move(found);
-                Logger::instance().info("Discovery found " +
-                    std::to_string(entities_.size()) + " entity(ies)");
-            } else Logger::instance().warn("Discovery: " + err);
+            std::string err;
+            if (ensureConnected(err)) Logger::instance().info("OpenXC Bluetooth link ready");
+            else Logger::instance().warn("OpenXC link: " + err);
         });
     });
     addTile(0, 1, "Scan all ECUs\n(read DTCs)", [this] { nav_->setCurrentRow(2); });
@@ -872,20 +869,86 @@ QWidget* Gui::buildConnectionPage() {
     lay->setSpacing(14);
 
     // --- transport ---
-    auto* net = card("Transport");
+    auto* net = card("OpenXC Bluetooth Transport");
     auto* nf = new QFormLayout(net);
     edBroadcast_ = new QLineEdit(QString::fromStdString(broadcastIp_));
     edGateway_   = new QLineEdit(QString::fromStdString(gatewayIp_));
+    btScanBtn_   = new QPushButton("Scan");
+    btScanBtn_->setToolTip(
+        "Query macOS Bluetooth for paired OpenXC VI devices.\n"
+        "Selects the device path automatically if exactly one is found.");
+    btScanBtn_->setFixedWidth(52);
+
+    auto* macRow = new QHBoxLayout;
+    macRow->setContentsMargins(0, 0, 0, 0);
+    macRow->addWidget(edGateway_);
+    macRow->addWidget(btScanBtn_);
+
+    // Scan button: enumerate paired SPP devices via IOBluetooth and populate
+    // a popup menu so the user can pick (or auto-fill if only one found).
+    connect(btScanBtn_, &QPushButton::clicked, this, [this] {
+        btScanBtn_->setEnabled(false);
+        btScanBtn_->setText("…");
+
+        startWorker([this] {
+            auto devices = bt::pairedSppDevices();
+
+            // Post back to the UI thread.
+            QMetaObject::invokeMethod(this, [this, devices = std::move(devices)]() mutable {
+                btScanBtn_->setEnabled(true);
+                btScanBtn_->setText("Scan");
+
+                if (devices.empty()) {
+                    QMessageBox::information(
+                        this, "Bluetooth scan",
+                        "No paired OpenXC VI devices found.\n\n"
+                        "Pair the device in macOS Bluetooth settings first,\n"
+                        "then click Scan again.");
+                    return;
+                }
+
+                if (devices.size() == 1) {
+                    // Auto-fill: use devPath if available, else MAC address.
+                    const auto& d = devices[0];
+                    QString val = QString::fromStdString(
+                        d.devPath.empty() ? d.address : d.devPath);
+                    edGateway_->setText(val);
+                    Logger::instance().info(
+                        "Auto-selected OpenXC device: " + d.name +
+                        " → " + val.toStdString());
+                    return;
+                }
+
+                // Multiple devices: show a popup menu.
+                auto* menu = new QMenu(btScanBtn_);
+                for (const auto& d : devices) {
+                    QString label = QString::fromStdString(d.name);
+                    if (!d.address.empty())
+                        label += "  [" + QString::fromStdString(d.address) + "]";
+                    if (!d.devPath.empty())
+                        label += "  " + QString::fromStdString(d.devPath);
+                    else if (d.connected)
+                        label += "  (connected)";
+                    auto* act = menu->addAction(label);
+                    QString val = QString::fromStdString(
+                        d.devPath.empty() ? d.address : d.devPath);
+                    connect(act, &QAction::triggered, this,
+                            [this, val] { edGateway_->setText(val); });
+                }
+                menu->popup(btScanBtn_->mapToGlobal(btScanBtn_->rect().bottomLeft()));
+            }, Qt::QueuedConnection);
+        });
+    });
+
+    nf->addRow("Bluetooth device", macRow);
     sbPort_      = new QSpinBox; sbPort_->setRange(1, 65535); sbPort_->setValue(port_);
     edTester_    = hexEdit("0E80", 4);
     edGwAddr_    = hexEdit("1001", 4);
     edActivation_= hexEdit("00", 2);
-    nf->addRow("Broadcast IP", edBroadcast_);
-    nf->addRow("Gateway IP", edGateway_);
-    nf->addRow("Port", sbPort_);
+    nf->addRow("Legacy host (unused)", edBroadcast_);
+    nf->addRow("Legacy port (unused)", sbPort_);
     nf->addRow("Tester source addr", edTester_);
-    nf->addRow("Gateway logical addr", edGwAddr_);
-    nf->addRow("Routing activation type", edActivation_);
+    nf->addRow("Default target addr", edGwAddr_);
     cbFunctional_ = new QCheckBox("Use functional addressing");
     edFunctional_ = hexEdit("E400", 4);
     auto* fr = new QHBoxLayout; fr->addWidget(cbFunctional_); fr->addWidget(edFunctional_); fr->addStretch(1);
@@ -941,9 +1004,9 @@ QWidget* Gui::buildConnectionPage() {
     lay->addWidget(sess);
 
     // --- discovery / sweep ---
-    auto* disc = card("ECU Discovery & Address Sweep");
+    auto* disc = card("Address Sweep");
     auto* df = new QVBoxLayout(disc);
-    auto* discBtn = new QPushButton("Discover ECUs (UDP broadcast)");
+    auto* discBtn = new QPushButton("OpenXC link check");
     df->addWidget(discBtn);
     auto* sweepRow = new QHBoxLayout;
     edSweepStart_ = hexEdit("1000", 4);
@@ -964,8 +1027,8 @@ QWidget* Gui::buildConnectionPage() {
     enumRow->addWidget(enumBtn);
     df->addLayout(enumRow);
     auto* discNote = new QLabel(
-        "<i>A reply (even a negative one) proves an address is routable - the "
-        "fastest way to find the real VF8 ECU addresses.</i>");
+        "<i>OpenXC transport has no DoIP UDP discovery. Use sweep/enumeration "
+        "to find responsive diagnostic addresses.</i>");
     discNote->setWordWrap(true);
     df->addWidget(discNote);
     lay->addWidget(disc);
@@ -988,8 +1051,8 @@ QWidget* Gui::buildConnectionPage() {
     svf->addRow(sovdNote);
     lay->addWidget(sovd);
 
-    // --- CAN backup (UDS over ISO 15765 via mvci32.dll, used if DoIP fails) ---
-    auto* canc = card("CAN Backup  (UDS over ISO 15765, used if DoIP fails)");
+    // --- CAN backup (UDS over ISO 15765 via mvci32.dll, used if OpenXC fails) ---
+    auto* canc = card("CAN Backup  (UDS over ISO 15765, used if OpenXC fails)");
     auto* cvf = new QFormLayout(canc);
     cbCanEnabled_ = new QCheckBox("Enable CAN fallback");
     cbCanEnabled_->setChecked(canEnabled_);
@@ -1024,7 +1087,7 @@ QWidget* Gui::buildConnectionPage() {
         if (!fn.isEmpty()) edCanDll_->setText(fn);
     });
     auto* canNote = new QLabel(
-        "<i>Windows only. When a DoIP exchange fails, requests are retried over "
+        "<i>Windows only. When an OpenXC exchange fails, requests are retried over "
         "CAN using the MVCI D-PDU API (mvci32.dll). ISO-TP segmentation is "
         "handled by the VCI.</i>");
     canNote->setWordWrap(true);
@@ -1099,13 +1162,9 @@ QWidget* Gui::buildConnectionPage() {
     connect(discBtn, &QPushButton::clicked, this, [this] {
         syncSettingsFromUi();
         startWorker([this] {
-            std::vector<doip::Entity> found; std::string err;
-            if (client_.discover(broadcastIp_, (uint16_t)port_, 2000, found, err)) {
-                std::lock_guard<std::mutex> g(mutex_);
-                entities_ = std::move(found);
-                Logger::instance().info("Discovery found " +
-                    std::to_string(entities_.size()) + " entity(ies)");
-            } else Logger::instance().warn("Discovery: " + err);
+            std::string err;
+            if (ensureConnected(err)) Logger::instance().info("OpenXC Bluetooth link ready");
+            else Logger::instance().warn("OpenXC link: " + err);
         });
     });
     connect(sweepBtn, &QPushButton::clicked, this, [this] {
@@ -4596,7 +4655,11 @@ void Gui::syncSettingsFromUi() {
     sovd_.setBearerToken(sovdToken_);
     if (cbCanEnabled_) canEnabled_   = cbCanEnabled_->isChecked();
     if (edCanDll_)     canDll_       = edCanDll_->text().toStdString();
-    if (edCanBaud_)    canBaud_      = edCanBaud_->text().toInt();
+    if (edCanBaud_) {
+        const int parsed = edCanBaud_->text().toInt();
+        // VF8 diagnostics are expected on HS-CAN 500 kbps.
+        canBaud_ = parsed > 0 ? parsed : 500000;
+    }
     auto parseHex32 = [](const QString& s, int def) -> int {
         QString t = s.trimmed();
         if (t.startsWith("0x", Qt::CaseInsensitive)) t = t.mid(2);
@@ -4817,12 +4880,13 @@ void Gui::startWorker(std::function<void()> fn) {
 
 bool Gui::ensureConnected(std::string& err) {
     // Bring up the optional CAN backup transport first so it is available the
-    // moment a DoIP exchange fails. A CAN failure here is non-fatal.
+    // moment an OpenXC exchange fails. A CAN failure here is non-fatal.
     if (canEnabled_ && !canBackup_.isConnected()) {
         if (can::Client::platformSupported()) {
             can::Config cfg;
             cfg.dllPath    = canDll_;
-            cfg.baudrate   = (uint32_t)canBaud_;
+            const int safeBaud = canBaud_ > 0 ? canBaud_ : 500000;
+            cfg.baudrate   = (uint32_t)safeBaud;
             cfg.reqId      = (uint32_t)canReqId_;
             cfg.respId     = (uint32_t)canRespId_;
             cfg.extendedId = canExtended_;
@@ -4839,10 +4903,10 @@ bool Gui::ensureConnected(std::string& err) {
 
     if (client_.isConnected()) return true;
     if (!client_.connectTcp(gatewayIp_, (uint16_t)port_, err)) {
-        // DoIP link could not be established. If the CAN backup is up we can
+        // OpenXC link could not be established. If the CAN backup is up we can
         // still operate purely over CAN.
         if (canBackup_.isConnected()) {
-            Logger::instance().warn("DoIP connect failed (" + err +
+            Logger::instance().warn("OpenXC connect failed (" + err +
                                     "); continuing over CAN backup");
             err.clear();
             return true;
@@ -4852,7 +4916,7 @@ bool Gui::ensureConnected(std::string& err) {
     if (!client_.routingActivation((uint16_t)testerAddr_, (uint8_t)activationType_, err)) {
         client_.disconnect();
         if (canBackup_.isConnected()) {
-            Logger::instance().warn("DoIP routing activation failed (" + err +
+            Logger::instance().warn("OpenXC setup failed (" + err +
                                     "); continuing over CAN backup");
             err.clear();
             return true;

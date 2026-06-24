@@ -1,6 +1,6 @@
 #pragma once
 //
-// Gui.hpp - Qt6 front-end for the DoIP/UDS diagnostic scanner.
+// Gui.hpp - Qt6 front-end for the OpenXC Bluetooth UDS diagnostic scanner.
 //
 // The interface is modelled on TEXA IDC6: an icon-driven navigator down the
 // left edge selects compact "pages" in a stacked view, and detail (ECU info,
@@ -163,9 +163,9 @@ private:
     can::Client canBackup_;   // CAN (ISO 15765 / mvci32.dll) backup transport
 
     // --- settings (synced from widgets via syncSettingsFromUi) ---
-    std::string broadcastIp_ = "255.255.255.255";
-    std::string gatewayIp_   = "172.16.100.1";
-    int  port_           = 13400;
+    std::string broadcastIp_ = "";
+    std::string gatewayIp_   = "04:C4:61:C3:69:D0";
+    int  port_           = 0;
     int  testerAddr_     = 0x0E80;
     int  functionalAddr_ = 0xE400;
     bool useFunctional_  = false;
@@ -252,12 +252,13 @@ private:
     QLabel*         dashModules_ = nullptr;
 
     // connection page
-    QLineEdit* edBroadcast_ = nullptr;
-    QLineEdit* edGateway_   = nullptr;
-    QSpinBox*  sbPort_      = nullptr;
-    QLineEdit* edTester_    = nullptr;
-    QLineEdit* edGwAddr_    = nullptr;
-    QLineEdit* edActivation_= nullptr;
+    QLineEdit*   edBroadcast_ = nullptr;
+    QLineEdit*   edGateway_   = nullptr;
+    QPushButton* btScanBtn_   = nullptr;  // discovers paired OpenXC VI devices
+    QSpinBox*    sbPort_      = nullptr;
+    QLineEdit*   edTester_    = nullptr;
+    QLineEdit*   edGwAddr_    = nullptr;
+    QLineEdit*   edActivation_= nullptr;
     QLineEdit* edFunctional_= nullptr;
     QCheckBox* cbFunctional_= nullptr;
     QLineEdit* edStatusMask_= nullptr;

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(vinfast_scanner VERSION 1.0.1 LANGUAGES CXX)
+project(vinfast_scanner VERSION 1.0.1 LANGUAGES C CXX OBJCXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -61,6 +61,72 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
 find_package(CURL REQUIRED)
 
 # -------------------------------------------------------------------
+# OpenXC C libraries (github.com/openxc)
+#   uds-c   – UDS / OBD-II request+response types (depends on isotp-c)
+#   isotp-c – ISO-TP (ISO 15765-2) framing        (depends on bitfield-c)
+#   bitfield-c – Bitfield / CAN-signal utilities
+#
+# None of these projects ship a CMakeLists.txt, so we use
+# FetchContent_Populate (download only) and define our own STATIC targets.
+# -------------------------------------------------------------------
+include(FetchContent)
+
+# Suppress deprecation warning for FetchContent_Populate (used for libs
+# without their own CMakeLists.txt).
+if(POLICY CMP0169)
+  cmake_policy(SET CMP0169 OLD)
+endif()
+
+FetchContent_Declare(bitfield_c
+    GIT_REPOSITORY https://github.com/openxc/bitfield-c.git
+    GIT_TAG        master)
+FetchContent_Declare(isotp_c
+    GIT_REPOSITORY https://github.com/openxc/isotp-c.git
+    GIT_TAG        master)
+FetchContent_Declare(uds_c
+    GIT_REPOSITORY https://github.com/openxc/uds-c.git
+    GIT_TAG        master)
+
+FetchContent_GetProperties(bitfield_c)
+if(NOT bitfield_c_POPULATED)
+    FetchContent_Populate(bitfield_c)
+endif()
+
+FetchContent_GetProperties(isotp_c)
+if(NOT isotp_c_POPULATED)
+    FetchContent_Populate(isotp_c)
+endif()
+
+FetchContent_GetProperties(uds_c)
+if(NOT uds_c_POPULATED)
+    FetchContent_Populate(uds_c)
+endif()
+
+# bitfield-c: bitfield + CAN-signal utilities
+file(GLOB BITFIELD_C_SOURCES
+    "${bitfield_c_SOURCE_DIR}/src/bitfield/*.c"
+    "${bitfield_c_SOURCE_DIR}/src/canutil/*.c")
+add_library(openxc_bitfield STATIC ${BITFIELD_C_SOURCES})
+target_include_directories(openxc_bitfield PUBLIC "${bitfield_c_SOURCE_DIR}/src")
+
+# isotp-c: depends on bitfield-c headers at <bitfield/...>
+file(GLOB ISOTP_C_SOURCES "${isotp_c_SOURCE_DIR}/src/isotp/*.c")
+add_library(openxc_isotp STATIC ${ISOTP_C_SOURCES})
+target_include_directories(openxc_isotp PUBLIC
+    "${isotp_c_SOURCE_DIR}/src"
+    "${bitfield_c_SOURCE_DIR}/src")   # resolves <bitfield/bitfield.h>
+target_link_libraries(openxc_isotp PUBLIC openxc_bitfield)
+
+# uds-c: depends on isotp-c headers at <isotp/...>
+file(GLOB UDS_C_SOURCES "${uds_c_SOURCE_DIR}/src/uds/*.c")
+add_library(openxc_uds STATIC ${UDS_C_SOURCES})
+target_include_directories(openxc_uds PUBLIC
+    "${uds_c_SOURCE_DIR}/src"
+    "${isotp_c_SOURCE_DIR}/src"
+    "${bitfield_c_SOURCE_DIR}/src")
+target_link_libraries(openxc_uds PUBLIC openxc_isotp)
+
+# -------------------------------------------------------------------
 # Application
 # -------------------------------------------------------------------
 # On macOS, bundle the app icon into the generated .app so macdeployqt
@@ -70,6 +136,8 @@ set(_app_sources
   src/main.cpp
   src/Logger.cpp
   src/DoIPClient.cpp
+  src/OpenXcClient.cpp
+  src/BtDiscovery.mm
   src/CanClient.cpp
   src/UDSClient.cpp
   src/VF8Data.cpp
@@ -85,7 +153,7 @@ endif()
 
 add_executable(vinfast_scanner MACOSX_BUNDLE ${_app_sources})
 target_include_directories(vinfast_scanner PRIVATE src)
-target_link_libraries(vinfast_scanner PRIVATE Qt6::Widgets CURL::libcurl)
+target_link_libraries(vinfast_scanner PRIVATE Qt6::Widgets CURL::libcurl openxc_uds)
 
 if(WIN32)
   target_link_libraries(vinfast_scanner PRIVATE ws2_32 iphlpapi)
@@ -93,7 +161,8 @@ endif()
 
 if(APPLE)
   target_link_libraries(vinfast_scanner PRIVATE
-    "-framework Cocoa" "-framework IOKit" "-framework CoreVideo")
+    "-framework Cocoa" "-framework IOKit" "-framework CoreVideo"
+    "-framework IOBluetooth")
 
   if(EXISTS "${_app_macos_icon}")
     set_source_files_properties("${_app_macos_icon}" PROPERTIES
@@ -109,26 +178,11 @@ if(APPLE)
 endif()
 
 # -------------------------------------------------------------------
-# Optional headless self-test (links the real DoIP/UDS stack, no Qt/curl).
-# Build:  cmake -DBUILD_DOIP_SELFTEST=ON -S . -B build
-# Run against tools/doip_simulator.py.
+# Optional headless SOVD self-test.
+# Build: cmake -DBUILD_SOVD_SELFTEST=ON -S . -B build
 # -------------------------------------------------------------------
-option(BUILD_DOIP_SELFTEST "Build the headless DoIP/UDS self-test CLI" OFF)
-if(BUILD_DOIP_SELFTEST)
-  add_executable(doip_selftest
-    tools/doip_selftest.cpp
-    src/Logger.cpp
-    src/DoIPClient.cpp
-    src/CanClient.cpp
-    src/UDSClient.cpp
-    src/VF8Data.cpp)
-  target_include_directories(doip_selftest PRIVATE src)
-  if(WIN32)
-    target_link_libraries(doip_selftest PRIVATE ws2_32 iphlpapi)
-  endif()
-
-  # SOVD (REST/JSON backup path) self-test. Links libcurl since SovdClient is
-  # HTTP-based. Run against the SOVD mock in tools/doip_simulator.py.
+option(BUILD_SOVD_SELFTEST "Build the headless SOVD self-test CLI" OFF)
+if(BUILD_SOVD_SELFTEST)
   add_executable(sovd_selftest
     tools/sovd_selftest.cpp
     src/Logger.cpp

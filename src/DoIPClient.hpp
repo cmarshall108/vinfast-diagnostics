@@ -1,25 +1,19 @@
 #pragma once
 //
-// DoIPClient.hpp - Minimal DoIP (ISO 13400-2) client.
+// DoIPClient.hpp - Transport client used by UDSClient.
 //
-// Implements:
-//   * UDP Vehicle Identification Request/Response (discovery, port 13400)
-//   * TCP Routing Activation (0x0005 / 0x0006)
-//   * TCP Diagnostic Message exchange (0x8001 / 0x8002 / 0x8003)
-//   * Alive-check response and UDS "response pending" (NRC 0x78) handling
+// Routes diagnostic requests through an OpenXC Vehicle Interface over
+// Bluetooth RFCOMM, using the OpenXC JSON message format and openxc/uds-c
+// types for request validation.  The original DoIP public API is preserved so
+// the rest of the app does not need changes.
 //
+#include "OpenXcClient.hpp"
 #include <cstdint>
 #include <string>
 #include <vector>
 #include <array>
 
-#ifdef _WIN32
-  #include <winsock2.h>
-  #include <ws2tcpip.h>
-  using socket_t = SOCKET;
-#else
-  using socket_t = int;
-#endif
+using socket_t = int;
 
 // Forward declaration: the optional CAN (ISO 15765 / mvci32.dll) backup
 // transport used automatically when a DoIP diagnostic exchange fails.
@@ -27,8 +21,8 @@ namespace can { class Client; }
 
 namespace doip {
 
-constexpr uint16_t kDefaultPort      = 13400;
-constexpr uint8_t  kProtocolVersion  = 0x02;   // ISO 13400-2:2012
+constexpr uint16_t kDefaultPort      = 0;
+constexpr uint8_t  kProtocolVersion  = 0x00;
 
 // DoIP payload types (ISO 13400-2, table of payload type values).
 enum PayloadType : uint16_t {
@@ -86,9 +80,9 @@ public:
     Client(const Client&)            = delete;
     Client& operator=(const Client&) = delete;
 
-    // --- Discovery (UDP) ------------------------------------------------
-    // Broadcasts a Vehicle Identification Request and collects responses
-    // until the receive timeout elapses.
+    // Discovery API kept for compatibility. OpenXC Bluetooth transport does
+    // not support DoIP discovery and these return false with an explanatory
+    // error.
     bool discover(const std::string& broadcastIp, uint16_t port, int timeoutMs,
                   std::vector<Entity>& out, std::string& err);
 
@@ -102,32 +96,22 @@ public:
                        const std::array<uint8_t, 6>& eid, std::vector<Entity>& out,
                        std::string& err);
 
-    // DoIP Entity Status (0x4001/0x4002, UDP). Asks an entity how many TCP
-    // sockets it supports / has open and its max diagnostic message size -
-    // useful to confirm a gateway is reachable and has capacity before a
-    // session. Send to a unicast IP (the gateway) or a broadcast address.
+    // Status APIs kept for compatibility; unsupported for OpenXC transport.
     bool entityStatus(const std::string& ip, uint16_t port, int timeoutMs,
                       EntityStatus& out, std::string& err);
 
-    // DoIP Diagnostic Power Mode (0x4003/0x4004, UDP). Reports whether the
-    // vehicle is in a power state ready for diagnostics/programming:
-    //   0x00 = not ready, 0x01 = ready, 0x02 = not supported.
-    // Checking this before flashing avoids programming in a low-power state.
+    // Power-mode API kept for compatibility; unsupported for OpenXC transport.
     bool diagnosticPowerMode(const std::string& ip, uint16_t port, int timeoutMs,
                              uint8_t& mode, std::string& err);
 
-    // --- Session (TCP) --------------------------------------------------
-    // connectTimeoutMs bounds the TCP handshake; rcvTimeoutMs is the default
-    // per-read socket timeout applied after connecting.
+    // --- Session ---------------------------------------------------------
+    // `ip` is interpreted as the OpenXC Bluetooth MAC address.
     bool connectTcp(const std::string& ip, uint16_t port, std::string& err,
                     int connectTimeoutMs = 3000, int rcvTimeoutMs = 2000);
-    bool isConnected() const { return tcp_ != invalidSocket(); }
+    bool isConnected() const { return connected_; }
     void disconnect();
 
-    // Routing activation must succeed before any diagnostic exchange.
-    // activationType: 0x00 = default, 0x01 = WWH-OBD, 0xE0 = central security.
-    // oemSpecific, when 4 bytes, is appended as the ISO-optional OEM field that
-    // some gateways require.
+    // Kept for compatibility; OpenXC has no routing-activation concept.
     bool routingActivation(uint16_t sourceAddr, uint8_t activationType,
                            std::string& err,
                            const std::vector<uint8_t>& oemSpecific = {});
@@ -167,13 +151,8 @@ public:
     static socket_t invalidSocketValue();
 
 private:
-    // Shared implementation for broadcast and targeted Vehicle Identification.
-    bool discoverImpl(const std::string& broadcastIp, uint16_t port, int timeoutMs,
-                      uint16_t reqType, const std::vector<uint8_t>& reqPayload,
-                      std::vector<Entity>& out, std::string& err);
-
-    // Core DoIP-only diagnostic exchange (no CAN fallback). The public
-    // sendDiagnostic wraps this and adds the CAN backup retry.
+    // Core OpenXC diagnostic exchange (no CAN fallback). The public
+    // sendDiagnostic wraps this and optionally adds the CAN backup retry.
     bool sendDiagnosticDoIP(uint16_t source, uint16_t target,
                             const std::vector<uint8_t>& uds,
                             std::vector<uint8_t>& response, int timeoutMs,
@@ -186,14 +165,8 @@ private:
                                  std::vector<DiagResponse>& responses,
                                  int collectMs, std::string& err);
 
-    static socket_t invalidSocket();
-    bool sendAll(socket_t s, const uint8_t* data, size_t len);
-    bool recvAll(socket_t s, uint8_t* data, size_t len, int timeoutMs);
-    bool readDoIPMessage(socket_t s, uint16_t& payloadType,
-                         std::vector<uint8_t>& payload, int timeoutMs,
-                         std::string& err);
-
-    socket_t tcp_;
+    openxc::Client openxcClient_;        // persistent RFCOMM + OpenXC JSON
+    bool connected_ = false;
     uint16_t testerAddr_ = 0x0E80;  // updated by routingActivation()
     can::Client* canBackup_ = nullptr;   // optional CAN fallback (not owned)
     bool lastUsedCanBackup_ = false;     // true if the last send fell back to CAN

@@ -1,6 +1,7 @@
 #pragma once
 //
-// UDSClient.hpp - Unified Diagnostic Services (ISO 14229) over DoIP.
+// UDSClient.hpp - Unified Diagnostic Services (ISO 14229) over the configured
+// transport client (OpenXC Bluetooth primary, CAN fallback optional).
 //
 // Implements the subset required by the application:
 //   0x10 DiagnosticSessionControl

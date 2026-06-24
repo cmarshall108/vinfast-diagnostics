@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+"""
+Minimal OpenXC Bluetooth diagnostic bridge for vinfast-diagnostics.
+
+Usage:
+  --check --address <MAC>
+  --address <MAC> --req-id 0x7E0 --resp-id 0x7E8 --source 0x0E80
+  --target 0x1001 --timeout-ms 2000 --uds-hex <hex> [--functional]
+
+On success, prints a compact hex response (no separators) to stdout.
+On failure, prints a human-readable error to stderr and exits non-zero.
+"""
+
+import argparse
+import binascii
+import json
+import sys
+from typing import Any, Dict, List, Optional, Tuple
+
+from openxc.interface import BluetoothVehicleInterface
+
+
+def parse_int(v: str) -> int:
+    return int(v, 0)
+
+
+def parse_hex_bytes(v: str) -> bytes:
+    s = "".join(c for c in v if c in "0123456789abcdefABCDEF")
+    if len(s) % 2:
+        s = "0" + s
+    return bytes.fromhex(s)
+
+
+def hex_out(data: bytes) -> str:
+    return data.hex().upper()
+
+
+def select_diag_response(responses: List[Any]) -> Optional[Dict[str, Any]]:
+    for r in responses:
+        if isinstance(r, dict) and ("mode" in r or "payload" in r):
+            return r
+    return None
+
+
+def decode_diag_response(resp: Dict[str, Any], request_pid: Optional[int]) -> bytes:
+    payload = b""
+    raw_payload = resp.get("payload")
+    if isinstance(raw_payload, str):
+        p = raw_payload[2:] if raw_payload.startswith("0x") else raw_payload
+        if p:
+            payload = bytes.fromhex(p)
+
+    out = bytearray()
+
+    mode = resp.get("mode")
+    if isinstance(mode, int):
+        out.append(mode & 0xFF)
+
+    pid = resp.get("pid")
+    if isinstance(pid, int):
+        out.append(pid & 0xFF)
+    elif request_pid is not None and len(payload) > 0:
+        # If firmware omitted explicit PID but payload is present for a request
+        # that used PID semantics, preserve transport-neutral framing.
+        pass
+
+    out.extend(payload)
+    return bytes(out)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--check", action="store_true")
+    ap.add_argument("--address", required=True)
+    ap.add_argument("--req-id", default="0x7E0")
+    ap.add_argument("--resp-id", default="0x7E8")
+    ap.add_argument("--source", default="0x0E80")
+    ap.add_argument("--target", default="0x1001")
+    ap.add_argument("--timeout-ms", type=int, default=2000)
+    ap.add_argument("--uds-hex", default="")
+    ap.add_argument("--functional", dest="functional", action="store_true")
+    ap.add_argument("--no-functional", dest="functional", action="store_false")
+    ap.set_defaults(functional=False)
+    args = ap.parse_args()
+
+    vi = None
+    try:
+        vi = BluetoothVehicleInterface(address=args.address, payload_format="json", log_mode="off")
+        vi.start()
+
+        if args.check:
+            print("OK")
+            return 0
+
+        uds = parse_hex_bytes(args.uds_hex)
+        if not uds:
+            print("Empty UDS payload", file=sys.stderr)
+            return 2
+
+        mode = uds[0]
+
+        # OpenXC diagnostic requests are mode/pid/payload oriented. For generic
+        # UDS-over-CAN frames, map SID->mode and pass the remaining bytes in
+        # payload so the VI can place the full frame on CAN.
+        req_payload = bytearray(uds[1:]) if len(uds) > 1 else bytearray()
+
+        req_id = parse_int(args.req_id)
+        bus = None
+        frequency = None
+        pid = None
+
+        _acks, responses = vi.create_diagnostic_request(
+            req_id,
+            mode,
+            bus=bus,
+            pid=pid,
+            frequency=frequency,
+            payload=req_payload,
+            wait_for_ack=True,
+            wait_for_first_response=True,
+        )
+
+        if not responses:
+            print("No diagnostic response", file=sys.stderr)
+            return 3
+
+        diag = select_diag_response(responses)
+        if diag is None:
+            print("No parsable diagnostic response: " + json.dumps(responses), file=sys.stderr)
+            return 4
+
+        out = decode_diag_response(diag, pid)
+        if not out:
+            print("Empty decoded response: " + json.dumps(diag), file=sys.stderr)
+            return 5
+
+        print(hex_out(out))
+        return 0
+    except Exception as e:
+        print(str(e), file=sys.stderr)
+        return 1
+    finally:
+        try:
+            if vi is not None:
+                vi.stop()
+        except Exception:
+            pass
+
+
+if __name__ == "__main__":
+    sys.exit(main())
