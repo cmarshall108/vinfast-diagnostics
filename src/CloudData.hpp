@@ -6,7 +6,7 @@
 // reverse-engineered by the owner community (notably the Home Assistant
 // integration thangnd85/vinfast-connected-car, MIT, and the APK alias map in
 // tahung9x/VF-DB). They are completely
-// separate from the on-vehicle DoIP/UDS diagnostic bus: the cloud path talks
+// separate from the on-vehicle UDS diagnostic bus: the cloud path talks
 // to VinFast's app back-end (Auth0 + REST) and AWS IoT, NOT to the car's
 // gateway. Region hosts, the OMA-LWM2M telemetry resource map and the remote
 // command list below come from public community sources and may change at any

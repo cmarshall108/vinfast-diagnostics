@@ -653,13 +653,13 @@ Gui::Gui() {
     applyStyle();
 
     // Wire CAN as optional fallback for OpenXC transport failures.
-    client_.setCanBackup(&canBackup_);
+    transport_.setCanBackup(&canBackup_);
 
     timer_ = new QTimer(this);
     connect(timer_, &QTimer::timeout, this, &Gui::onTick);
     timer_->start(200);
 
-    setWindowTitle("VinFast VF8 - OpenXC Bluetooth UDS Scanner");
+    setWindowTitle("VinFast VF8 - OpenXC USB/Bluetooth UDS Scanner");
     resize(1180, 800);
 }
 
@@ -761,10 +761,10 @@ QWidget* Gui::buildHeader() {
     connectBtn_->setMinimumWidth(120);
     lay->addWidget(connectBtn_);
     connect(connectBtn_, &QPushButton::clicked, this, [this] {
-        if (client_.isConnected() || canBackup_.isConnected()) {
+        if (transport_.isConnected() || canBackup_.isConnected()) {
             stopLivePoll();
             stopKeepAlive();
-            client_.disconnect();
+            transport_.disconnect();
             canBackup_.disconnect();
             std::lock_guard<std::mutex> g(mutex_);
             connStatus_ = "Disconnected";
@@ -869,22 +869,53 @@ QWidget* Gui::buildConnectionPage() {
     lay->setSpacing(14);
 
     // --- transport ---
-    auto* net = card("OpenXC Bluetooth Transport");
+    auto* net = card("OpenXC USB/Bluetooth Transport");
     auto* nf = new QFormLayout(net);
-    edBroadcast_ = new QLineEdit(QString::fromStdString(broadcastIp_));
     edGateway_   = new QLineEdit(QString::fromStdString(gatewayIp_));
-    btScanBtn_   = new QPushButton("Scan");
+    edGateway_->setPlaceholderText("/dev/ttyUSB0, /dev/cu.usbmodem*, COM3, or Bluetooth MAC");
+    usbScanBtn_  = new QPushButton("Scan USB");
+    usbScanBtn_->setToolTip(
+        "List available USB/serial ports that may host an OpenXC VI.\n"
+        "USB is preferred because Bluetooth RFCOMM is only reliable on Linux.");
+    usbScanBtn_->setFixedWidth(72);
+    btScanBtn_   = new QPushButton("Scan BT");
     btScanBtn_->setToolTip(
         "Query macOS Bluetooth for paired OpenXC VI devices.\n"
         "Selects the device path automatically if exactly one is found.");
-    btScanBtn_->setFixedWidth(52);
+    btScanBtn_->setFixedWidth(72);
 
-    auto* macRow = new QHBoxLayout;
-    macRow->setContentsMargins(0, 0, 0, 0);
-    macRow->addWidget(edGateway_);
-    macRow->addWidget(btScanBtn_);
+    auto* devRow = new QHBoxLayout;
+    devRow->setContentsMargins(0, 0, 0, 0);
+    devRow->addWidget(edGateway_);
+    devRow->addWidget(usbScanBtn_);
+    devRow->addWidget(btScanBtn_);
 
-    // Scan button: enumerate paired SPP devices via IOBluetooth and populate
+    // USB scan: enumerate serial ports and present a popup menu.
+    connect(usbScanBtn_, &QPushButton::clicked, this, [this] {
+        auto ports = openxc::Client::enumerateUsbSerialPorts();
+        if (ports.empty()) {
+            QMessageBox::information(
+                this, "USB serial scan",
+                "No USB serial ports found.\n\n"
+                "Connect the OpenXC VI via USB and ensure its driver is loaded,\n"
+                "then click Scan USB again.");
+            return;
+        }
+        if (ports.size() == 1) {
+            edGateway_->setText(QString::fromStdString(ports[0]));
+            Logger::instance().info("Auto-selected USB serial port: " + ports[0]);
+            return;
+        }
+        auto* menu = new QMenu(usbScanBtn_);
+        for (const auto& p : ports) {
+            auto* act = menu->addAction(QString::fromStdString(p));
+            connect(act, &QAction::triggered, this,
+                    [this, p] { edGateway_->setText(QString::fromStdString(p)); });
+        }
+        menu->popup(usbScanBtn_->mapToGlobal(usbScanBtn_->rect().bottomLeft()));
+    });
+
+    // Bluetooth scan: enumerate paired SPP devices via IOBluetooth and populate
     // a popup menu so the user can pick (or auto-fill if only one found).
     connect(btScanBtn_, &QPushButton::clicked, this, [this] {
         btScanBtn_->setEnabled(false);
@@ -896,14 +927,14 @@ QWidget* Gui::buildConnectionPage() {
             // Post back to the UI thread.
             QMetaObject::invokeMethod(this, [this, devices = std::move(devices)]() mutable {
                 btScanBtn_->setEnabled(true);
-                btScanBtn_->setText("Scan");
+                btScanBtn_->setText("Scan BT");
 
                 if (devices.empty()) {
                     QMessageBox::information(
                         this, "Bluetooth scan",
                         "No paired OpenXC VI devices found.\n\n"
                         "Pair the device in macOS Bluetooth settings first,\n"
-                        "then click Scan again.");
+                        "then click Scan BT again.");
                     return;
                 }
 
@@ -914,7 +945,7 @@ QWidget* Gui::buildConnectionPage() {
                         d.devPath.empty() ? d.address : d.devPath);
                     edGateway_->setText(val);
                     Logger::instance().info(
-                        "Auto-selected OpenXC device: " + d.name +
+                        "Auto-selected OpenXC Bluetooth device: " + d.name +
                         " → " + val.toStdString());
                     return;
                 }
@@ -940,15 +971,22 @@ QWidget* Gui::buildConnectionPage() {
         });
     });
 
-    nf->addRow("Bluetooth device", macRow);
-    sbPort_      = new QSpinBox; sbPort_->setRange(1, 65535); sbPort_->setValue(port_);
+    nf->addRow("OpenXC device", devRow);
     edTester_    = hexEdit("0E80", 4);
     edGwAddr_    = hexEdit("1001", 4);
-    edActivation_= hexEdit("00", 2);
-    nf->addRow("Legacy host (unused)", edBroadcast_);
-    nf->addRow("Legacy port (unused)", sbPort_);
     nf->addRow("Tester source addr", edTester_);
     nf->addRow("Default target addr", edGwAddr_);
+    sbOpenxcBus_ = new QSpinBox; sbOpenxcBus_->setRange(1, 2); sbOpenxcBus_->setValue(openxcBus_);
+    nf->addRow("OpenXC CAN bus", sbOpenxcBus_);
+    edCanIdBase_ = new QLineEdit(QString::asprintf("0x%X", canIdBase_));
+    edCanIdBase_->setPlaceholderText("0x700");
+    edCanRespOffset_ = new QLineEdit(QString::asprintf("0x%X", canRespOffset_));
+    edCanRespOffset_->setPlaceholderText("0x8");
+    auto* canIdRow = new QHBoxLayout;
+    canIdRow->addWidget(new QLabel("Base req ID")); canIdRow->addWidget(edCanIdBase_);
+    canIdRow->addWidget(new QLabel("Resp offset")); canIdRow->addWidget(edCanRespOffset_);
+    canIdRow->addStretch(1);
+    nf->addRow("CAN ID mapping", canIdRow);
     cbFunctional_ = new QCheckBox("Use functional addressing");
     edFunctional_ = hexEdit("E400", 4);
     auto* fr = new QHBoxLayout; fr->addWidget(cbFunctional_); fr->addWidget(edFunctional_); fr->addStretch(1);
@@ -978,7 +1016,7 @@ QWidget* Gui::buildConnectionPage() {
     sf->addRow(kaRow);
     connect(cbKeepAlive_, &QCheckBox::toggled, this, [this](bool on) {
         keepAlive_ = on;
-        if (on && client_.isConnected()) startKeepAlive();
+        if (on && transport_.isConnected()) startKeepAlive();
         if (!on) stopKeepAlive();
     });
 
@@ -1027,29 +1065,12 @@ QWidget* Gui::buildConnectionPage() {
     enumRow->addWidget(enumBtn);
     df->addLayout(enumRow);
     auto* discNote = new QLabel(
-        "<i>OpenXC transport has no DoIP UDP discovery. Use sweep/enumeration "
+        "<i>OpenXC transport uses Bluetooth RFCOMM to the VI. Use sweep/enumeration "
         "to find responsive diagnostic addresses.</i>");
     discNote->setWordWrap(true);
     df->addWidget(discNote);
     lay->addWidget(disc);
 
-    // --- SOVD backup (REST/HTTP fallback when UDS does not answer) ---
-    auto* sovd = card("SOVD Backup  (REST fallback when UDS fails)");
-    auto* svf = new QFormLayout(sovd);
-    edSovdUrl_ = new QLineEdit(QString::fromStdString(sovdBaseUrl_));
-    edSovdUrl_->setPlaceholderText("http://host:13401/vehicle/v1  (blank = disabled)");
-    edSovdToken_ = new QLineEdit(QString::fromStdString(sovdToken_));
-    edSovdToken_->setPlaceholderText("OAuth2 bearer token (optional)");
-    edSovdToken_->setEchoMode(QLineEdit::Password);
-    svf->addRow("SOVD base URL", edSovdUrl_);
-    svf->addRow("Bearer token", edSovdToken_);
-    auto* sovdNote = new QLabel(
-        "<i>When an ECU does not respond to UDS/DoIP, Probe falls back to this "
-        "SOVD endpoint and marks the module reachable if its component is "
-        "listed.</i>");
-    sovdNote->setWordWrap(true);
-    svf->addRow(sovdNote);
-    lay->addWidget(sovd);
 
     // --- CAN backup (UDS over ISO 15765 via mvci32.dll, used if OpenXC fails) ---
     auto* canc = card("CAN Backup  (UDS over ISO 15765, used if OpenXC fails)");
@@ -1109,7 +1130,7 @@ QWidget* Gui::buildConnectionPage() {
         startWorker([this, s] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.diagnosticSessionControl((uint16_t)securityTarget_, (UdsSession)s, err))
                 Logger::instance().info("Session 0x" + byteHex((uint8_t)s) + " active");
             else Logger::instance().error("SessionControl: " + err);
@@ -1120,7 +1141,7 @@ QWidget* Gui::buildConnectionPage() {
         startWorker([this] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             uint16_t tgt = useFunctional_ ? (uint16_t)functionalAddr_
                                           : (ecus_.empty() ? (uint16_t)gatewayAddr_
                                                            : ecus_.front().logicalAddr);
@@ -1134,7 +1155,7 @@ QWidget* Gui::buildConnectionPage() {
         startWorker([this, lvl] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             auto seed = uds.requestSeed((uint16_t)securityTarget_, (uint8_t)lvl, err);
             std::lock_guard<std::mutex> g(mutex_);
             if (seed) {
@@ -1153,7 +1174,7 @@ QWidget* Gui::buildConnectionPage() {
             if (key.empty()) { Logger::instance().error("Key is empty/invalid hex"); return; }
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.sendKey((uint16_t)securityTarget_, (uint8_t)lvl, key, err))
                 Logger::instance().info("Security unlocked (level 0x" + byteHex((uint8_t)lvl) + ")");
             else Logger::instance().error("SendKey: " + err);
@@ -1177,9 +1198,9 @@ QWidget* Gui::buildConnectionPage() {
         startWorker([this, start, end, add] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             int found = 0;
-            for (int a = start; a <= end && client_.isConnected(); ++a) {
+            for (int a = start; a <= end && transport_.isConnected(); ++a) {
                 std::string e;
                 if (uds.probe((uint16_t)a, e)) {
                     ++found;
@@ -1212,7 +1233,7 @@ QWidget* Gui::buildConnectionPage() {
         startWorker([this, funcAddr, add] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint16_t> found;
             if (!uds.enumerateEcus(funcAddr, found, err)) {
                 Logger::instance().warn("Functional enumeration: " + err);
@@ -1372,20 +1393,20 @@ QWidget* Gui::buildEcuPage() {
         startWorker([this, mask, functional, funcAddr] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             size_t count; { std::lock_guard<std::mutex> g(mutex_); count = ecus_.size(); }
 
             int reachable = 0;
             int identified = 0;
             for (size_t i = 0; i < count; ++i) {
                 uint16_t addr, alt;
-                std::string name, sovdId;
+                std::string name;
                 {
                     std::lock_guard<std::mutex> g(mutex_);
                     addr = ecus_[i].logicalAddr;
                     alt = ecus_[i].altAddr;
                     name = ecus_[i].name;
-                    sovdId = ecus_[i].sovdId;
+                    
                     ecus_[i].statusMsg = "scanning module " + std::to_string(i + 1) +
                                          "/" + std::to_string(count) + "...";
                 }
@@ -1395,7 +1416,7 @@ QWidget* Gui::buildEcuPage() {
 
                 uint16_t target = functional ? funcAddr : addr;
 
-                // 1) Probe address first, trying alternative routing and SOVD backup.
+                // 1) Probe address first, trying alternative routing.
                 bool probed = false;
                 std::string probeErr;
                 if (uds.probe(target, probeErr)) {
@@ -1407,21 +1428,6 @@ QWidget* Gui::buildEcuPage() {
                         if (i < ecus_.size()) ecus_[i].logicalAddr = alt;
                         target = alt;
                         probed = true;
-                    }
-                }
-                if (!probed && !functional && sovd_.configured()) {
-                    std::string cid = sovdId.empty() ? deriveSovdId(name) : sovdId;
-                    std::string detail;
-                    if (sovdProbe(cid, detail)) {
-                        std::lock_guard<std::mutex> g(mutex_);
-                        if (i < ecus_.size()) {
-                            ecus_[i].reachable = 1;
-                            ecus_[i].sovdId = cid;
-                            ecus_[i].statusMsg = "reachable " + detail;
-                        }
-                        ++reachable;
-                        Logger::instance().info(name + ": UDS silent, reachable over SOVD backup (" + cid + ")");
-                        continue;
                     }
                 }
 
@@ -1486,7 +1492,7 @@ QWidget* Gui::buildEcuPage() {
         startWorker([this, autoExt, functional, funcAddr] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             size_t count; { std::lock_guard<std::mutex> g(mutex_); count = ecus_.size(); }
             int cleared = 0;
             for (size_t i = 0; i < count; ++i) {
@@ -1653,7 +1659,7 @@ QWidget* Gui::buildServicePage() {
         startWorker([this, tgt, start, end, dids, routines, io, ext, susp, restore] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::string e;
             if (ext)  uds.diagnosticSessionControl(tgt, UdsSession::Extended, e);
             if (susp) uds.controlDTCSetting(tgt, false, e);
@@ -1663,18 +1669,26 @@ QWidget* Gui::buildServicePage() {
                 svcResults_.push_back({svc, id, ex, note});
             };
             int found = 0;
-            for (int id = start; id <= end && client_.isConnected(); ++id) {
+            for (int id = start; id <= end && transport_.isConnected(); ++id) {
                 std::vector<uint8_t> resp; std::string le;
                 if (dids) { int r = uds.probeDID(tgt, (uint16_t)id, resp, le);
                     if (r >= 0) { record(0x22, (uint16_t)id, r,
-                        r==1?toHex(resp.data(),resp.size()):("exists ("+le+")")); ++found; } }
+                        r==1?toHex(resp.data(),resp.size()):("exists ("+le+")"));
+                        found++;
+                    }
+                }
                 if (routines) { int r = uds.probeRoutine(tgt, (uint16_t)id, resp, le);
                     if (r >= 0) { record(0x31, (uint16_t)id, r,
-                        r==1?toHex(resp.data(),resp.size()):("exists ("+le+")")); ++found; } }
+                        r==1?toHex(resp.data(),resp.size()):("exists ("+le+")"));
+                        found++;
+                    }
+                }
                 if (io) { int r = uds.probeIOControl(tgt, (uint16_t)id, resp, le);
                     if (r >= 0) { record(0x2F, (uint16_t)id, r,
                         r==1?toHex(resp.data(),resp.size()):("exists ("+le+")"));
-                        touchedIo.push_back((uint16_t)id); ++found; } }
+                        touchedIo.push_back((uint16_t)id); found++;
+                    }
+                }
             }
             if (restore) { std::string summary; uds.restoreSafeState(tgt, touchedIo, summary); }
             else if (susp) { uds.controlDTCSetting(tgt, true, e); }
@@ -1691,7 +1705,7 @@ QWidget* Gui::buildServicePage() {
         startWorker([this, tgt, touched] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::string summary; uds.restoreSafeState(tgt, touched, summary);
         });
     });
@@ -1703,8 +1717,8 @@ QWidget* Gui::buildServicePage() {
 }
 
 // ==========================================================================
-// Protocol / advanced page - standard DoIP & UDS services for
-// diagnostics and programming. Read-only DoIP checks run freely; UDS
+// Protocol / advanced page - standard UDS services for
+// diagnostics and programming. UDS
 // operations that can change ECU state are gated behind confirmations.
 // ==========================================================================
 void Gui::protoLine(const std::string& s) {
@@ -1744,8 +1758,8 @@ QWidget* Gui::buildProtocolPage() {
     outer->setSpacing(12);
 
     auto* intro = new QLabel(
-        "<b>Protocol toolbox.</b> Standard ISO 13400 (DoIP) and ISO 14229 (UDS) "
-        "services for diagnostics and programming. DoIP status checks are "
+        "<b>Protocol toolbox.</b> Standard ISO 14229 (UDS) "
+        "services for diagnostics and programming. "
         "read-only; UDS writes/routines change ECU state and ask to confirm.");
     intro->setWordWrap(true);
     outer->addWidget(intro);
@@ -1753,22 +1767,7 @@ QWidget* Gui::buildProtocolPage() {
     auto* row = new QHBoxLayout;
     row->setSpacing(12);
 
-    // ---- DoIP entity checks (left column) ----
-    auto* doipCard = card("DoIP entity (UDP, read-only)");
-    auto* dl = new QVBoxLayout(doipCard);
-    auto* doipNote = new QLabel(
-        "Queries the gateway over UDP - no diagnostic session needed.");
-    doipNote->setWordWrap(true);
-    dl->addWidget(doipNote);
-    auto* db = new QHBoxLayout;
-    auto* statusBtn = new QPushButton("Entity status (0x4001)");
-    auto* powerBtn  = new QPushButton("Power mode (0x4003)");
-    db->addWidget(statusBtn); db->addWidget(powerBtn); db->addStretch(1);
-    dl->addLayout(db);
-    dl->addStretch(1);
-    row->addWidget(doipCard, 1);
-
-    // ---- target for UDS operations (right column) ----
+    // ---- target for UDS operations ----
     auto* tgtCard = card("UDS target");
     auto* tf = new QFormLayout(tgtCard);
     edProtoTarget_ = hexEdit("1003", 4);
@@ -1792,7 +1791,8 @@ QWidget* Gui::buildProtocolPage() {
     memRow->addWidget(new QLabel("addrB")); memRow->addWidget(sbProtoAddrBytes_);
     memRow->addWidget(new QLabel("sizeB")); memRow->addWidget(sbProtoSizeBytes_);
     auto* memBtn = new QPushButton("Read memory (0x23)");
-    memRow->addWidget(memBtn); memRow->addStretch(1);
+    memRow->addWidget(memBtn);
+    memRow->addStretch(1);
     rl->addRow("ReadMemoryByAddress", memRow);
 
     edProtoDtc_    = hexEdit("000000", 6);
@@ -1930,33 +1930,6 @@ QWidget* Gui::buildProtocolPage() {
     outer->addWidget(protoView_, 1);
 
     // ---------------- handlers ----------------
-    connect(statusBtn, &QPushButton::clicked, this, [this] {
-        syncSettingsFromUi();
-        std::string ip = gatewayIp_; int port = port_;
-        startWorker([this, ip, port] {
-            doip::EntityStatus st; std::string err;
-            if (client_.entityStatus(ip, port, 2000, st, err)) {
-                protoLine("Entity status from " + st.ip + ": " +
-                    std::string(st.nodeType == 0 ? "gateway" : "node") +
-                    ", sockets " + std::to_string(st.openSockets) + "/" +
-                    std::to_string(st.maxOpenSockets) +
-                    (st.hasMaxDataSize ? ", maxData " + std::to_string(st.maxDataSize) + "B" : ""));
-            } else protoLine("Entity status: " + err);
-        });
-    });
-    connect(powerBtn, &QPushButton::clicked, this, [this] {
-        syncSettingsFromUi();
-        std::string ip = gatewayIp_; int port = port_;
-        startWorker([this, ip, port] {
-            uint8_t mode = 0; std::string err;
-            if (client_.diagnosticPowerMode(ip, port, 2000, mode, err)) {
-                const char* t = mode == 0 ? "NOT ready" : mode == 1 ? "ready"
-                               : mode == 2 ? "not supported" : "reserved";
-                protoLine(std::string("Diagnostic power mode: 0x") +
-                    QString::number(mode, 16).toStdString() + " (" + t + ")");
-            } else protoLine("Power mode: " + err);
-        });
-    });
     connect(memBtn, &QPushButton::clicked, this, [this] {
         uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
         uint32_t addr = (uint32_t)edProtoMemAddr_->text().toULong(nullptr, 16);
@@ -1966,7 +1939,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, addr, size, ab, sb] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("ReadMemory: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.readMemoryByAddress(tgt, addr, size, ab, sb, out, err))
                 protoLine("ReadMemory 0x" + byteHex((tgt>>8)&0xFF) + byteHex(tgt&0xFF) +
@@ -1981,7 +1954,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, dtc, rec] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("DTC extended: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> raw;
             if (uds.readDTCExtendedData(tgt, dtc, rec, raw, err))
                 protoLine("DTC extended " + decodeDtc(dtc) + ": " + toHex(raw.data(), raw.size()));
@@ -1993,7 +1966,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Fault counters: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<Dtc> dtcs;
             if (uds.readDTCFaultDetectionCounter(tgt, dtcs, err)) {
                 protoLine("Fault detection counters: " + std::to_string(dtcs.size()) + " DTC(s)");
@@ -2007,7 +1980,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Std ID block: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             protoLine("Standard identification block (ISO 14229) on 0x" +
                       byteHex((tgt>>8)&0xFF) + byteHex(tgt&0xFF) + ":");
             int got = 0;
@@ -2033,7 +2006,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("OBD-II VIN: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             // SAE J1979 mode 0x09 PID 0x02 = VIN. Positive reply: 0x49 0x02 ...
             std::vector<uint8_t> resp;
             if (uds.obdRequest(tgt, {0x09, 0x02}, resp, err) && resp.size() > 2) {
@@ -2060,7 +2033,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, did, data] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Write: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.writeDataByIdentifier(tgt, did, data, err))
                 protoLine("WriteDataByIdentifier DID 0x" + byteHex((did>>8)&0xFF) +
                           byteHex(did&0xFF) + ": accepted");
@@ -2086,7 +2059,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, sub, rid, params] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Routine: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.routineControl(tgt, sub, rid, params, out, err))
                 protoLine("RoutineControl 0x" + byteHex((rid>>8)&0xFF) + byteHex(rid&0xFF) +
@@ -2108,7 +2081,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, ctrl, commType] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("CommControl: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.communicationControl(tgt, ctrl, commType, err))
                 protoLine("CommunicationControl: accepted");
             else protoLine("CommControl: " + err);
@@ -2122,7 +2095,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, lvl] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Crash seed: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::string e;
             uds.diagnosticSessionControl(tgt, UdsSession::Extended, e);
             auto seed = uds.requestSeed(tgt, lvl, err);
@@ -2151,7 +2124,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, lvl, rid, dtc, key, hasRid] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Crash reset: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::string e;
 
             protoLine("Crash reset: entering Extended session on 0x" +
@@ -2221,7 +2194,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, modeIdx, pdids] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Periodic: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             auto mode = (PeriodicMode)(modeIdx + 1);  // combo 0..3 -> 0x01..0x04
             if (uds.readDataByPeriodicIdentifier(tgt, mode, pdids, err)) {
                 if (mode == PeriodicMode::StopSending)
@@ -2251,7 +2224,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, dddid, srcs] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Define DDDID: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.defineDynamicDataIdentifier(tgt, dddid, srcs, err))
                 protoLine("Define DDDID 0x" + byteHex((dddid>>8)&0xFF) + byteHex(dddid&0xFF) +
                           ": OK (" + std::to_string(srcs.size()) + " source DID(s)).");
@@ -2264,7 +2237,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, dddid] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Read DDDID: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             auto v = uds.readDataByIdentifier(tgt, dddid, err);
             if (v) protoLine("Read DDDID 0x" + byteHex((dddid>>8)&0xFF) + byteHex(dddid&0xFF) +
                              ": " + toHex(v->data(), v->size()));
@@ -2277,7 +2250,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, dddid] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Clear DDDID: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.clearDynamicDataIdentifier(tgt, dddid, err))
                 protoLine("Clear DDDID 0x" + byteHex((dddid>>8)&0xFF) + byteHex(dddid&0xFF) + ": OK.");
             else protoLine("Clear DDDID: " + err);
@@ -2334,7 +2307,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, did, opt, state, mask] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Actuator: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.inputOutputControl(tgt, did, opt, state, mask, out, err))
                 protoLine("Actuator 0x" + byteHex((did>>8)&0xFF) + byteHex(did&0xFF) +
@@ -2348,7 +2321,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, did] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Return control: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.inputOutputControl(tgt, did, IoControlOption::ReturnControlToECU, {}, {}, out, err))
                 protoLine("Return control 0x" + byteHex((did>>8)&0xFF) + byteHex(did&0xFF) + ": OK.");
@@ -2402,7 +2375,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, did] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Scaling: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.readScalingDataByIdentifier(tgt, did, out, err))
                 protoLine("Scaling 0x" + byteHex((did>>8)&0xFF) + byteHex(did&0xFF) +
@@ -2425,8 +2398,8 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, addr, data, addrB, sizeB] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Write memory: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
-            if (uds.writeMemoryByAddress(tgt, addr, data, (uint8_t)addrB, (uint8_t)sizeB, err))
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
+            if (uds.writeMemoryByAddress(tgt, addr, data, addrB, sizeB, err))
                 protoLine("Write memory 0x" + std::to_string(addr) + ": OK (" +
                           std::to_string(data.size()) + " byte(s)).");
             else protoLine("Write memory: " + err);
@@ -2439,7 +2412,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, addr, size] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Upload: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> image;
             if (uds.uploadBlock(tgt, addr, size, 4, 4, 0x00, image, nullptr, err)) {
                 protoLine("Upload 0x" + std::to_string(addr) + ": " +
@@ -2512,14 +2485,14 @@ QWidget* Gui::buildProtocolPage() {
             FILE* fp = std::fopen(file.c_str(), "wb");
             if (!fp) { protoLine("Dump: cannot open output file."); return; }
 
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             protoLine("Dump: reading " + std::to_string(total) + " byte(s) from 0x" +
                       std::to_string(addr) + " in " + std::to_string(chunk) + "-byte chunks...");
 
             uint32_t done = 0;
             uint32_t nextReport = 0;
             bool ok = true;
-            while (done < total && client_.isConnected()) {
+            while (done < total && transport_.isConnected()) {
                 uint32_t want = (std::min)(chunk, total - done);
                 std::vector<uint8_t> part;
                 std::string e;
@@ -2533,8 +2506,8 @@ QWidget* Gui::buildProtocolPage() {
                 }
                 done += (uint32_t)part.size();
                 if (done >= nextReport) {
-                    protoLine("  dumped " + std::to_string(done) + "/" + std::to_string(total) +
-                              " byte(s)");
+                    protoLine("  dumped " + std::to_string(done) + "/" +
+                              std::to_string(total) + " byte(s)");
                     nextReport = done + 64u * 1024u;
                 }
             }
@@ -2592,7 +2565,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, sub, param] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("LinkControl: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.linkControl(tgt, sub, param, err))
                 protoLine("LinkControl sub 0x" + byteHex((uint8_t)sub) + ": OK.");
             else protoLine("LinkControl: " + err);
@@ -2606,7 +2579,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, sub, vals] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Timing: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.accessTimingParameter(tgt, sub, vals, out, err))
                 protoLine("AccessTimingParameter sub 0x" + byteHex((uint8_t)sub) + ": OK" +
@@ -2621,7 +2594,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, sub, data] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Authentication: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.authentication(tgt, sub, data, out, err))
                 protoLine("Authentication sub 0x" + byteHex(sub) + ": OK" +
@@ -2682,7 +2655,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, data] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("SecuredDataTransmission: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.securedDataTransmission(tgt, data, out, err))
                 protoLine("SecuredDataTransmission: OK" +
@@ -2702,7 +2675,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, eventType, window, eventRec, svcRec] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("ResponseOnEvent: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.responseOnEvent(tgt, eventType, window, eventRec, svcRec, out, err))
                 protoLine("ResponseOnEvent: OK" +
@@ -2738,7 +2711,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, mode, path, fmt, sizeU, sizeC] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("RequestFileTransfer: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.requestFileTransfer(tgt, mode, path, fmt, sizeU, sizeC, out, err))
                 protoLine("RequestFileTransfer: OK" +
@@ -2784,7 +2757,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Programming session: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.diagnosticSessionControl(tgt, UdsSession::Programming, err))
                 protoLine("Programming session on 0x" + byteHex((tgt>>8)&0xFF) + byteHex(tgt&0xFF) +
                           ": active. Unlock security before flashing.");
@@ -2814,7 +2787,7 @@ QWidget* Gui::buildProtocolPage() {
         startWorker([this, tgt, addr, image] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Flash: " + err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             protoLine("Flash: starting download of " + std::to_string(image.size()) +
                       " byte(s) to 0x" + std::to_string(addr) + " ...");
             auto progress = [this](size_t done, size_t total) {
@@ -3072,11 +3045,11 @@ QWidget* Gui::buildCloudPage() {
                 }
             }
 
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::string e;
             uds.diagnosticSessionControl(tgt, UdsSession::Extended, e);
             int n = 0;
-            for (int id = start; id <= end && client_.isConnected(); ++id) {
+            for (int id = start; id <= end && transport_.isConnected(); ++id) {
                 std::vector<uint8_t> resp; std::string le;
                 if (uds.probeDID(tgt, (uint16_t)id, resp, le) == 1) {
                     snap.dids.emplace_back((uint16_t)id, resp);
@@ -3193,9 +3166,6 @@ QWidget* Gui::buildCloudPage() {
     edTotpTs_->setTimeZone(QTimeZone::UTC);
     edTotpTs_->setCalendarPopup(true);
     edTotpTs_->setDateTime(QDateTime::currentDateTimeUtc());
-    edTotpTs_->setToolTip("UTC date/time the engineering menu is showing "
-                          "(defaults to now).");
-    edTotpTs_->setMaximumWidth(220);
     edTotpTsText_ = new QLineEdit;
     edTotpTsText_->setPlaceholderText("e.g. 06/02/2026 - 12:01 (UTC)");
     edTotpTsText_->setToolTip("Optional: type a UTC date/time string and press "
@@ -3406,7 +3376,7 @@ QWidget* Gui::buildReferencePage() {
     stdTop->setText(0, "Protocol standards (ISO 14229 / SAE J1979 / ISO 13400)");
     stdTop->setText(1, "reference");
     stdTop->setText(2, "VinFast-private IDs are not public; these standardized "
-                       "ones apply to the VF8's UDS/DoIP stack.");
+                       "ones apply to the VF8's UDS stack.");
 
     auto* didTop = new QTreeWidgetItem(stdTop);
     didTop->setText(0, "Standard identification DIDs (0x22)");
@@ -3428,9 +3398,9 @@ QWidget* Gui::buildReferencePage() {
     }
 
     auto* rngTop = new QTreeWidgetItem(stdTop);
-    rngTop->setText(0, "DoIP logical-address ranges (ISO 13400-2)");
-    rngTop->setText(1, QString("%1").arg((int)kDoipAddrRanges.size()));
-    for (const auto& r : kDoipAddrRanges) {
+    rngTop->setText(0, "UDS logical-address ranges (ISO 13400-2)");
+    rngTop->setText(1, QString("%1").arg((int)kUdsAddrRanges.size()));
+    for (const auto& r : kUdsAddrRanges) {
         auto* it = new QTreeWidgetItem(rngTop);
         it->setText(0, QString("0x%1-0x%2")
             .arg(r.first, 4, 16, QChar('0')).arg(r.last, 4, 16, QChar('0')).toUpper());
@@ -3576,7 +3546,7 @@ void Gui::refreshHeader() {
     busyDot_->setObjectName(busy ? "dotBusy" : "dotIdle");
     busyText_->setText(busy ? "Working..." : "Ready");
 
-    bool conn = client_.isConnected() || canBackup_.isConnected();
+    bool conn = transport_.isConnected() || canBackup_.isConnected();
     connDot_->setObjectName(conn ? "dotGood" : "dotBad");
     {
         std::lock_guard<std::mutex> g(mutex_);
@@ -4036,6 +4006,7 @@ void Gui::openCanScanDialog(QWidget* anchor) {
                 ps->done = true;
             });
         });
+
     QObject::connect(btnDiscStop, &QPushButton::clicked, dlg,
                      [ps, btnDiscStop]() { ps->cancel = true; btnDiscStop->setEnabled(false); });
     QObject::connect(dlg, &QObject::destroyed, dlg, [ps, pThreadHolder]() {
@@ -4198,7 +4169,7 @@ void Gui::openCanScanDialog(QWidget* anchor) {
 
                         can::Config cfg;
                         cfg.dllPath    = dll;
-                        cfg.baudrate   = baud;
+                        cfg.baudrate   = (uint32_t)baud;
                         cfg.extendedId = ext;
                         cfg.reqId      = targets.front().req;
                         cfg.respId     = targets.front().resp;
@@ -4330,7 +4301,7 @@ void Gui::openAddSignalDialog(QWidget* anchor) {
     f->addRow(row);
 
     connect(cancel, &QPushButton::clicked, dlg, &QDialog::reject);
-    connect(ok, &QPushButton::clicked, this, [=] {
+    connect(ok, &QPushButton::clicked, this, [=, this] {
         LiveSignal s;
         s.target = parseHex16(edTarget->text(), 0x1003);
         s.did    = parseHex16(edDid->text(), 0xF190);
@@ -4450,13 +4421,13 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
                     startWorker([this, idx, code, target] {
                         std::string err;
                         if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-                        UDSClient uds(client_, (uint16_t)testerAddr_);
+                        UDSClient uds(transport_, (uint16_t)testerAddr_);
                         std::vector<uint8_t> raw;
                         if (uds.readDTCSnapshot(target, code, 0xFF, raw, err)) {
                             std::lock_guard<std::mutex> g(mutex_);
                             if (idx < (int)ecus_.size())
                                 ecus_[idx].statusMsg = "snapshot " +
-                                    byteHex((code>>16)&0xFF)+byteHex((code>>8)&0xFF)+byteHex(code&0xFF) +
+                                    byteHex((code>>16)&0xFF) + byteHex((code>>8)&0xFF) + byteHex(code&0xFF) +
                                     ": " + toHex(raw.data(), raw.size());
                         } else { std::lock_guard<std::mutex> g(mutex_);
                             if (idx < (int)ecus_.size()) ecus_[idx].statusMsg = "snapshot failed: " + err; }
@@ -4476,7 +4447,7 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
         startWorker([this, idx, target] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<Dtc> dtcs;
             if (uds.readDTCByStatusMask(target, (uint8_t)statusMask_, dtcs, err)) {
                 std::lock_guard<std::mutex> g(mutex_);
@@ -4499,7 +4470,7 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
         startWorker([this, idx, target, autoExt] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (autoExt) { std::string se;
                 if (uds.diagnosticSessionControl(target, UdsSession::Extended, se))
                     Logger::instance().info("Extended session for clear");
@@ -4516,7 +4487,7 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
         startWorker([this, idx, target] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             auto data = uds.readDataByIdentifier(target, 0xF190, err);
             std::lock_guard<std::mutex> g(mutex_);
             if (idx >= (int)ecus_.size()) return;
@@ -4529,7 +4500,7 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
         startWorker([this, idx, target] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             bool ok = false; std::string info = uds.readEcuIdentification(target, ok);
             std::lock_guard<std::mutex> g(mutex_);
             if (idx >= (int)ecus_.size()) return;
@@ -4541,7 +4512,7 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
         startWorker([this, idx, target, mask] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             uint16_t cnt = 0; uint8_t fmt = 0;
             std::lock_guard<std::mutex> g(mutex_);
             if (idx >= (int)ecus_.size()) return;
@@ -4555,7 +4526,7 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
         startWorker([this, idx, target] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<Dtc> dtcs;
             if (uds.readSupportedDTC(target, dtcs, err)) {
                 std::lock_guard<std::mutex> g(mutex_);
@@ -4571,7 +4542,7 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
         startWorker([this, target] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (!uds.controlDTCSetting(target, true, err)) Logger::instance().error(err);
         });
     });
@@ -4580,7 +4551,7 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
         startWorker([this, target] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (!uds.controlDTCSetting(target, false, err)) Logger::instance().error(err);
         });
     });
@@ -4605,7 +4576,7 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
         startWorker([this, idx, target, rt] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             bool ok = uds.ecuReset(target, rt, err);
             std::lock_guard<std::mutex> g(mutex_);
             if (idx < (int)ecus_.size())
@@ -4621,12 +4592,10 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
 // Settings sync + network helpers
 // ==========================================================================
 void Gui::syncSettingsFromUi() {
-    if (edBroadcast_)  broadcastIp_ = edBroadcast_->text().toStdString();
     if (edGateway_)    gatewayIp_   = edGateway_->text().toStdString();
-    if (sbPort_)       port_        = sbPort_->value();
     if (edTester_)     testerAddr_  = parseHex16(edTester_->text(), 0x0E80);
     if (edGwAddr_)     gatewayAddr_ = parseHex16(edGwAddr_->text(), 0x1001);
-    if (edActivation_) activationType_ = parseHex16(edActivation_->text(), 0x00);
+    if (sbOpenxcBus_)  openxcBus_   = sbOpenxcBus_->value();
     if (edFunctional_) functionalAddr_ = parseHex16(edFunctional_->text(), 0xE400);
     if (cbFunctional_) useFunctional_  = cbFunctional_->isChecked();
     if (edStatusMask_) statusMask_   = parseHex16(edStatusMask_->text(), 0x08);
@@ -4649,10 +4618,6 @@ void Gui::syncSettingsFromUi() {
     if (cbSvcSuspend_) svcSuspendDTC_= cbSvcSuspend_->isChecked();
     if (cbSvcExt_)     svcExtendedSess_ = cbSvcExt_->isChecked();
     if (cbSvcRestore_) svcRestoreAfter_ = cbSvcRestore_->isChecked();
-    if (edSovdUrl_)    sovdBaseUrl_  = edSovdUrl_->text().toStdString();
-    if (edSovdToken_)  sovdToken_    = edSovdToken_->text().toStdString();
-    sovd_.setBaseUrl(sovdBaseUrl_);
-    sovd_.setBearerToken(sovdToken_);
     if (cbCanEnabled_) canEnabled_   = cbCanEnabled_->isChecked();
     if (edCanDll_)     canDll_       = edCanDll_->text().toStdString();
     if (edCanBaud_) {
@@ -4670,51 +4635,21 @@ void Gui::syncSettingsFromUi() {
     if (edCanReqId_)   canReqId_     = parseHex32(edCanReqId_->text(), 0x7E0);
     if (edCanRespId_)  canRespId_    = parseHex32(edCanRespId_->text(), 0x7E8);
     if (cbCanExt_)     canExtended_  = cbCanExt_->isChecked();
+    if (edCanIdBase_)     canIdBase_     = parseHex32(edCanIdBase_->text(), 0x700);
+    if (edCanRespOffset_) canRespOffset_ = parseHex32(edCanRespOffset_->text(), 0x08);
+    // Clamp to 11-bit arbitration IDs.
+    canIdBase_     &= 0x7FF;
+    canRespOffset_ &= 0x7FF;
 }
-
-// Derive a SOVD component id from a free-text ECU name. SOVD uses lowercase
-// string ids (e.g. "bms") where DoIP uses 16-bit logical addresses, so map the
-// common VinFast modules and fall back to a sanitized first word.
-std::string Gui::deriveSovdId(const std::string& ecuName) {
-    std::string low;
-    for (char c : ecuName) low += (char)std::tolower((unsigned char)c);
-    auto has = [&](const char* s) { return low.find(s) != std::string::npos; };
-    if (has("bms") || has("battery"))            return "bms";
-    if (has("vcu") || has("vehicle control"))    return "vcu";
-    if (has("gateway") || has("xgw") || has("gw")) return "gateway";
-    // Fallback: first alphanumeric token, lowercased.
-    std::string id;
-    for (char c : low) {
-        if (std::isalnum((unsigned char)c)) id += c;
-        else if (!id.empty()) break;
-    }
-    return id;
-}
-
-// Probe an ECU's reachability over the SOVD backup endpoint by confirming the
-// component is listed. Returns true and sets `detail` (e.g. "via SOVD (...)")
-// when reachable. Runs on the worker thread; libcurl I/O is synchronous.
-bool Gui::sovdProbe(const std::string& componentId, std::string& detail) {
-    if (!sovd_.configured()) { detail = "SOVD not configured"; return false; }
-    if (componentId.empty()) { detail = "no SOVD component id"; return false; }
-    std::vector<sovd::Component> comps;
-    std::string e;
-    if (!sovd_.listComponents(comps, e)) { detail = "SOVD unreachable: " + e; return false; }
-    for (const auto& c : comps)
-        if (c.id == componentId) { detail = "via SOVD (" + c.name + ")"; return true; }
-    detail = "SOVD endpoint has no component '" + componentId + "'";
-    return false;
-}
-
 
 void Gui::startKeepAlive() {
     if (keepAliveRun_) return;
     keepAliveRun_ = true;
     keepAliveThread_ = std::thread([this] {
         while (keepAliveRun_) {
-            if (client_.isConnected() && !busy_) {
+            if (transport_.isConnected() && !busy_) {
                 std::lock_guard<std::mutex> n(netMutex_);
-                UDSClient uds(client_, (uint16_t)testerAddr_);
+                UDSClient uds(transport_, (uint16_t)testerAddr_);
                 std::string err;
                 uint16_t tgt = (uint16_t)(keepAliveTarget_ ? keepAliveTarget_ : gatewayAddr_);
                 uds.testerPresent(tgt, err, /*suppress=*/true);
@@ -4743,7 +4678,7 @@ void Gui::startLivePoll() {
         const uint16_t kDddBase = 0xF300;
 
         // ---- setup: define one dynamic DID per target (0x2C) ----
-        if (bundle && client_.isConnected()) {
+        if (bundle && transport_.isConnected()) {
             std::vector<std::tuple<size_t, uint16_t, uint16_t>> snap;
             {
                 std::lock_guard<std::mutex> g(mutex_);
@@ -4751,7 +4686,7 @@ void Gui::startLivePoll() {
                     snap.emplace_back(i, liveSignals_[i].target, liveSignals_[i].did);
             }
             std::lock_guard<std::mutex> n(netMutex_);
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             for (auto& [idx, tgt, did] : snap) {
                 TargetBundle* tb = nullptr;
                 for (auto& b : bundles) if (b.target == tgt) { tb = &b; break; }
@@ -4787,7 +4722,7 @@ void Gui::startLivePoll() {
         }
 
         while (liveRun_) {
-            if (!client_.isConnected() || busy_) {
+            if (!transport_.isConnected() || busy_) {
                 for (int i = 0; i < livePollMs_ / 20 + 1 && liveRun_; ++i)
                     std::this_thread::sleep_for(std::chrono::milliseconds(20));
                 continue;
@@ -4800,7 +4735,7 @@ void Gui::startLivePoll() {
                 std::vector<uint8_t> data; bool ok = false;
                 {
                     std::lock_guard<std::mutex> n(netMutex_);
-                    UDSClient uds(client_, (uint16_t)testerAddr_);
+                    UDSClient uds(transport_, (uint16_t)testerAddr_);
                     std::string err;
                     auto r = uds.readDataByIdentifier(b.target, b.dddid, err);
                     if (r) { data = std::move(*r); ok = true; }
@@ -4829,11 +4764,11 @@ void Gui::startLivePoll() {
             }
             for (size_t i = 0; i < items.size() && liveRun_; ++i) {
                 if (covered.count(i)) continue;
-                if (!client_.isConnected() || busy_) break;
+                if (!transport_.isConnected() || busy_) break;
                 std::vector<uint8_t> data; bool ok = false;
                 {
                     std::lock_guard<std::mutex> n(netMutex_);
-                    UDSClient uds(client_, (uint16_t)testerAddr_);
+                    UDSClient uds(transport_, (uint16_t)testerAddr_);
                     std::string err;
                     auto r = uds.readDataByIdentifier(items[i].first, items[i].second, err);
                     if (r) { data = std::move(*r); ok = true; }
@@ -4854,9 +4789,9 @@ void Gui::startLivePoll() {
         }
 
         // ---- teardown: release the dynamic DIDs we defined ----
-        if (client_.isConnected()) {
+        if (transport_.isConnected()) {
             std::lock_guard<std::mutex> n(netMutex_);
-            UDSClient uds(client_, (uint16_t)testerAddr_);
+            UDSClient uds(transport_, (uint16_t)testerAddr_);
             for (auto& b : bundles) {
                 if (!b.active) continue;
                 std::string e;
@@ -4901,22 +4836,16 @@ bool Gui::ensureConnected(std::string& err) {
         }
     }
 
-    if (client_.isConnected()) return true;
-    if (!client_.connectTcp(gatewayIp_, (uint16_t)port_, err)) {
+    // Apply the latest OpenXC settings before opening the link.
+    transport_.setBus(openxcBus_);
+    transport_.setCanIdMapping((uint32_t)canIdBase_, (uint32_t)canRespOffset_);
+
+    if (transport_.isConnected()) return true;
+    if (!transport_.connect(gatewayIp_, err)) {
         // OpenXC link could not be established. If the CAN backup is up we can
         // still operate purely over CAN.
         if (canBackup_.isConnected()) {
             Logger::instance().warn("OpenXC connect failed (" + err +
-                                    "); continuing over CAN backup");
-            err.clear();
-            return true;
-        }
-        return false;
-    }
-    if (!client_.routingActivation((uint16_t)testerAddr_, (uint8_t)activationType_, err)) {
-        client_.disconnect();
-        if (canBackup_.isConnected()) {
-            Logger::instance().warn("OpenXC setup failed (" + err +
                                     "); continuing over CAN backup");
             err.clear();
             return true;

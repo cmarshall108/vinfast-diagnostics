@@ -26,7 +26,7 @@
 //   0x86 ResponseOnEvent
 //   0x87 LinkControl
 //
-#include "DoIPClient.hpp"
+#include "OpenXcTransport.hpp"
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -96,7 +96,7 @@ enum class IoControlOption : uint8_t {
 };
 
 // ISO 14229-1 LinkControl (0x87) sub-functions. Used to negotiate a faster
-// DoIP/diagnostic link (e.g. before reprogramming).
+// diagnostic link (e.g. before reprogramming).
 enum class LinkControlType : uint8_t {
     VerifyModeFixedParameter    = 0x01,  // verify a fixed baudrate identifier
     VerifyModeSpecificParameter = 0x02,  // verify a specific baudrate value
@@ -124,8 +124,8 @@ enum class FileTransferMode : uint8_t {
 
 class UDSClient {
 public:
-    UDSClient(doip::Client& client, uint16_t testerAddr)
-        : doip_(client), tester_(testerAddr) {}
+    UDSClient(openxc::Transport& transport, uint16_t testerAddr)
+        : transport_(transport), tester_(testerAddr) {}
 
     void setTester(uint16_t a) { tester_ = a; }
 
@@ -217,7 +217,7 @@ public:
     // every ECU that answers within collectMs. This is the fastest way to
     // build an ECU map for a vehicle with no published address list, since one
     // request reaches every ECU in the group at once. `functionalAddr` is
-    // OEM-specific (common DoIP functional range is 0xE000-0xE3FF); try a few
+    // OEM-specific (common functional range is 0xE000-0xE3FF); try a few
     // if unknown. Returns false (err set) if nothing responds.
     bool enumerateEcus(uint16_t functionalAddr, std::vector<uint16_t>& found,
                        std::string& err, int collectMs = 1500);
@@ -304,7 +304,7 @@ public:
     // -------------------------------------------------------------------
     // Reprogramming / block transfer (ISO 14229 services 0x34/0x36/0x37).
     //
-    // The full flash sequence over DoIP is the reason Ethernet beats CAN for
+    // The full flash sequence over a high-bandwidth diagnostic link beats CAN for
     // reprogramming: a large software image is pushed in big TransferData
     // blocks rather than tiny CAN frames. The caller is responsible for first
     // entering the programming session (0x10 0x02), unlocking SecurityAccess
@@ -470,8 +470,8 @@ private:
                    std::vector<uint8_t>& resp, uint8_t& nrc, std::string& err,
                    int timeoutMs = 5000);
 
-    doip::Client& doip_;
-    uint16_t      tester_;
+    openxc::Transport& transport_;
+    uint16_t           tester_;
 };
 
 // Decoding helpers (defined in UDSClient.cpp).

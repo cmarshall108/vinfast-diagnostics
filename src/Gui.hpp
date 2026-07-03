@@ -7,10 +7,9 @@
 // DTC lists, snapshots, add-signal forms, confirmations) is shown in relative
 // popups so very little text is visible at once.
 //
-#include "DoIPClient.hpp"
+#include "OpenXcTransport.hpp"
 #include "UDSClient.hpp"
 #include "CloudClient.hpp"
-#include "SovdClient.hpp"
 #include "CanClient.hpp"
 
 #include <QMainWindow>
@@ -60,7 +59,6 @@ private:
         std::string idInfo;
         std::vector<Dtc> dtcs;
         int         reachable = -1;   // -1 unknown, 0 no, 1 yes (from probe)
-        std::string sovdId;           // SOVD component id used for the REST backup path ("" = derive from name)
     };
 
     // A live-data watch item: a DID polled repeatedly from one ECU.
@@ -146,11 +144,6 @@ private:
     void stopLivePoll();
     void syncSettingsFromUi();
 
-    // SOVD (REST) backup path: derive a component id from an ECU name and probe
-    // reachability over SOVD when low-level UDS/DoIP does not answer.
-    static std::string deriveSovdId(const std::string& ecuName);
-    bool sovdProbe(const std::string& componentId, std::string& detail);
-
     static uint16_t parseHex16(const QString& s, uint16_t def);
 
 private slots:
@@ -158,19 +151,15 @@ private slots:
 
 private:
     // --- network ---
-    doip::Client client_;
-    sovd::SovdClient sovd_;   // REST backup diagnostic path (used when UDS fails)
-    can::Client canBackup_;   // CAN (ISO 15765 / mvci32.dll) backup transport
+    openxc::Transport transport_;   // OpenXC Bluetooth RFCOMM primary transport
+    can::Client canBackup_;         // CAN (ISO 15765 / mvci32.dll) backup transport
 
     // --- settings (synced from widgets via syncSettingsFromUi) ---
-    std::string broadcastIp_ = "";
     std::string gatewayIp_   = "04:C4:61:C3:69:D0";
-    int  port_           = 0;
     int  testerAddr_     = 0x0E80;
     int  functionalAddr_ = 0xE400;
     bool useFunctional_  = false;
     int  statusMask_     = 0x08;
-    int  activationType_ = 0x00;
     int  gatewayAddr_    = 0x1001;
     int  sessionType_    = (int)UdsSession::Extended;
     bool autoExtendedOnClear_ = true;
@@ -188,12 +177,17 @@ private:
     int  livePollMs_ = 500;
     bool liveBundle_ = false;   // bundle all live signals into one dynamic DID (0x2C) per cycle
 
-    // SOVD backup endpoint (empty base URL = disabled)
-    std::string sovdBaseUrl_;
-    std::string sovdToken_;
+    // OpenXC VI bus selection (1 or 2 on most VI hardware).
+    int openxcBus_ = 1;
+
+    // Logical UDS address -> CAN arbitration ID mapping for the OpenXC VI.
+    // requestId  = canIdBase_ + (logicalAddr & 0xFF)
+    // responseId = requestId + canRespOffset_
+    int  canIdBase_     = 0x700;
+    int  canRespOffset_ = 0x08;
 
     // CAN backup (UDS over ISO 15765 via mvci32.dll). Used automatically when
-    // the DoIP exchange fails. Disabled by default.
+    // the OpenXC exchange fails. Disabled by default.
     bool        canEnabled_   = false;
     std::string canDll_       = "mvci32.dll";
     int         canBaud_      = 500000;
@@ -214,7 +208,6 @@ private:
 
     // --- shared state (guarded by mutex_) ---
     std::mutex                mutex_;
-    std::vector<doip::Entity> entities_;
     std::vector<EcuRow>       ecus_;
     std::string               connStatus_ = "Disconnected";
     std::vector<LiveSignal>   liveSignals_;
@@ -252,13 +245,11 @@ private:
     QLabel*         dashModules_ = nullptr;
 
     // connection page
-    QLineEdit*   edBroadcast_ = nullptr;
     QLineEdit*   edGateway_   = nullptr;
-    QPushButton* btScanBtn_   = nullptr;  // discovers paired OpenXC VI devices
-    QSpinBox*    sbPort_      = nullptr;
+    QPushButton* usbScanBtn_  = nullptr;  // discovers USB/serial OpenXC VI devices
+    QPushButton* btScanBtn_   = nullptr;  // discovers paired Bluetooth OpenXC VI devices
     QLineEdit*   edTester_    = nullptr;
     QLineEdit*   edGwAddr_    = nullptr;
-    QLineEdit*   edActivation_= nullptr;
     QLineEdit* edFunctional_= nullptr;
     QCheckBox* cbFunctional_= nullptr;
     QLineEdit* edStatusMask_= nullptr;
@@ -274,14 +265,16 @@ private:
     QLineEdit* edSweepEnd_  = nullptr;
     QCheckBox* cbSweepAdd_  = nullptr;
     QLineEdit* edEnumFunc_  = nullptr;
-    QLineEdit* edSovdUrl_   = nullptr;
-    QLineEdit* edSovdToken_ = nullptr;
+    QSpinBox*  sbOpenxcBus_ = nullptr;
+    QLineEdit* edCanIdBase_ = nullptr;
+    QLineEdit* edCanRespOffset_ = nullptr;
     QCheckBox* cbCanEnabled_= nullptr;
     QLineEdit* edCanDll_    = nullptr;
     QLineEdit* edCanBaud_   = nullptr;
     QLineEdit* edCanReqId_  = nullptr;
     QLineEdit* edCanRespId_ = nullptr;
     QCheckBox* cbCanExt_    = nullptr;
+
     // ecu page (Autel-style module topology)
     EcuTopologyView* topology_     = nullptr;
     int              openEcuIdx_   = -1;   // currently open detail dialog index

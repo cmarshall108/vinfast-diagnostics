@@ -94,7 +94,7 @@ bool Logger::saveToFile(const std::string& path, std::string& err) {
     std::strftime(hdr, sizeof hdr, "%Y-%m-%d %H:%M:%S", &tmv);
 
     f << "===========================================================\n";
-    f << " VinFast VF8 DoIP/UDS Scanner - session log\n";
+    f << " VinFast VF8 OpenXC/UDS Scanner - session log\n";
     f << " Exported: " << hdr << "\n";
     f << " Entries:  " << snap.size() << "\n";
     f << "===========================================================\n\n";

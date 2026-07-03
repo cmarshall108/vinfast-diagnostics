@@ -15,7 +15,7 @@
 // altAddr (6th field, where present) is an ALTERNATIVE logical-address candidate
 // taken from the VinFast ECU-identifier byte reported via connected-car telemetry
 // object 34220 (tahung9x/VF-DB). It is tried automatically if the primary address
-// does not respond. These bytes are hints, not confirmed DoIP addresses.
+// does not respond. These bytes are hints, not confirmed UDS addresses.
 // ===========================================================================
 const std::vector<VF8Ecu> kVF8Ecus = {
     
@@ -486,7 +486,7 @@ std::string vf8DtcDescribe(const std::string& autelCode) {
 
 // ---- Standard protocol identifiers (ISO 14229 / SAE J1979 / ISO 13400) -----
 // These are protocol-standardized and manufacturer-independent, so they apply
-// to the VF8's standard UDS/DoIP stack even though VinFast-private identifiers
+// to the VF8's standard UDS stack even though VinFast-private identifiers
 // are not published.
 
 const std::vector<StdDid> kStandardDids = {
@@ -527,14 +527,14 @@ const std::vector<ObdService> kObdServices = {
     {0x0A, "Show permanent DTCs"},
 };
 
-const std::vector<DoipAddrRange> kDoipAddrRanges = {
+const std::vector<UdsAddrRange> kUdsAddrRanges = {
     {0x0000, 0x0000, "ISO/SAE reserved"},
     {0x0001, 0x0DFF, "Vehicle manufacturer specific"},
     {0x0E00, 0x0FFF, "Reserved for addresses of external test equipment"},
     {0x1000, 0x7FFF, "Vehicle manufacturer specific (ECUs / gateways)"},
     {0x8000, 0xCFFF, "Reserved by ISO 13400"},
     {0xD000, 0xDFFF, "Reserved for SAE"},
-    {0xE000, 0xE3FF, "Functional group: DoIP entities"},
+    {0xE000, 0xE3FF, "Functional group: diagnostic entities"},
     {0xE400, 0xE7FF, "Functional group: legislated OBD diagnostics"},
     {0xE800, 0xEFFF, "Reserved by ISO 13400"},
     {0xF000, 0xFFFF, "Reserved by ISO 13400"},

@@ -23,14 +23,14 @@ endif()
 # The guard below makes a mismatched 64-bit Windows build fail fast with a
 # clear message instead of failing at runtime when mvci32.dll won't load.
 # Set -DALLOW_WIN64=ON only if you knowingly want a 64-bit build WITHOUT the
-# Mini-VCI CAN backup (DoIP/SOVD transports still work).
+# Mini-VCI CAN backup (OpenXC Bluetooth transport still works).
 # -------------------------------------------------------------------
 option(ALLOW_WIN64 "Permit a 64-bit Windows build (disables Mini-VCI CAN backup at runtime)" OFF)
 if(WIN32 AND NOT ALLOW_WIN64 AND CMAKE_SIZEOF_VOID_P EQUAL 8)
   message(FATAL_ERROR
     "vinfast_scanner must be built as 32-bit (x86) on Windows: Toyota's Mini-VCI "
     "J2534 driver (mvci32.dll) is a 32-bit DLL and a 64-bit process cannot load "
-    "it.\n"
+    "it. OpenXC Bluetooth is not available on Windows; the CAN backup is the only transport.\n"
     "  Visual Studio:  cmake -A Win32 -S . -B build-win32\n"
     "  MinGW:          use a 32-bit (i686-w64-mingw32) toolchain\n"
     "Or pass -DALLOW_WIN64=ON to build 64-bit without the CAN backup.")
@@ -135,15 +135,14 @@ set(_app_macos_icon "${CMAKE_CURRENT_SOURCE_DIR}/assets/images/vinfast-vf8.icns"
 set(_app_sources
   src/main.cpp
   src/Logger.cpp
-  src/DoIPClient.cpp
   src/OpenXcClient.cpp
+  src/OpenXcTransport.cpp
   src/BtDiscovery.mm
   src/CanClient.cpp
   src/UDSClient.cpp
   src/VF8Data.cpp
   src/CloudData.cpp
   src/CloudClient.cpp
-  src/SovdClient.cpp
   src/Gui.cpp
   assets/resources.qrc
 )
@@ -177,16 +176,3 @@ if(APPLE)
     MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0.1")
 endif()
 
-# -------------------------------------------------------------------
-# Optional headless SOVD self-test.
-# Build: cmake -DBUILD_SOVD_SELFTEST=ON -S . -B build
-# -------------------------------------------------------------------
-option(BUILD_SOVD_SELFTEST "Build the headless SOVD self-test CLI" OFF)
-if(BUILD_SOVD_SELFTEST)
-  add_executable(sovd_selftest
-    tools/sovd_selftest.cpp
-    src/Logger.cpp
-    src/SovdClient.cpp)
-  target_include_directories(sovd_selftest PRIVATE src)
-  target_link_libraries(sovd_selftest PRIVATE CURL::libcurl)
-endif()

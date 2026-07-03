@@ -52,7 +52,7 @@ bool UDSClient::request(uint16_t target, const std::vector<uint8_t>& req,
         " (SID 0x" + byteHex(sid) + "), req[" + std::to_string(req.size()) +
         "]: " + toHex(req.data(), req.size()));
 
-    if (!doip_.sendDiagnostic(tester_, target, req, resp, 5000, err)) {
+    if (!transport_.sendDiagnostic(tester_, target, req, resp, 5000, err)) {
         Logger::instance().log(LogLevel::Error,
             "UDS <- 0x" + addr16(target) + "  " + udsServiceName(sid) +
             " transport error: " + err);
@@ -361,7 +361,7 @@ bool UDSClient::testerPresent(uint16_t target, std::string& err,
     if (suppressPositiveResponse) {
         // Fire-and-forget keep-alive: the ECU sends nothing back.
         std::vector<uint8_t> resp;
-        return doip_.sendDiagnostic(tester_, target, req, resp, 800, err) || true;
+        return transport_.sendDiagnostic(tester_, target, req, resp, 800, err) || true;
     }
     std::vector<uint8_t> resp;
     return request(target, req, resp, err);
@@ -372,9 +372,9 @@ bool UDSClient::probe(uint16_t target, std::string& err) {
     // routable, so treat "any UDS reply" as success.
     std::vector<uint8_t> req = {0x3E, 0x00};
     std::vector<uint8_t> resp;
-    if (doip_.sendDiagnostic(tester_, target, req, resp, 1500, err))
+    if (transport_.sendDiagnostic(tester_, target, req, resp, 1500, err))
         return !resp.empty();
-    return false;  // err set by DoIP layer (timeout / nack)
+    return false;  // err set by transport layer (timeout / nack)
 }
 
 bool UDSClient::enumerateEcus(uint16_t functionalAddr, std::vector<uint16_t>& found,
@@ -387,8 +387,8 @@ bool UDSClient::enumerateEcus(uint16_t functionalAddr, std::vector<uint16_t>& fo
         "UDS functional enumerate -> 0x" + addr16(functionalAddr) +
         "  TesterPresent (collecting " + std::to_string(collectMs) + "ms)");
 
-    std::vector<doip::DiagResponse> responses;
-    if (!doip_.sendDiagnosticMulti(tester_, functionalAddr, req, responses,
+    std::vector<openxc::DiagResponse> responses;
+    if (!transport_.sendDiagnosticMulti(tester_, functionalAddr, req, responses,
                                    collectMs, err))
         return false;
 
@@ -439,7 +439,7 @@ int UDSClient::rawRequest(uint16_t target, const std::vector<uint8_t>& req,
     Logger::instance().log(LogLevel::Tx,
         "UDS -> 0x" + addr16(target) + "  " + udsServiceName(sid) +
         " req[" + std::to_string(req.size()) + "]: " + toHex(req.data(), req.size()));
-    if (!doip_.sendDiagnostic(tester_, target, req, resp, timeoutMs, err))
+    if (!transport_.sendDiagnostic(tester_, target, req, resp, timeoutMs, err))
         return -1;
     if (resp.empty()) { err = "Empty UDS response"; return -1; }
     if (resp[0] == 0x7F) {
@@ -903,17 +903,17 @@ bool UDSClient::uploadBlock(uint16_t target, uint32_t memoryAddress, uint32_t si
         if (resp.size() < 2 || resp[1] != bsc) {
             err = "TransferData (upload) block-counter mismatch"; return false;
         }
-        size_t payloadLen = resp.size() - 2;
-        if (payloadLen > maxPayloadPerBlock) {
+        size_t payload_len = resp.size() - 2;
+        if (payload_len > maxPayloadPerBlock) {
             err = "TransferData (upload) payload exceeds ECU max block length";
             return false;
         }
         size_t remaining = (size_t)size - image.size();
-        if (payloadLen > remaining) {
+        if (payload_len > remaining) {
             Logger::instance().warn("Upload block larger than requested size; truncating to requested length");
-            payloadLen = remaining;
+            payload_len = remaining;
         }
-        image.insert(image.end(), resp.begin() + 2, resp.begin() + 2 + payloadLen);
+        image.insert(image.end(), resp.begin() + 2, resp.begin() + 2 + payload_len);
         bsc = (uint8_t)(bsc + 1);
         if (progress) progress(image.size(), size);
         if (resp.size() <= 2) break;   // ECU returned no payload -> stop

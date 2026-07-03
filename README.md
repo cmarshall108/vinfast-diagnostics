@@ -1,7 +1,7 @@
-# VinFast VF8 and VF9 OpenXC Bluetooth UDS Scanner
+# VinFast VF8 and VF9 OpenXC USB/Bluetooth UDS Scanner
 
 A modular **C++20 / Qt6** diagnostic application that connects to a vehicle over
-an **OpenXC Bluetooth** vehicle interface, reads/clears Diagnostic
+an **OpenXC USB or Bluetooth** vehicle interface, reads/clears Diagnostic
 Trouble Codes via **UDS (ISO 14229)**. It also includes an optional
 community-reverse-engineered **connected-car cloud client** for remote
 telemetry and commands.
@@ -14,7 +14,7 @@ telemetry and commands.
 
 ## Features
 
-- **Connection settings** — OpenXC Bluetooth MAC, tester source address,
+- **Connection settings** — OpenXC USB serial port or Bluetooth MAC, tester source address,
   functional/physical addressing toggle, and fallback CAN parameters.
 - **Address probing** — sends TesterPresent to every configured ECU and marks
   which addresses actually respond (a negative response still proves the
@@ -29,7 +29,7 @@ telemetry and commands.
 - **Connected-car cloud client** — optional REST/IoT path to VinFast's app
   back-end (Auth0 + AWS) for telemetry and remote commands, based on public
   community sources. Completely separate from the on-vehicle diagnostic bus.
-- **Live log** — colour-coded hex dump of every DoIP/UDS TX/RX frame.
+- **Live log** — colour-coded hex dump of every OpenXC/UDS TX/RX frame.
 - Background worker thread keeps the Qt GUI responsive during network I/O.
 
 > ⚠️ **Realistic expectations.** Reading DTCs typically works in the default
@@ -45,7 +45,8 @@ telemetry and commands.
 
 | File | Responsibility |
 |------|----------------|
-| `src/DoIPClient.*` | DoIP transport: UDP discovery, TCP routing activation, diagnostic message framing, ack / alive-check / response-pending handling. |
+| `src/OpenXcClient.*` | OpenXC VI RFCOMM serial client; JSON diagnostic request/response framing. |
+| `src/OpenXcTransport.*` | Transport wrapper that maps logical UDS addresses to CAN arbitration IDs and drives the OpenXC VI. |
 | `src/UDSClient.*`  | UDS services 0x22 / 0x19 / 0x14 / 0x3E and DTC / NRC decoding. |
 | `src/CloudData.*`  | VinFast connected-car cloud reference data (regions, telemetry map, command list) from public community sources. |
 | `src/CloudClient.*`| REST/IoT client (libcurl) for the connected-car cloud back-end. |
@@ -54,15 +55,19 @@ telemetry and commands.
 | `src/Logger.*`     | Thread-safe in-memory hex/text log. |
 | `src/main.cpp`     | `QApplication` bootstrap. |
 
-### DoIP flow recap
+### OpenXC flow recap
 
-1. **Vehicle Identification** — UDP broadcast of payload type `0x0001`; entities
-   reply with `0x0004` containing VIN, logical address, EID, GID.
-2. **Routing Activation** — over TCP, payload `0x0005` carrying the tester source
-   address; a `0x0006` reply with code `0x10` means activated.
-3. **Diagnostic Messages** — payload `0x8001` wraps UDS bytes (source + target +
-   UDS). The stack absorbs `0x8002` positive acks, answers `0x0007` alive checks,
-   and waits on UDS `0x7F .. 0x78` (response pending).
+1. **USB connection (preferred)** — connect the OpenXC Vehicle Interface (VI)
+   to the computer with a USB cable. The VI exposes a USB serial port
+   (e.g. `/dev/ttyUSB0`, `/dev/cu.usbmodem*`, `COM3`).
+   **Bluetooth** is also supported, but RFCOMM is only reliable on Linux; on
+   macOS and Windows USB is strongly recommended.
+2. **Connect** — the app opens the serial link to the VI and configures it to
+   pass arbitrary diagnostic frames on the selected CAN bus.
+3. **Diagnostic messages** — UDS requests are sent as OpenXC JSON
+   `diagnostic_request` messages; the VI wraps them in CAN frames using the
+   configured request/response arbitration IDs and returns the ECU reply as a
+   `diagnostic_response`.
 
 ## Building from source
 
@@ -158,15 +163,16 @@ Export the certificate to base64 with:
 
 ## Usage
 
-1. Connect the GT109 DoIP ENET adapter; put your PC on the same subnet as the
-   vehicle gateway. Over the OBD port this is usually a DHCP- or link-local
-   (169.254.x.x) address from the gateway; the VF8's internal diagnostic
-   backbone is `172.16.100.x` (gateway likely `172.16.100.1`, the app default).
-2. Click **Discover ECUs** to broadcast a Vehicle Identification Request.
-3. Click **Use as Gateway** on the discovered entity (or type the gateway IP).
-4. Click **Connect** to open the TCP session and perform routing activation.
-5. Edit the ECU table addresses to match the vehicle, then use **Read DTCs** /
-   **Clear DTCs** per ECU. Watch the **Log** panel for raw frames.
+1. Connect the OpenXC Vehicle Interface to the computer with a USB cable. The
+   default device field expects a USB serial path (e.g. `/dev/ttyUSB0`,
+   `/dev/cu.usbmodem*`, `COM3`) or a Bluetooth MAC.
+2. Click **Scan USB** on the Connection page to list available USB serial ports,
+   or **Scan BT** to list paired Bluetooth devices. You can also type the path
+   or MAC manually.
+3. Click **Connect** to open the serial link and initialise the VI for
+   diagnostic traffic.
+4. Edit the ECU table logical addresses to match the vehicle, then use
+   **Read DTCs** / **Clear DTCs** per ECU. Watch the **Log** panel for raw frames.
 
 ## Notes on addresses
 
@@ -174,3 +180,8 @@ Export the certificate to base64 with:
 - Functional address default `0xE400` is a placeholder — set it to the vehicle's
   functional request address if you use functional addressing.
 - ECU logical addresses in the table are placeholders. Configure them in the UI.
+- **CAN ID mapping** controls how a logical UDS address is translated to the
+  physical CAN arbitration IDs the VI transmits. The default is
+  `request = 0x700 + (addr & 0xFF)` and `response = request + 0x08`. For the
+  common 0x7E0/0x7E8 gateway pair, set the base to `0x700` and use address
+  `0x00E0`.

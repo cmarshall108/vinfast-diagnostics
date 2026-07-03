@@ -2,15 +2,15 @@
 //
 // OpenXcClient.hpp
 //
-// Connects to a paired OpenXC Vehicle Interface over its RFCOMM serial port
-// (/dev/cu.OpenXC-VI-* on macOS) and exchanges UDS diagnostic requests /
-// responses using the OpenXC JSON message format.
+// Connects to an OpenXC Vehicle Interface over a USB or Bluetooth serial port
+// and exchanges UDS diagnostic requests / responses using the OpenXC JSON
+// message format.
 //
 // Uses openxc/uds-c (github.com/openxc/uds-c) for DiagnosticRequest struct
 // validation and openxc/isotp-c + openxc/bitfield-c as transitive deps.
 //
 // The public sendDiagnostic() API accepts/returns raw UDS PDU byte vectors so
-// the existing DoIPClient wrapper and UDSClient do not need changes.
+// UDSClient does not need changes.
 //
 #include <cstdint>
 #include <string>
@@ -26,13 +26,15 @@ public:
     Client(const Client&)            = delete;
     Client& operator=(const Client&) = delete;
 
-    // Open the RFCOMM serial connection to the OpenXC VI.
+    // Open the serial connection to the OpenXC VI.
     //
     // deviceOrMac may be:
-    //   • A full device path  – "/dev/cu.OpenXC-VI-04C461C369D0"
-    //   • A Bluetooth MAC     – "04:C4:61:C3:69:D0"  (auto-resolved to
-    //                           /dev/cu.OpenXC-VI-04C461C369D0)
+    //   • A full USB/serial device path – "/dev/ttyUSB0", "/dev/cu.usbmodem*",
+    //     "COM3", etc.
+    //   • A Bluetooth MAC – "04:C4:61:C3:69:D0" (auto-resolved to the
+    //     RFCOMM serial device when supported by the platform)
     //
+    // USB paths are used as-is; Bluetooth MACs are resolved via BtDiscovery.
     // Returns true on success.  The connection persists across multiple
     // sendDiagnostic() calls (no per-request reconnect overhead).
     bool connect(const std::string& deviceOrMac, std::string& err);
@@ -61,8 +63,26 @@ public:
                         int                   bus,
                         std::string&          err);
 
+    // Send an arbitrary OpenXC command (JSON, without trailing '\n') and read
+    // the first response line within timeoutMs.  Returns true when a line was
+    // read; false on timeout/error.  Useful for VI setup commands such as
+    // af_bypass / predefined_obd2 before diagnostic traffic begins.
+    bool sendCommand(const std::string& command, std::string& response,
+                     int timeoutMs, std::string& err);
+
+    // Return a list of candidate USB/serial device paths for the OpenXC VI.
+    // The list is platform-specific:
+    //   • macOS: /dev/cu.usbmodem*, /dev/cu.usbserial*, /dev/tty.usbmodem*, ...
+    //   • Linux: /dev/ttyUSB*, /dev/ttyACM*
+    //   • Windows: COM1 .. COM256 (filtered to those that exist)
+    // Paths are sorted with common OpenXC/VI patterns first.
+    static std::vector<std::string> enumerateUsbSerialPorts();
+
 private:
-    // Resolve a MAC address or device path to the actual /dev/cu.* path.
+    // Resolve a user-supplied identifier to the actual serial device path.
+    // If the input already looks like a path or COM port it is returned as-is;
+    // otherwise it is treated as a Bluetooth MAC/name and resolved via
+    // BtDiscovery.
     static std::string resolvePath(const std::string& deviceOrMac,
                                    std::string& err);
 

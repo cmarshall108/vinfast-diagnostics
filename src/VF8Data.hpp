@@ -30,10 +30,10 @@ constexpr const char* kBluetoothMac = "04:C4:61:C3:69:D0";
 struct VF8Ecu {
     const char* code;            // short diagnostic name
     const char* name;            // human-readable description
-    uint16_t    placeholderAddr; // PLACEHOLDER DoIP logical address (configure!)
+    uint16_t    placeholderAddr; // PLACEHOLDER UDS logical address (configure!)
     const char* hwPart;          // HW part number from engineering ECUs menu ("" if n/a)
     const char* swPart;          // SW part number from engineering ECUs menu ("" if n/a)
-    uint16_t    altAddr = 0;     // alternative DoIP logical-address candidate to try if the
+    uint16_t    altAddr = 0;     // alternative UDS logical-address candidate to try if the
                                  // primary fails. Derived from the VinFast ECU-identifier byte
                                  // surfaced by the connected-car telemetry (object 34220, see
                                  // tahung9x/VF-DB). 0 = no alternative known.
@@ -91,10 +91,10 @@ std::string vf8DtcDescribe(const std::string& autelCode);
 
 // ---- Standard protocol identifiers usable on the VF8 -----------------------
 //
-// No VinFast-proprietary DoIP/UDS specification (private logical addresses,
+// No VinFast-proprietary UDS specification (private logical addresses,
 // SecurityAccess seed/key algorithm or manufacturer DIDs/routines) is publicly
 // documented - those live only in VinFast's dealer tooling. However the VF8 is
-// built on a STANDARD ISO 14229 (UDS) over ISO 13400 (DoIP-ENET) stack reached
+// built on a STANDARD ISO 14229 (UDS) over diagnostic stack reached
 // through the OBD port, so the ISO-standardized identification DID block and
 // the SAE J1979 / ISO 15031 legislated OBD-II services below are protocol-
 // guaranteed and therefore reliable on this vehicle.
@@ -121,14 +121,14 @@ struct ObdService {
 extern const std::vector<ObdService> kObdServices;
 
 // ISO 13400-2 reserved/standard logical-address ranges (for reference in the
-// UI). VinFast's actual node addresses are not public, but DoIP mandates these
+// UI). VinFast's actual node addresses are not public, but ISO 13400-2 mandates these
 // ranges, so they bound what a valid configured address can be.
-struct DoipAddrRange {
+struct UdsAddrRange {
     uint16_t    first;
     uint16_t    last;
     const char* meaning;
 };
 
-extern const std::vector<DoipAddrRange> kDoipAddrRanges;
+extern const std::vector<UdsAddrRange> kUdsAddrRanges;
 
 

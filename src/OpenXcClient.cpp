@@ -17,6 +17,13 @@ extern "C" {
 #include <unistd.h>
 #include <sys/select.h>
 
+#ifdef _WIN32
+  #include <windows.h>
+#else
+  #include <dirent.h>
+  #include <sys/stat.h>
+#endif
+
 namespace openxc {
 
 // ---------------------------------------------------------------------------
@@ -100,6 +107,95 @@ static bool jsonGetString(const std::string& json,
 }
 
 // ---------------------------------------------------------------------------
+// USB serial port enumeration
+// ---------------------------------------------------------------------------
+
+static bool looksLikeUsbSerialPath(const std::string& s) {
+    if (s.empty()) return false;
+#ifdef _WIN32
+    // COM3, COM12, \\.\COM3
+    if (s.compare(0, 4, "\\\\.\\") == 0) return true;
+    if (s.size() >= 4 && (s[0] == 'C' || s[0] == 'c') &&
+        (s[1] == 'O' || s[1] == 'o') && (s[2] == 'M' || s[2] == 'm')) {
+        for (size_t i = 3; i < s.size(); ++i)
+            if (!std::isdigit(static_cast<unsigned char>(s[i]))) return false;
+        return true;
+    }
+    return false;
+#else
+    if (s[0] != '/') return false;
+    static const char* patterns[] = {
+        "/dev/ttyUSB", "/dev/ttyACM",
+        "/dev/cu.usbmodem", "/dev/cu.usbserial",
+        "/dev/tty.usbmodem", "/dev/tty.usbserial",
+        "/dev/cu.OpenXC", "/dev/tty.OpenXC"
+    };
+    for (const char* p : patterns)
+        if (s.compare(0, std::strlen(p), p) == 0) return true;
+    return false;
+#endif
+}
+
+static bool pathExists(const std::string& path) {
+#ifdef _WIN32
+    const DWORD att = GetFileAttributesA(path.c_str());
+    return att != INVALID_FILE_ATTRIBUTES;
+#else
+    struct stat st{};
+    return ::stat(path.c_str(), &st) == 0;
+#endif
+}
+
+std::vector<std::string> Client::enumerateUsbSerialPorts() {
+    std::vector<std::string> out;
+
+#ifdef _WIN32
+    // QueryDosDevice lists all DOS devices; COM ports appear as "COMn".
+    char buf[65536];
+    DWORD len = QueryDosDeviceA(nullptr, buf, sizeof(buf));
+    if (len > 0) {
+        for (const char* p = buf; *p; p += std::strlen(p) + 1) {
+            std::string dev(p);
+            if (looksLikeUsbSerialPath(dev)) {
+                std::string full = "\\\\.\\" + dev;
+                if (pathExists(full)) out.push_back(full);
+            }
+        }
+    }
+#else
+    DIR* dir = ::opendir("/dev");
+    if (!dir) return out;
+    while (dirent* ent = ::readdir(dir)) {
+        std::string name = ent->d_name;
+        std::string path = "/dev/" + name;
+        if (looksLikeUsbSerialPath(path) && pathExists(path))
+            out.push_back(path);
+    }
+    ::closedir(dir);
+#endif
+
+    // Sort so OpenXC/VI-looking names and shorter paths come first.
+    std::sort(out.begin(), out.end(), [](const std::string& a,
+                                         const std::string& b) {
+        auto score = [](const std::string& s) -> int {
+            std::string low;
+            for (char c : s) low += static_cast<char>(std::tolower(c));
+            if (low.find("openxc") != std::string::npos) return 0;
+            if (low.find("usbmodem") != std::string::npos) return 1;
+            if (low.find("usbserial") != std::string::npos) return 2;
+            if (low.find("ttyacm") != std::string::npos) return 3;
+            if (low.find("ttyusb") != std::string::npos) return 4;
+            return 5;
+        };
+        const int sa = score(a), sb = score(b);
+        if (sa != sb) return sa < sb;
+        return a < b;
+    });
+
+    return out;
+}
+
+// ---------------------------------------------------------------------------
 // Client implementation
 // ---------------------------------------------------------------------------
 
@@ -115,11 +211,29 @@ void Client::disconnect() {
     connectedPath_.clear();
 }
 
-// Resolve a Bluetooth MAC, device name, or /dev/ path to the serial device
-// path using BtDiscovery (IOBluetooth on macOS).
+// Resolve a user-supplied identifier to the serial device path.
+// If it already looks like a serial path or COM port, use it directly;
+// otherwise treat it as a Bluetooth MAC/name and resolve via BtDiscovery.
 std::string Client::resolvePath(const std::string& deviceOrMac,
                                 std::string& err) {
-    return bt::resolveDevicePath(deviceOrMac, err);
+    std::string trimmed = deviceOrMac;
+    while (!trimmed.empty() && std::isspace(trimmed.back())) trimmed.pop_back();
+    while (!trimmed.empty() && std::isspace(trimmed.front())) trimmed.erase(0, 1);
+
+    if (trimmed.empty()) {
+        err = "No OpenXC device specified";
+        return "";
+    }
+
+    if (looksLikeUsbSerialPath(trimmed)) {
+        if (!pathExists(trimmed)) {
+            err = "Serial device does not exist: " + trimmed;
+            return "";
+        }
+        return trimmed;
+    }
+
+    return bt::resolveDevicePath(trimmed, err);
 }
 
 bool Client::connect(const std::string& deviceOrMac, std::string& err) {
@@ -311,6 +425,14 @@ bool Client::parseResponse(const std::string&    jsonLine,
 // ---------------------------------------------------------------------------
 // Public send/receive
 // ---------------------------------------------------------------------------
+
+bool Client::sendCommand(const std::string& command, std::string& response,
+                         int timeoutMs, std::string& err) {
+    if (fd_ < 0) { err = "OpenXC VI not connected"; return false; }
+    std::string json = command + "\n";
+    if (!writeAll(json.c_str(), json.size(), err)) return false;
+    return readLine(response, timeoutMs, err);
+}
 
 bool Client::sendDiagnostic(uint32_t                    arbId,
                              const std::vector<uint8_t>& udsReq,

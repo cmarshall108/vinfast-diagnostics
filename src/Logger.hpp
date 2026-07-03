@@ -1,6 +1,6 @@
 #pragma once
 //
-// Logger.hpp - Thread-safe in-memory logger used by the DoIP/UDS stack and GUI.
+// Logger.hpp - Thread-safe in-memory logger used by the OpenXC/UDS stack and GUI.
 //
 #include <string>
 #include <vector>

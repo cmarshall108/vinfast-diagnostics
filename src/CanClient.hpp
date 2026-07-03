@@ -3,8 +3,8 @@
 // CanClient.hpp - UDS-over-CAN (ISO 14229 on ISO 15765-2) transport backed by
 // Toyota's Mini-VCI, whose `mvci32.dll` is a SAE J2534 PassThru library.
 //
-// This is the CAN fallback used when the primary DoIP (Ethernet) transport is
-// unavailable. The public surface deliberately mirrors doip::Client so the UDS
+// This is the CAN fallback used when the primary OpenXC Bluetooth transport is
+// unavailable. The public surface deliberately mirrors openxc::Transport so the UDS
 // layer can use it as a drop-in backup transport:
 //
 //     bool sendDiagnostic(source, target, uds, response, timeoutMs, err, functional)
@@ -76,7 +76,7 @@ public:
     void setAddressing(uint32_t reqId, uint32_t respId, std::string& err);
 
     // Sends a complete UDS request and returns the assembled UDS response
-    // (ISO-TP handled by the MVCI). Mirrors doip::Client::sendDiagnostic so it
+    // (ISO-TP handled by the MVCI). Mirrors openxc::Transport::sendDiagnostic so it
     // can serve as a backup transport. `source`/`target` are accepted for
     // signature compatibility and logging; the CAN link addresses ECUs via the
     // configured request/response CAN IDs. `functional` relaxes the single
@@ -88,7 +88,7 @@ public:
 
     // Sends a single functional request and collects EVERY UDS response that
     // arrives within collectMs (de-duplicated per responder). Mirrors
-    // doip::Client::sendDiagnosticMulti so it can back up functional ECU
+    // openxc::Transport::sendDiagnosticMulti so it can back up functional ECU
     // enumeration over CAN.
     bool sendDiagnosticMulti(uint16_t source, uint16_t target,
                              const std::vector<uint8_t>& uds,
