@@ -541,3 +541,185 @@ const std::vector<UdsAddrRange> kUdsAddrRanges = {
 };
 
 
+// ===========================================================================
+// VF8 Info-CAN bus signal catalog
+// ===========================================================================
+
+// --- enum (value) tables ---------------------------------------------------
+static const VF8Enum kEnHVSys[]     = {{0,"Not ready"},{1,"HV On"},{2,"ReadyToDrive"},
+                                       {3,"Charging"},{4,"Error"},{0,nullptr}};
+static const VF8Enum kEnGear[]      = {{0,"P"},{1,"R"},{2,"N"},{3,"D"},{7,"Fault"},{0,nullptr}};
+static const VF8Enum kEnDriveMode[] = {{0,"Normal"},{1,"ECO"},{2,"Sport"},{7,"Invalid"},{0,nullptr}};
+static const VF8Enum kEnSocState[]  = {{0,"deviation >15%"},{1,"deviation <15%"},
+                                       {2,"deviation <10%"},{3,"invalid"},{0,nullptr}};
+static const VF8Enum kEnDoorAjar[]  = {{0,"Closed"},{1,"Opened"},{3,"invalid"},{0,nullptr}};
+static const VF8Enum kEnLock[]      = {{0,"Unlocked"},{1,"Locked"},{3,"invalid"},{0,nullptr}};
+static const VF8Enum kEnGun[]       = {{0,"disconnect"},{1,"connect"},{0,nullptr}};
+static const VF8Enum kEnHVIL[]      = {{0,"Closed"},{1,"Open/short to batt"},
+                                       {2,"short to ground"},{0,nullptr}};
+static const VF8Enum kEnHVOnOff[]   = {{0,"HV Off"},{1,"Precharge"},{2,"HV On"},
+                                       {3,"Fail to HV on"},{0,nullptr}};
+
+// --- message / signal catalog ----------------------------------------------
+// Fields: name, startBit, length, bigEndian, isSigned, scale, offset, unit, enum
+const std::vector<VF8CanMessage> kVF8InfoCanBus = {
+    {0x0D9, "VCU_HV_DrvSys_status", "XGW_Info", 8, {
+        {"VCU_HVsystem_status", 14, 3, true, false, 1,      0,   "",  kEnHVSys},
+        {"VCU_ACPD_Percent",    23, 12,true, false, 0.0625, 0,   "%", nullptr},
+        {"VCU_ACTGear",         34, 3, true, false, 1,      0,   "",  kEnGear},
+        {"VCU_ACT_DriveMode",   38, 3, true, false, 1,      0,   "",  kEnDriveMode},
+    }},
+    {0x104, "BAS_Measured_Data", "XGW_Info", 8, {
+        {"SOH_SUL",   23, 8, true, false, 1, 0, "%", nullptr},
+        {"SOC_STATE", 31, 2, true, false, 1, 0, "",  kEnSocState},
+    }},
+    {0x105, "BCM_STAT_DOOR_FLAP", "XGW_Info", 4, {
+        {"BCM_STAT_TrunkAjar",  17, 2, true, false, 1, 0, "", kEnDoorAjar},
+        {"BCM_STAT_DoorAjarFL",  19, 2, true, false, 1, 0, "", kEnDoorAjar},
+        {"BCM_STAT_DoorAjarFR",  21, 2, true, false, 1, 0, "", kEnDoorAjar},
+        {"BCM_STAT_DoorAjarRL",  23, 2, true, false, 1, 0, "", kEnDoorAjar},
+        {"BCM_STAT_DoorAjarRR",  25, 2, true, false, 1, 0, "", kEnDoorAjar},
+        {"BCM_STAT_BonnetAjar",  27, 2, true, false, 1, 0, "", kEnDoorAjar},
+    }},
+    {0x107, "BCM_STAT_CENTRAL_LOCK", "XGW_Info", 3, {
+        {"STAT_DoorLockFL", 23, 2, true, false, 1, 0, "", kEnLock},
+    }},
+    {0x10A, "BCM_VOLTAGE", "XGW_Info", 8, {
+        {"UBatt",           23, 14, true, false, 0.0009777, 3,     "V",   nullptr},
+        {"LV_Batt_Temp",    39, 8,  true, false, 1,         -40,   "degC",nullptr},
+        {"LV_SOC",          47, 8,  true, false, 1,         0,     "%",   nullptr},
+        {"LV_Batt_Current", 55, 16, true, false, 0.03125,   -1536, "A",   nullptr},
+    }},
+    {0x123, "VCU_ACCharging_Info", "XGW_Info", 8, {
+        {"ACCharging_MaxChargingPower", 23, 10, true, false, 0.1, 0, "kW", nullptr},
+        {"CurrentACChargingPower",      39, 16, true, false, 0.1, 0, "kW", nullptr},
+        {"ACCharging_MaxCurrent",       55, 16, true, false, 0.1, 0, "A",  nullptr},
+    }},
+    {0x124, "VCU_DCCharging_Info", "XGW_Info", 8, {
+        {"DCCharging_MaxChargingPower", 23, 10, true, false, 0.1, 0, "kW", nullptr},
+        {"CurrentDCChargingPower",      39, 16, true, false, 0.1, 0, "kW", nullptr},
+        {"DCCharging_MaxCurrent",       55, 16, true, false, 0.1, 0, "A",  nullptr},
+    }},
+    {0x165, "VCU_ChargingConnection", "XGW_Info", 8, {
+        {"VCU_AcChgGunIn",        12, 1, true, false, 1, 0, "",  kEnGun},
+        {"VCU_DCChgGunIn",        13, 1, true, false, 1, 0, "",  kEnGun},
+        {"VCU_ACChargingVoltage", 43, 8, true, false, 1, 0, "V", nullptr},
+    }},
+    {0x176, "BMS_HVMeas1", "XGW_Info", 8, {
+        {"BMS_HVPackVol_MEAS", 23, 16, true, false, 0.1, 0, "V", nullptr},
+        {"BMS_HVLinkVol_MEAS", 39, 16, true, false, 0.1, 0, "V", nullptr},
+    }},
+    {0x17E, "SAS_Sensor", "XGW_Info", 7, {
+        {"SAS_SteerWhlRotSpd",  21, 14, true, false, 0.125,  -1024, "deg/s", nullptr},
+        {"SAS_SteerWheelAngle", 47, 16, true, false, 0.0238, -780,  "deg",   nullptr},
+    }},
+    {0x214, "BMS_Sts_0x214", "XGW_Info", 8, {
+        {"BMS_Display_SOC", 21, 10, true, false, 0.1, 0, "%", nullptr},
+        {"BMS_MinCellSOC",  27, 10, true, false, 0.1, 0, "%", nullptr},
+        {"BMS_MaxCellSOC",  33, 10, true, false, 0.1, 0, "%", nullptr},
+    }},
+    {0x215, "BMS_Sts", "XGW_Info", 8, {
+        {"BMS_HVIL_STS",      17, 2,  true, false, 1,   0, "",  kEnHVIL},
+        {"BMS_HVOnOff_STS",   19, 2,  true, false, 1,   0, "",  kEnHVOnOff},
+        {"BMS_SocActual_EST", 25, 10, true, false, 0.1, 0, "%", nullptr},
+        {"BMS_SOH",           47, 8,  true, false, 0.5, 0, "%", nullptr},
+        {"BMS_SOE",           55, 8,  true, false, 0.5, 0, "%", nullptr},
+    }},
+    {0x216, "BMS_ChgParamReq", "XGW_Info", 8, {
+        {"BMS_RemainChargeTime", 21, 14, true, false, 1,   0, "min", nullptr},
+        {"BMS_ChgVoltage_REQ",   37, 14, true, false, 0.1, 0, "V",   nullptr},
+        {"BMS_ChgCurrent_REQ",   55, 16, true, false, 0.1, 0, "A",   nullptr},
+    }},
+    {0x230, "BMS_CapacityThrput", "XGW_Info", 8, {
+        {"BMS_Capacity_Thrput_Charge",    7,  32, true, true, 1, 0, "Ah", nullptr},
+        {"BMS_Capacity_Thrput_Discharge", 39, 32, true, true, 1, 0, "Ah", nullptr},
+    }},
+    {0x245, "BMS_CellTemp", "XGW_Info", 8, {
+        {"BMS_MinCellTemp",        31, 8, true, false, 1, -40, "degC", nullptr},
+        {"BMS_PackTemp",           47, 8, true, false, 1, -40, "degC", nullptr},
+        {"BMS_MaxCellTemp",        55, 8, true, false, 1, -40, "degC", nullptr},
+        {"BMS_MaxMinDiffCellTemp", 63, 8, true, false, 1, -40, "degC", nullptr},
+    }},
+    {0x254, "IDB_AVL_RPM_WHL_REAR", "XGW_Info", 8, {
+        {"AVL_RPM_WHL_RLH", 23, 16, true, false, 0.0156, -511.9844, "rad/s", nullptr},
+        {"AVL_RPM_WHL_RRH", 39, 16, true, false, 0.0156, -511.9844, "rad/s", nullptr},
+    }},
+    {0x255, "IDB_AVL_RPM_WHL_FRONT", "XGW_Info", 8, {
+        {"AVL_RPM_WHL_FLH", 23, 16, true, false, 0.0156, -511.9844, "rad/s", nullptr},
+        {"AVL_RPM_WHL_FRH", 39, 16, true, false, 0.0156, -511.9844, "rad/s", nullptr},
+    }},
+};
+
+// --- decoder ---------------------------------------------------------------
+namespace {
+
+// Extract a raw field per the Vector/DBC bit convention.
+uint64_t extractBits(const uint8_t* d, size_t len, const VF8CanSignal& s) {
+    uint64_t val = 0;
+    int bit = s.startBit;
+    for (int k = 0; k < s.length; ++k) {
+        int byte = bit >> 3;
+        int pos  = bit & 7;
+        if (byte < 0 || (size_t)byte >= len) return 0;   // out of range -> 0
+        uint64_t b = (d[byte] >> pos) & 1u;
+        if (s.bigEndian) {
+            // Motorola: MSB first, walk toward the LSB, jumping to the next
+            // byte's MSB when the low bit of a byte is reached.
+            val = (val << 1) | b;
+            bit = (pos == 0) ? (byte * 8 + 15) : (bit - 1);
+        } else {
+            // Intel: LSB first, walk upward.
+            val |= (b << k);
+            ++bit;
+        }
+    }
+    return val;
+}
+
+std::string formatVal(double v, const VF8CanSignal& s, long raw) {
+    if (s.values) {
+        for (const VF8Enum* e = s.values; e->text; ++e)
+            if (e->value == raw) return e->text;
+    }
+    char buf[64];
+    // Choose precision from the scale so integers stay clean.
+    if (s.scale == (double)(long)s.scale && s.offset == (double)(long)s.offset)
+        std::snprintf(buf, sizeof buf, "%ld", (long)v);
+    else
+        std::snprintf(buf, sizeof buf, "%.3f", v);
+    std::string out = buf;
+    if (s.unit && s.unit[0]) { out += ' '; out += s.unit; }
+    return out;
+}
+
+} // namespace
+
+const char* vf8CanMessageName(uint32_t canId) {
+    for (const auto& m : kVF8InfoCanBus)
+        if (m.canId == canId) return m.name;
+    return nullptr;
+}
+
+std::vector<VF8CanValue> vf8DecodeCanFrame(uint32_t canId,
+                                           const uint8_t* data, size_t len) {
+    std::vector<VF8CanValue> out;
+    if (!data || len == 0) return out;
+    for (const auto& m : kVF8InfoCanBus) {
+        if (m.canId != canId) continue;
+        for (const auto& s : m.sigs) {
+            // Skip signals whose payload isn't present in this (possibly short)
+            // frame.
+            int lastBit = s.bigEndian ? s.startBit : s.startBit + s.length - 1;
+            if ((size_t)(lastBit / 8) >= len && !s.bigEndian) continue;
+            uint64_t raw = extractBits(data, len, s);
+            long sraw = (long)raw;
+            if (s.isSigned && s.length < 64 && (raw & (1ull << (s.length - 1))))
+                sraw = (long)(raw | (~0ull << s.length));   // sign-extend
+            double eng = (double)sraw * s.scale + s.offset;
+            out.push_back({s.name, eng, formatVal(eng, s, sraw)});
+        }
+        break;
+    }
+    return out;
+}
+

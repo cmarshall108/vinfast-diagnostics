@@ -33,6 +33,23 @@
 #include <vector>
 #include <optional>
 
+// ISO 15765-4 legislated OBD-II (SAE J1979) diagnostic CAN identifiers for
+// 11-bit addressing. This is the addressing mandated for the emissions
+// diagnostic link and it matches the VF8's confirmed bus configuration -
+// classic CAN 2.0 @ 500 kbit/s on a single bus (from the TBOX firmware's
+// etc/init.d/init-can.sh: `ip link set can0 type can bitrate 500000`). A
+// generic scan tool uses these IDs for the legislated modes 0x01-0x0A.
+namespace obd {
+    // Functional broadcast request ID - reaches every emissions ECU at once.
+    constexpr uint16_t kFunctionalRequestId = 0x7DF;
+    // Physical request/response pair for the primary OBD ECU (ECU #1).
+    constexpr uint16_t kPhysicalRequestId   = 0x7E0;
+    constexpr uint16_t kPhysicalResponseId  = 0x7E8;
+    // Logical-address alias the transport maps to 0x7E0/0x7E8 under the default
+    // 0x700 base + 8 response-offset scheme (0x700 + 0xE0 = 0x7E0).
+    constexpr uint16_t kPhysicalEcuLogical  = 0x00E0;
+}
+
 struct Dtc {
     uint32_t    code   = 0;   // 3-byte DTC value
     uint8_t     status = 0;   // status-of-DTC byte
@@ -359,8 +376,14 @@ public:
     // SAE J1979 / ISO 15031 legislated OBD-II request (e.g. mode 0x09 PID 0x02
     // = VIN, mode 0x03 = stored DTCs). Returns the raw response payload AFTER
     // the positive-response service byte. Works on any emissions-compliant ECU.
+    // When `functional` is true the request is sent to the OBD functional
+    // broadcast (0x7DF) so it reaches the legislated OBD ECU even when its
+    // physical address is unknown; the transport maps `target` to 0x7DF in that
+    // case. When false, `target` is addressed physically (use
+    // obd::kPhysicalEcuLogical to reach the standard 0x7E0/0x7E8 OBD ECU).
     bool obdRequest(uint16_t target, const std::vector<uint8_t>& modePid,
-                    std::vector<uint8_t>& out, std::string& err);
+                    std::vector<uint8_t>& out, std::string& err,
+                    bool functional = false);
 
     // 0x2F InputOutputControlByIdentifier - the bidirectional "active test" /
     // actuator-control service. `option` selects the control behaviour;
@@ -466,9 +489,10 @@ private:
 
     // Lower-level send that does NOT treat a negative response as a hard error.
     // Returns 1 positive, 0 negative (nrc set), -1 transport/no response.
+    // `functional` sends to `target` as a functional broadcast address.
     int rawRequest(uint16_t target, const std::vector<uint8_t>& req,
                    std::vector<uint8_t>& resp, uint8_t& nrc, std::string& err,
-                   int timeoutMs = 5000);
+                   int timeoutMs = 5000, bool functional = false);
 
     openxc::Transport& transport_;
     uint16_t           tester_;

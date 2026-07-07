@@ -141,4 +141,56 @@ struct UdsAddrRange {
 
 extern const std::vector<UdsAddrRange> kUdsAddrRanges;
 
+// ---- VinFast VF8 Info-CAN bus signal reference -----------------------------
+//
+// Curated from the factory CAN matrix logs (VF8)
+// Information bus, 500 kbit/s classic CAN). Only the high-value telemetry that
+// the XGW_Info gateway forwards for the head-unit is transcribed here - HV
+// battery / BMS, drive system, charging, 12 V (LV) battery, doors, wheel speed
+// and steering. These are broadcast frames a passive listener on the Info CAN bus can decode directly (no request needed).
+// Bit positions follow the Vector/DBC convention: for a big-endian (Motorola)
+// signal `startBit` is the MSB position in the sawtooth bit numbering.
+
+struct VF8Enum { long value; const char* text; };  // table ends at {_, nullptr}
+
+struct VF8CanSignal {
+    const char*     name;
+    uint16_t        startBit;   // DBC start bit
+    uint8_t         length;     // width in bits
+    bool            bigEndian;  // true = Motorola (@0), false = Intel (@1)
+    bool            isSigned;
+    double          scale;      // engineering = raw*scale + offset
+    double          offset;
+    const char*     unit;       // "" when none
+    const VF8Enum*  values;     // enum text table, or nullptr
+};
+
+struct VF8CanMessage {
+    uint32_t                  canId;   // 11-bit arbitration id
+    const char*               name;
+    const char*               tx;      // transmitting node (DBC sender)
+    uint8_t                   dlc;
+    std::vector<VF8CanSignal> sigs;
+};
+
+// The curated Info-bus message/signal catalog.
+extern const std::vector<VF8CanMessage> kVF8InfoCanBus;
+
+// One decoded signal from a frame.
+struct VF8CanValue {
+    const char* signal;
+    double      value;     // scaled engineering value
+    std::string display;   // formatted value+unit, or enum text
+};
+
+// Returns the message name for a CAN arbitration id, or nullptr if not in the
+// curated catalog.
+const char* vf8CanMessageName(uint32_t canId);
+
+// Decodes every known signal in `data` (length `len`, 1-8 bytes) for the given
+// CAN id. Returns an empty vector when the id is unknown or the payload is too
+// short for any signal.
+std::vector<VF8CanValue> vf8DecodeCanFrame(uint32_t canId,
+                                           const uint8_t* data, size_t len);
+
 

@@ -2094,14 +2094,27 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
     connect(obdBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
-        startWorker([this, tgt] {
+        startWorker([this] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("OBD-II VIN: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             // SAE J1979 mode 0x09 PID 0x02 = VIN. Positive reply: 0x49 0x02 ...
+            // ISO 15765-4 legislated addressing: try the functional broadcast
+            // (0x7DF) first so it reaches the OBD ECU without knowing its
+            // address, then fall back to the physical OBD ECU (0x7E0/0x7E8).
             std::vector<uint8_t> resp;
-            if (uds.obdRequest(tgt, {0x09, 0x02}, resp, err) && resp.size() > 2) {
+            bool ok = uds.obdRequest(obd::kFunctionalRequestId, {0x09, 0x02}, resp, err,
+                                     /*functional=*/true);
+            if (!ok || resp.size() <= 2) {
+                std::string physErr;
+                if (uds.obdRequest(obd::kPhysicalEcuLogical, {0x09, 0x02}, resp, physErr,
+                                   /*functional=*/false) && resp.size() > 2) {
+                    ok = true;
+                } else if (!ok) {
+                    err += "; physical 0x7E0: " + physErr;
+                }
+            }
+            if (ok && resp.size() > 2) {
                 std::string vin;
                 for (size_t i = 2; i < resp.size(); ++i)
                     if (resp[i] >= 0x20 && resp[i] < 0x7F) vin += (char)resp[i];
@@ -3492,6 +3505,33 @@ QWidget* Gui::buildReferencePage() {
         it->setText(0, QString("0x%1-0x%2")
             .arg(r.first, 4, 16, QChar('0')).arg(r.last, 4, 16, QChar('0')).toUpper());
         it->setText(2, r.meaning);
+    }
+
+    // ---- VF8 Info-CAN broadcast signals (from the factory CAN matrix) -------
+    int sigCount = 0;
+    for (const auto& m : kVF8InfoCanBus) sigCount += (int)m.sigs.size();
+    auto* canTop = new QTreeWidgetItem(refTree_);
+    canTop->setText(0, "VF8 Info-CAN broadcast signals (500k)");
+    canTop->setText(1, QString("%1 msg / %2 sig").arg((int)kVF8InfoCanBus.size()).arg(sigCount));
+    canTop->setText(2, "Passively decodable telemetry the XGW gateway forwards "
+                       "onto the Information CAN bus (no request needed).");
+    for (const auto& m : kVF8InfoCanBus) {
+        auto* mt = new QTreeWidgetItem(canTop);
+        mt->setText(0, QString("0x%1  %2").arg(m.canId, 3, 16, QChar('0')).toUpper()
+                                          .arg(m.name));
+        mt->setText(1, QString::fromStdString(m.tx));
+        mt->setText(2, QString("%1 signal(s), %2-byte").arg(m.sigs.size()).arg(m.dlc));
+        for (const auto& s : m.sigs) {
+            auto* it = new QTreeWidgetItem(mt);
+            it->setText(0, QString::fromStdString(s.name));
+            it->setText(1, QString::fromStdString(s.unit && s.unit[0] ? s.unit
+                                                  : (s.values ? "enum" : "-")));
+            it->setText(2, QString("bit %1, %2b%3, x%4%5%6")
+                .arg(s.startBit).arg(s.length)
+                .arg(s.bigEndian ? " BE" : " LE")
+                .arg(s.scale)
+                .arg(s.offset >= 0 ? "+" : "").arg(s.offset));
+        }
     }
 
     lay->addWidget(refTree_, 1);

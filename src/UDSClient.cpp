@@ -433,13 +433,13 @@ static bool nrcMeansExists(uint8_t nrc) {
 
 int UDSClient::rawRequest(uint16_t target, const std::vector<uint8_t>& req,
                           std::vector<uint8_t>& resp, uint8_t& nrc,
-                          std::string& err, int timeoutMs) {
+                          std::string& err, int timeoutMs, bool functional) {
     nrc = 0;
     uint8_t sid = req.empty() ? 0x00 : req[0];
     Logger::instance().log(LogLevel::Tx,
         "UDS -> 0x" + addr16(target) + "  " + udsServiceName(sid) +
         " req[" + std::to_string(req.size()) + "]: " + toHex(req.data(), req.size()));
-    if (!transport_.sendDiagnostic(tester_, target, req, resp, timeoutMs, err))
+    if (!transport_.sendDiagnostic(tester_, target, req, resp, timeoutMs, err, functional))
         return -1;
     if (resp.empty()) { err = "Empty UDS response"; return -1; }
     if (resp[0] == 0x7F) {
@@ -767,18 +767,19 @@ bool UDSClient::readDTCFaultDetectionCounter(uint16_t target,
 }
 
 bool UDSClient::obdRequest(uint16_t target, const std::vector<uint8_t>& modePid,
-                           std::vector<uint8_t>& out, std::string& err) {
+                           std::vector<uint8_t>& out, std::string& err,
+                           bool functional) {
     uint8_t nrc = 0;
     std::vector<uint8_t> resp;
-    int r = rawRequest(target, modePid, resp, nrc, err);
+    int r = rawRequest(target, modePid, resp, nrc, err, 5000, functional);
     if (r < 0) return false;
     if (r == 0) { err = "OBD negative response (NRC 0x" + byteHex(nrc) + ")"; return false; }
     // Positive OBD reply echoes (mode + 0x40); strip it (and the echoed PID is
     // left in place for the caller to interpret).
     out.assign(resp.begin() + 1, resp.end());
     Logger::instance().log(LogLevel::Info,
-        "OBD-II 0x" + addr16(target) + " mode 0x" +
-        byteHex(modePid.empty() ? 0 : modePid[0]) + ": " +
+        "OBD-II " + std::string(functional ? "functional 0x7DF" : "0x" + addr16(target)) +
+        " mode 0x" + byteHex(modePid.empty() ? 0 : modePid[0]) + ": " +
         std::to_string(out.size()) + " byte(s)");
     return true;
 }

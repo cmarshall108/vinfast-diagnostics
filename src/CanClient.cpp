@@ -9,6 +9,7 @@
 //
 #include "CanClient.hpp"
 #include "Logger.hpp"
+#include "VF8Data.hpp"
 
 #include <cstring>
 
@@ -19,6 +20,7 @@
 #include <windows.h>
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <thread>
 #endif
 
@@ -491,6 +493,12 @@ bool Client::scanObdProtocols(const std::string& dllPath,
     const std::vector<unsigned char> hdrVpw  = {0x68, 0x6A, 0xF1}; // J1850 VPW functional
     const std::vector<unsigned char> hdrPwm  = {0x61, 0x6A, 0xF1}; // J1850 PWM functional
 
+    // Order matters: the first candidate is tried first. The VF8 TBOX firmware
+    // (etc/init.d/init-can.sh) brings up a single classic-CAN bus at
+    // 500 kbit/s ("ip link set can0 type can bitrate 500000", no FD, no
+    // listen-only), so ISO 15765-4 CAN 500k 11-bit is the correct primary
+    // protocol and is probed first; the remaining rows are fallbacks for other
+    // wiring / legacy vehicles.
     std::vector<Cand> cands = {
         {"ISO 15765-4 CAN 500k 11-bit", J_ISO15765, 500000, 0,             false, 0x7DF,       false, {}},
         {"ISO 15765-4 CAN 500k 29-bit", J_ISO15765, 500000, J_CAN_29BIT_ID,false, 0x18DB33F1u, true,  {}},
@@ -572,10 +580,16 @@ bool Client::scanObdProtocols(const std::string& dllPath,
         }
 
         if (c.sniffOnly) {
-            // Passive discovery: listen ~800 ms for ANY genuine bus frame. A
-            // modern EV constantly broadcasts on CAN, so this alone confirms
-            // both that the bus is CAN and at what bit rate.
-            auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(800);
+            // Passive discovery: listen for genuine bus frames. A modern EV
+            // constantly broadcasts on CAN, so this alone confirms both that
+            // the bus is CAN and at what bit rate. While listening we also try
+            // to decode any frame that matches the curated VF8 Info-CAN catalog
+            // and surface the named signal values.
+            auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1200);
+            std::string firstFrame;
+            std::vector<std::string> decoded;
+            unsigned long seenIds[8] = {0};
+            int seenCount = 0;
             while (std::chrono::steady_clock::now() < deadline) {
                 if (cancel.load()) break;
                 PASSTHRU_MSG rx{}; unsigned long got = 1;
@@ -584,11 +598,38 @@ bool Client::scanObdProtocols(const std::string& dllPath,
                 if (rx.RxStatus & J_TX_MSG_TYPE) continue;     // ignore our own echo
                 if (rx.DataSize == 0) continue;
                 out.responded = true;
-                unsigned long n = std::min<unsigned long>(rx.DataSize, 12);
-                out.detail = "live frame: " + toHex(rx.Data, n);
-                break;
+                if (firstFrame.empty()) {
+                    unsigned long n = std::min<unsigned long>(rx.DataSize, 12);
+                    firstFrame = toHex(rx.Data, n);
+                }
+                // Raw CAN frames carry a 4-byte big-endian arbitration id prefix.
+                if (rx.DataSize > 4 && (int)decoded.size() < 6) {
+                    uint32_t id = ((uint32_t)rx.Data[0] << 24) | ((uint32_t)rx.Data[1] << 16) |
+                                  ((uint32_t)rx.Data[2] << 8)  |  (uint32_t)rx.Data[3];
+                    const char* mn = vf8CanMessageName(id);
+                    bool dup = false;
+                    for (int k = 0; k < seenCount; ++k) if (seenIds[k] == id) dup = true;
+                    if (mn && !dup) {
+                        if (seenCount < 8) seenIds[seenCount++] = id;
+                        char idbuf[8];
+                        std::snprintf(idbuf, sizeof idbuf, "0x%03X", id & 0x7FF);
+                        std::string line = std::string(idbuf) + " " + mn + ":";
+                        auto vals = vf8DecodeCanFrame(id, rx.Data + 4, rx.DataSize - 4);
+                        for (const auto& v : vals)
+                            line += " " + std::string(v.signal) + "=" + v.display + ";";
+                        decoded.push_back(line);
+                    }
+                }
+                // Keep listening a little to catch known frames, but stop early
+                // once we've decoded a useful handful.
+                if ((int)decoded.size() >= 6) break;
             }
-            if (!out.responded) out.detail = "no bus activity";
+            if (!out.responded) {
+                out.detail = "no bus activity";
+            } else {
+                out.detail = "live frame: " + firstFrame;
+                for (const auto& line : decoded) out.detail += "\n    " + line;
+            }
         } else {
             // Active discovery: ask for OBD-II Mode 01 PID 00 (supported PIDs)
             // and watch for any reply.
