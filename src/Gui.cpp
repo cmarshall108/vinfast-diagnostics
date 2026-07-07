@@ -180,177 +180,226 @@ static std::string decodeVinModelYear(const std::string& vin) {
 }
 
 // ==========================================================================
-// Engineering-menu TOTP candidate generation
+// Engineering-menu TOTP generation
 //
-// The VF8 engineering menu shows a 6-digit seed and uses a 30s time window.
-// The real algorithm is not published, so we generate the most plausible
-// 6-digit codes for a given (seed, time-step): the standard RFC 6238 TOTP
-// (HMAC-SHA1, the canonical "TOTP" definition) under a few seed encodings,
-// plus common ad-hoc arithmetic schemes. Self-contained SHA-1/HMAC so the GUI
-// does not depend on CloudClient's internal (SHA-256-only) crypto.
+// Reconstructed telematics behavior:
+// - RFC 6238 / HOTP dynamic truncation (HMAC-SHA1)
+// - 6 digits
+// - 30-second period
+// - secret treated as Base32 if it matches Base32 alphabet, else raw ASCII
 // ==========================================================================
 namespace {
 
-struct Sha1Ctx { uint32_t h[5]; };
-static uint32_t rol32(uint32_t v, int b) { return (v << b) | (v >> (32 - b)); }
-
-static void sha1Block(Sha1Ctx& s, const uint8_t* p) {
-    uint32_t w[80];
-    for (int i = 0; i < 16; ++i)
-        w[i] = ((uint32_t)p[i*4] << 24) | ((uint32_t)p[i*4+1] << 16) |
-               ((uint32_t)p[i*4+2] << 8) | (uint32_t)p[i*4+3];
-    for (int i = 16; i < 80; ++i)
-        w[i] = rol32(w[i-3] ^ w[i-8] ^ w[i-14] ^ w[i-16], 1);
-    uint32_t a = s.h[0], b = s.h[1], c = s.h[2], d = s.h[3], e = s.h[4];
-    for (int i = 0; i < 80; ++i) {
-        uint32_t f, k;
-        if (i < 20)      { f = (b & c) | ((~b) & d);          k = 0x5A827999; }
-        else if (i < 40) { f = b ^ c ^ d;                     k = 0x6ED9EBA1; }
-        else if (i < 60) { f = (b & c) | (b & d) | (c & d);   k = 0x8F1BBCDC; }
-        else             { f = b ^ c ^ d;                     k = 0xCA62C1D6; }
-        uint32_t t = rol32(a, 5) + f + e + k + w[i];
-        e = d; d = c; c = rol32(b, 30); b = a; a = t;
-    }
-    s.h[0] += a; s.h[1] += b; s.h[2] += c; s.h[3] += d; s.h[4] += e;
+static uint32_t rotL(uint32_t v, int bits) {
+    return (v << bits) | (v >> (32 - bits));
 }
 
-static std::string sha1Raw(const std::string& msg) {
-    Sha1Ctx s = {{0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0}};
-    size_t len = msg.size(), full = len / 64;
-    for (size_t i = 0; i < full; ++i)
-        sha1Block(s, (const uint8_t*)msg.data() + i * 64);
-    uint8_t block[64] = {0};
-    size_t rem = len - full * 64;
-    std::memcpy(block, msg.data() + full * 64, rem);
-    block[rem] = 0x80;
-    if (rem >= 56) { sha1Block(s, block); std::memset(block, 0, 64); }
-    uint64_t bits = (uint64_t)len * 8;
-    for (int i = 0; i < 8; ++i) block[63 - i] = (uint8_t)(bits >> (i * 8));
-    sha1Block(s, block);
-    std::string out(20, '\0');
+static std::array<uint8_t, 20> sha1(const std::vector<uint8_t>& data) {
+    uint64_t bitLen = static_cast<uint64_t>(data.size()) * 8ULL;
+    std::vector<uint8_t> msg = data;
+    msg.push_back(0x80);
+    while ((msg.size() % 64) != 56) {
+        msg.push_back(0x00);
+    }
+    for (int i = 7; i >= 0; --i) {
+        msg.push_back(static_cast<uint8_t>((bitLen >> (i * 8)) & 0xFF));
+    }
+
+    uint32_t h0 = 0x67452301;
+    uint32_t h1 = 0xEFCDAB89;
+    uint32_t h2 = 0x98BADCFE;
+    uint32_t h3 = 0x10325476;
+    uint32_t h4 = 0xC3D2E1F0;
+
+    for (size_t chunk = 0; chunk < msg.size(); chunk += 64) {
+        uint32_t w[80] = {0};
+        for (int i = 0; i < 16; ++i) {
+            const size_t j = chunk + static_cast<size_t>(i) * 4;
+            w[i] = (static_cast<uint32_t>(msg[j]) << 24) |
+                   (static_cast<uint32_t>(msg[j + 1]) << 16) |
+                   (static_cast<uint32_t>(msg[j + 2]) << 8) |
+                   static_cast<uint32_t>(msg[j + 3]);
+        }
+        for (int i = 16; i < 80; ++i) {
+            w[i] = rotL(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
+        }
+
+        uint32_t a = h0;
+        uint32_t b = h1;
+        uint32_t c = h2;
+        uint32_t d = h3;
+        uint32_t e = h4;
+
+        for (int i = 0; i < 80; ++i) {
+            uint32_t f = 0;
+            uint32_t k = 0;
+            if (i < 20) {
+                f = (b & c) | ((~b) & d);
+                k = 0x5A827999;
+            } else if (i < 40) {
+                f = b ^ c ^ d;
+                k = 0x6ED9EBA1;
+            } else if (i < 60) {
+                f = (b & c) | (b & d) | (c & d);
+                k = 0x8F1BBCDC;
+            } else {
+                f = b ^ c ^ d;
+                k = 0xCA62C1D6;
+            }
+            const uint32_t temp = rotL(a, 5) + f + e + k + w[i];
+            e = d;
+            d = c;
+            c = rotL(b, 30);
+            b = a;
+            a = temp;
+        }
+
+        h0 += a;
+        h1 += b;
+        h2 += c;
+        h3 += d;
+        h4 += e;
+    }
+
+    std::array<uint8_t, 20> out{};
+    const uint32_t h[5] = {h0, h1, h2, h3, h4};
     for (int i = 0; i < 5; ++i) {
-        out[i*4]   = (char)(s.h[i] >> 24); out[i*4+1] = (char)(s.h[i] >> 16);
-        out[i*4+2] = (char)(s.h[i] >> 8);  out[i*4+3] = (char)(s.h[i]);
+        out[i * 4] = static_cast<uint8_t>((h[i] >> 24) & 0xFF);
+        out[i * 4 + 1] = static_cast<uint8_t>((h[i] >> 16) & 0xFF);
+        out[i * 4 + 2] = static_cast<uint8_t>((h[i] >> 8) & 0xFF);
+        out[i * 4 + 3] = static_cast<uint8_t>(h[i] & 0xFF);
     }
     return out;
 }
 
-static std::string hmacSha1Raw(const std::string& keyIn, const std::string& msg) {
-    std::string k = keyIn;
-    if (k.size() > 64) k = sha1Raw(k);
-    k.resize(64, '\0');
-    std::string ipad(64, '\0'), opad(64, '\0');
-    for (int i = 0; i < 64; ++i) { ipad[i] = k[i] ^ 0x36; opad[i] = k[i] ^ 0x5c; }
-    return sha1Raw(opad + sha1Raw(ipad + msg));
+static std::vector<uint8_t> hmacSha1(const std::vector<uint8_t>& key,
+                                     const std::vector<uint8_t>& msg) {
+    constexpr size_t kBlock = 64;
+    std::vector<uint8_t> k = key;
+    if (k.size() > kBlock) {
+        const auto digest = sha1(k);
+        k.assign(digest.begin(), digest.end());
+    }
+    k.resize(kBlock, 0x00);
+
+    std::vector<uint8_t> ipad(kBlock), opad(kBlock);
+    for (size_t i = 0; i < kBlock; ++i) {
+        ipad[i] = static_cast<uint8_t>(k[i] ^ 0x36);
+        opad[i] = static_cast<uint8_t>(k[i] ^ 0x5C);
+    }
+
+    std::vector<uint8_t> inner = ipad;
+    inner.insert(inner.end(), msg.begin(), msg.end());
+    const auto innerHash = sha1(inner);
+
+    std::vector<uint8_t> outer = opad;
+    outer.insert(outer.end(), innerHash.begin(), innerHash.end());
+    const auto outerHash = sha1(outer);
+
+    return std::vector<uint8_t>(outerHash.begin(), outerHash.end());
 }
 
-// RFC 4226 / 6238 dynamic truncation to `digits` decimal digits.
-static QString hotp(const std::string& keyRaw, uint64_t counter, int digits) {
-    uint8_t msg[8];
-    for (int i = 0; i < 8; ++i) msg[7 - i] = (uint8_t)(counter >> (i * 8));
-    std::string hs = hmacSha1Raw(keyRaw, std::string((const char*)msg, 8));
-    int off = hs[19] & 0x0f;
-    uint32_t bin = (((uint32_t)(hs[off] & 0x7f)) << 24) |
-                   ((uint32_t)(uint8_t)hs[off+1] << 16) |
-                   ((uint32_t)(uint8_t)hs[off+2] << 8)  |
-                   ((uint32_t)(uint8_t)hs[off+3]);
-    uint32_t mod = 1; for (int i = 0; i < digits; ++i) mod *= 10;
-    char buf[16]; std::snprintf(buf, sizeof buf, "%0*u", digits, bin % mod);
-    return buf;
+static bool isLikelyBase32(const std::string& s) {
+    if (s.empty()) return false;
+    for (char ch : s) {
+        char c = (char)std::toupper((unsigned char)ch);
+        if (!((c >= 'A' && c <= 'Z') || (c >= '2' && c <= '7') || c == '='))
+            return false;
+    }
+    return true;
 }
 
-static QString to6(uint64_t v) {
-    char buf[8];
-    std::snprintf(buf, sizeof buf, "%06llu", (unsigned long long)(v % 1000000ULL));
-    return buf;
-}
-
-// All candidate (method, 6-digit code) pairs for one 30s time-step.
-// dtTs is the adjusted (region-offset) unix time for this step, used to build
-// the broken-down UTC datetime values the engineering menu actually keys off.
-static std::vector<std::pair<QString, QString>>
-totpCandidates(uint64_t seed, const QString& seedStr, uint64_t step, long long dtTs) {
-    std::vector<std::pair<QString, QString>> out;
-
-    // RFC 6238 standard TOTP (HMAC-SHA1) - the canonical, most-likely method.
-    // Try the plausible encodings of the 6-digit seed as the shared secret.
-    auto beBytes = [](uint64_t v, int n) {
-        std::string s((size_t)n, '\0');
-        for (int i = 0; i < n; ++i) s[n - 1 - i] = (char)(v >> (i * 8));
-        return s;
-    };
-    out.push_back({"RFC6238 TOTP (seed ASCII)",  hotp(seedStr.toStdString(), step, 6)});
-    out.push_back({"RFC6238 TOTP (seed u32 BE)", hotp(beBytes(seed, 4), step, 6)});
-    out.push_back({"RFC6238 TOTP (seed u64 BE)", hotp(beBytes(seed, 8), step, 6)});
-
-    // Ad-hoc arithmetic schemes against the 30s step (speculative but cheap).
-    uint64_t key = seed;
-    struct M { QString name; uint64_t val; };
-    const std::vector<M> arith = {
-        {"key + step",                        key + step},
-        {"key * step",                        key * step},
-        {"key ^ step",                        key ^ step},
-        {"(key*step) ^ (key+step)",           (key * step) ^ (key + step)},
-        {"key*step + step",                   key * step + step},
-        {"(key+step)*1234567 % 999999",       (key + step) * 1234567ULL % 999999ULL},
-        {"key*1234567 % 999999",              key * 1234567ULL % 999999ULL},
-        {"key*31 + step",                     key * 31 + step},
-        {"step*131 + key",                    step * 131 + key},
-        {"(key<<5) ^ step",                   (key << 5) ^ step},
-        {"step ^ (key*17)",                   step ^ (key * 17)},
-        {"(key ^ 0xAAAAAAAA) + step",         (key ^ 0xAAAAAAAAULL) + step},
-        {"key*step % 999983",                 key * step % 999983ULL},
-        {"(key + step*step) % 1000000",       (key + step * step) % 1000000ULL},
-        {"key*6364136223846793005 ^ step",    (key * 6364136223846793005ULL) ^ step},
-    };
-    for (const auto& m : arith) out.push_back({m.name, to6(m.val)});
-
-    // Datetime-based schemes: the engineering menu keys off a UTC datetime
-    // value (broken-down calendar fields), not the raw 30s counter.
-    std::time_t tt = (std::time_t)dtTs;
-    std::tm g{};
-#ifdef _WIN32
-    gmtime_s(&g, &tt);
-#else
-    gmtime_r(&tt, &g);
-#endif
-    uint64_t Y  = (uint64_t)(g.tm_year + 1900);
-    uint64_t Mo = (uint64_t)(g.tm_mon + 1);
-    uint64_t D  = (uint64_t)g.tm_mday;
-    uint64_t H  = (uint64_t)g.tm_hour;
-    uint64_t Mi = (uint64_t)g.tm_min;
-    uint64_t S  = (uint64_t)g.tm_sec;
-
-    uint64_t ymdhms = ((((Y * 100 + Mo) * 100 + D) * 100 + H) * 100 + Mi) * 100 + S; // YYYYMMDDHHMMSS
-    uint64_t ymdhm  = (((Y * 100 + Mo) * 100 + D) * 100 + H) * 100 + Mi;             // YYYYMMDDHHMM
-    uint64_t ymdh   = ((Y * 100 + Mo) * 100 + D) * 100 + H;                          // YYYYMMDDHH
-    uint64_t ymd    = (Y * 100 + Mo) * 100 + D;                                      // YYYYMMDD
-    uint64_t hms    = (H * 100 + Mi) * 100 + S;                                      // HHMMSS
-    uint64_t hm     = H * 100 + Mi;                                                  // HHMM
-
-    const std::vector<M> dt = {
-        {"YYYYMMDDHHMM (raw)",                ymdhm},
-        {"key + YYYYMMDDHHMM",                key + ymdhm},
-        {"key * YYYYMMDDHHMM % 1000000",      key * ymdhm % 1000000ULL},
-        {"key ^ YYYYMMDDHHMM",                key ^ ymdhm},
-        {"(key + YYYYMMDDHHMM) % 1000000",    (key + ymdhm) % 1000000ULL},
-        {"key + YYYYMMDDHH",                  key + ymdh},
-        {"key ^ YYYYMMDDHH",                  key ^ ymdh},
-        {"key + YYYYMMDDHHMMSS",              key + ymdhms},
-        {"key ^ YYYYMMDDHHMMSS",              key ^ ymdhms},
-        {"key + YYYYMMDD",                    key + ymd},
-        {"(key * YYYYMMDD) % 999999",         key * ymd % 999999ULL},
-        {"key + HHMMSS",                      key + hms},
-        {"key + HHMM",                        key + hm},
-        {"key ^ HHMM",                        key ^ hm},
-        {"(key + HHMM) * 1234567 % 999999",   (key + hm) * 1234567ULL % 999999ULL},
-    };
-    for (const auto& m : dt) out.push_back({m.name, to6(m.val)});
-
-    // RFC 6238 with the datetime value used as the moving counter.
-    out.push_back({"RFC6238(YYYYMMDDHHMM ctr, ASCII)", hotp(seedStr.toStdString(), ymdhm, 6)});
-    out.push_back({"RFC6238(YYYYMMDDHH ctr, ASCII)",   hotp(seedStr.toStdString(), ymdh,  6)});
+static std::vector<uint8_t> decodeBase32(const std::string& s) {
+    std::vector<uint8_t> out;
+    int buffer = 0;
+    int bitsLeft = 0;
+    for (char ch : s) {
+        char c = (char)std::toupper((unsigned char)ch);
+        if (c == '=') break;
+        int val = -1;
+        if (c >= 'A' && c <= 'Z') val = c - 'A';
+        else if (c >= '2' && c <= '7') val = c - '2' + 26;
+        else continue;
+        buffer = (buffer << 5) | val;
+        bitsLeft += 5;
+        if (bitsLeft >= 8) {
+            bitsLeft -= 8;
+            out.push_back(static_cast<uint8_t>((buffer >> bitsLeft) & 0xFF));
+        }
+    }
     return out;
+}
+
+static std::vector<uint8_t> secretToBytes(const QString& secret) {
+    const std::string s = secret.toStdString();
+    if (isLikelyBase32(s)) return decodeBase32(s);
+    return std::vector<uint8_t>(s.begin(), s.end());
+}
+
+static QString totpGetOtp(long long unixTime,
+                          const QString& secret,
+                          int digits = 6,
+                          int period = 30) {
+    if (secret.isEmpty() || digits <= 0 || period <= 0) {
+        return {};
+    }
+
+    const uint64_t counter = static_cast<uint64_t>(unixTime / period);
+    std::vector<uint8_t> msg(8, 0x00);
+    for (int i = 7; i >= 0; --i) {
+        msg[static_cast<size_t>(7 - i)] = static_cast<uint8_t>((counter >> (i * 8)) & 0xFF);
+    }
+
+    const auto key = secretToBytes(secret);
+    const auto hmac = hmacSha1(key, msg);
+    if (hmac.size() < 20) {
+        return {};
+    }
+
+    const int offset = hmac[19] & 0x0F;
+    const uint32_t binCode = ((static_cast<uint32_t>(hmac[offset]) & 0x7F) << 24) |
+                             ((static_cast<uint32_t>(hmac[offset + 1]) & 0xFF) << 16) |
+                             ((static_cast<uint32_t>(hmac[offset + 2]) & 0xFF) << 8) |
+                             (static_cast<uint32_t>(hmac[offset + 3]) & 0xFF);
+
+    uint32_t mod = 1;
+    for (int i = 0; i < digits; ++i) {
+        mod *= 10U;
+    }
+    const uint32_t otp = binCode % mod;
+
+    char buf[16];
+    std::snprintf(buf, sizeof buf, "%0*u", digits, otp);
+    return QString::fromLatin1(buf);
+}
+
+// ==========================================================================
+// VinFast SecurityAccess (UDS 0x27) seed -> key derivation.
+//
+// Recovered from the TBOX binary `vf_crypto_service` (ELF32 ARM, not stripped).
+// Relevant symbols / log strings:
+//   Vfx::CryptoMgr::seed2Key_(seed, key)                 -> seed->key entry
+//   Vfx::CryptoMgr::TpmService::GenHmacSha1(ecuId, key, keyLv, seed, out&)
+//   log: "GenHmacSha1 is successful. EcuId: %d, KeyLv: %d"
+//   Vfx::CryptoMgr::EcuKeyData(ecuId, k0, k1, k2, k3)    -> per-ECU key set
+//   log: "Valid ecu id: %d key level: %d" / "Access invalid level of ecu key"
+//
+// i.e.  key = HMAC-SHA1( ecuKey[ecuId][level], seed )  truncated to the seed
+// length (the ECU issues an N-byte seed and expects an N-byte key back).
+//
+// `ecuKey` is the per-ECU / per-level secret held in the TBOX TPM's encrypted
+// ECU keyset (symbols ProvisioningEcuKeySet / DecryptwtEcuKey). It is NOT in
+// cleartext in the firmware dump - it must be supplied by the user (extracted
+// from their own vehicle's provisioning data). Without the correct key the
+// computed value is rejected by the ECU with NRC 0x35 (invalidKey).
+static std::vector<uint8_t> vinfastSeedToKey(const std::vector<uint8_t>& seed,
+                                             const std::vector<uint8_t>& ecuKey,
+                                             std::vector<uint8_t>* fullDigest = nullptr) {
+    if (seed.empty() || ecuKey.empty()) return {};
+    const auto digest = hmacSha1(ecuKey, seed);   // 20-byte HMAC-SHA1
+    if (fullDigest) *fullDigest = digest;
+    const size_t n = std::min(seed.size(), digest.size());
+    return std::vector<uint8_t>(digest.begin(), digest.begin() + n);
 }
 
 } // namespace
@@ -837,7 +886,7 @@ QWidget* Gui::buildDashboardPage() {
         syncSettingsFromUi();
         startWorker([this] {
             std::string err;
-            if (ensureConnected(err)) Logger::instance().info("OpenXC Bluetooth link ready");
+            if (ensureConnected(err)) Logger::instance().info("OpenXC serial link ready");
             else Logger::instance().warn("OpenXC link: " + err);
         });
     });
@@ -872,7 +921,7 @@ QWidget* Gui::buildConnectionPage() {
     auto* net = card("OpenXC USB/Bluetooth Transport");
     auto* nf = new QFormLayout(net);
     edGateway_   = new QLineEdit(QString::fromStdString(gatewayIp_));
-    edGateway_->setPlaceholderText("/dev/ttyUSB0, /dev/cu.usbmodem*, COM3, or Bluetooth MAC");
+    edGateway_->setPlaceholderText("auto, /dev/ttyUSB0, /dev/cu.usbmodem*, COM3, or Bluetooth MAC");
     usbScanBtn_  = new QPushButton("Scan USB");
     usbScanBtn_->setToolTip(
         "List available USB/serial ports that may host an OpenXC VI.\n"
@@ -1032,12 +1081,17 @@ QWidget* Gui::buildConnectionPage() {
     sf->addRow("Seed level (odd sub-func)", edSeedLevel_);
     seedLabel_ = new QLabel("seed: -");
     sf->addRow(seedLabel_);
+    edEcuKey_ = new QLineEdit;
+    edEcuKey_->setPlaceholderText("per-ECU secret (hex or ASCII) - from TPM keyset");
+    sf->addRow("ECU key", edEcuKey_);
     edKey_ = new QLineEdit; edKey_->setPlaceholderText("computed key (hex)");
     sf->addRow("Key", edKey_);
     auto* secBtns = new QHBoxLayout;
     auto* seedBtn = new QPushButton("Request seed");
+    auto* deriveBtn = new QPushButton("Derive key");
     auto* keyBtn  = new QPushButton("Send key");
-    secBtns->addWidget(seedBtn); secBtns->addWidget(keyBtn); secBtns->addStretch(1);
+    secBtns->addWidget(seedBtn); secBtns->addWidget(deriveBtn);
+    secBtns->addWidget(keyBtn); secBtns->addStretch(1);
     sf->addRow(secBtns);
     lay->addWidget(sess);
 
@@ -1065,7 +1119,7 @@ QWidget* Gui::buildConnectionPage() {
     enumRow->addWidget(enumBtn);
     df->addLayout(enumRow);
     auto* discNote = new QLabel(
-        "<i>OpenXC transport uses Bluetooth RFCOMM to the VI. Use sweep/enumeration "
+        "<i>OpenXC transport uses USB/Bluetooth serial to the VI. Use sweep/enumeration "
         "to find responsive diagnostic addresses.</i>");
     discNote->setWordWrap(true);
     df->addWidget(discNote);
@@ -1165,6 +1219,44 @@ QWidget* Gui::buildConnectionPage() {
             } else { lastSeedHex_ = "request failed: " + err; Logger::instance().error(err); }
         });
     });
+    connect(deriveBtn, &QPushButton::clicked, this, [this] {
+        syncSettingsFromUi();
+        // VinFast seed->key (recovered from vf_crypto_service):
+        //   key = HMAC-SHA1(ecuKey, seed) truncated to the seed length.
+        std::vector<uint8_t> seed;
+        {
+            std::lock_guard<std::mutex> g(mutex_);
+            seed = parseHexBytes(lastSeedHex_);
+        }
+        if (seed.empty()) {
+            Logger::instance().error("Derive key: request a non-zero seed first");
+            return;
+        }
+        // The ECU key may be entered as hex or as raw ASCII; prefer hex when the
+        // text is a clean hex string, otherwise treat it as ASCII bytes.
+        std::vector<uint8_t> ecuKey = parseHexBytes(ecuKeyText_);
+        {
+            std::string t = trimCopy(ecuKeyText_);
+            bool cleanHex = !t.empty() && (t.size() % 2 == 0);
+            for (char c : t) if (!std::isxdigit((unsigned char)c)) { cleanHex = false; break; }
+            if (!cleanHex) ecuKey.assign(t.begin(), t.end());
+        }
+        if (ecuKey.empty()) {
+            Logger::instance().error("Derive key: enter the per-ECU secret in 'ECU key'");
+            return;
+        }
+        std::vector<uint8_t> full;
+        auto key = vinfastSeedToKey(seed, ecuKey, &full);
+        if (key.empty()) { Logger::instance().error("Derive key: derivation failed"); return; }
+        std::string keyHex = toHex(key.data(), key.size());
+        {
+            std::lock_guard<std::mutex> g(mutex_);
+            securityKeyHex_ = keyHex;
+        }
+        edKey_->setText(QString::fromStdString(keyHex));
+        Logger::instance().info("Derived key (HMAC-SHA1): " + keyHex +
+                                "  [full digest " + toHex(full.data(), full.size()) + "]");
+    });
     connect(keyBtn, &QPushButton::clicked, this, [this] {
         syncSettingsFromUi();
         int lvl = securityLevel_;
@@ -1184,7 +1276,7 @@ QWidget* Gui::buildConnectionPage() {
         syncSettingsFromUi();
         startWorker([this] {
             std::string err;
-            if (ensureConnected(err)) Logger::instance().info("OpenXC Bluetooth link ready");
+            if (ensureConnected(err)) Logger::instance().info("OpenXC serial link ready");
             else Logger::instance().warn("OpenXC link: " + err);
         });
     });
@@ -3143,24 +3235,22 @@ QWidget* Gui::buildCloudPage() {
         cloudLine("BMS snapshots cleared.");
     });
 
-    // ---- Engineering-menu TOTP candidate generator -----------------------
-    auto* totpCard = card("Engineering menu TOTP (candidate generator)");
+    // ---- Engineering-menu TOTP generator ---------------------------------
+    auto* totpCard = card("Engineering menu TOTP");
     auto* tv = new QVBoxLayout(totpCard);
     auto* totpInfo = new QLabel(
-        "The engineering menu shows a 6-digit <b>seed</b> and uses a 30-second "
-        "time window. The real key derivation is not published, so this lists "
-        "the most likely 6-digit codes for the seed + timestamp - standard "
-        "RFC&nbsp;6238 TOTP (HMAC-SHA1) plus common arithmetic schemes - and "
-        "includes the neighbouring 30s steps for clock skew. Enter the UTC "
-        "date/time the menu is showing (defaults to now). Nothing is "
-        "sent to the car; enter the candidates one at a time in the menu.");
+        "Generates code(s) using reconstructed telematics behavior: "
+        "RFC&nbsp;6238 TOTP (HMAC-SHA1), 6 digits, 30-second period. "
+        "The secret is interpreted as Base32 when it matches the Base32 "
+        "alphabet, otherwise as raw ASCII. Enter the UTC date/time shown by "
+        "the car (defaults to now). Nothing is sent to the car.");
     totpInfo->setWordWrap(true);
     tv->addWidget(totpInfo);
     auto* tf = new QHBoxLayout;
     edTotpSeed_ = new QLineEdit;
-    edTotpSeed_->setMaxLength(6);
-    edTotpSeed_->setPlaceholderText("6-digit seed");
-    edTotpSeed_->setMaximumWidth(120);
+    edTotpSeed_->setMaxLength(128);
+    edTotpSeed_->setPlaceholderText("Secret (seed/key)");
+    edTotpSeed_->setMinimumWidth(260);
     edTotpTs_ = new QDateTimeEdit;
     edTotpTs_->setDisplayFormat("MM/dd/yyyy - HH:mm");
     edTotpTs_->setTimeZone(QTimeZone::UTC);
@@ -3173,7 +3263,7 @@ QWidget* Gui::buildCloudPage() {
                               "'06/02/2026 - 12:01', 'Wed May 20 20:24:05 2026', "
                               "or '2026-05-20 20:24:05'.");
     edTotpTsText_->setMinimumWidth(260);
-    tf->addWidget(new QLabel("Seed"));              tf->addWidget(edTotpSeed_);
+    tf->addWidget(new QLabel("Secret"));            tf->addWidget(edTotpSeed_);
     tf->addWidget(new QLabel("UTC date/time"));     tf->addWidget(edTotpTs_);
     tf->addStretch(1);
     tv->addLayout(tf);
@@ -3182,7 +3272,7 @@ QWidget* Gui::buildCloudPage() {
     tf2->addStretch(1);
     tv->addLayout(tf2);
     auto* tb = new QHBoxLayout;
-    auto* totpBtn = new QPushButton("Generate candidates");
+    auto* totpBtn = new QPushButton("Generate TOTP");
     totpBtn->setObjectName("primary");
     tb->addWidget(totpBtn); tb->addStretch(1);
     tv->addLayout(tb);
@@ -3225,11 +3315,9 @@ QWidget* Gui::buildCloudPage() {
     });
 
     connect(totpBtn, &QPushButton::clicked, this, [this, parseUtcText] {
-        QString seedStr = edTotpSeed_->text().trimmed();
-        bool okSeed = false;
-        uint64_t seed = seedStr.toULongLong(&okSeed);
-        if (seedStr.isEmpty() || !okSeed) {
-            cloudLine("TOTP: enter the 6-digit seed shown by the car.");
+        QString secret = edTotpSeed_->text().trimmed();
+        if (secret.isEmpty()) {
+            cloudLine("TOTP: enter the secret shown by the car.");
             return;
         }
         // Prefer a freshly typed UTC string if present; else use the picker.
@@ -3249,10 +3337,9 @@ QWidget* Gui::buildCloudPage() {
         }
         dt.setTimeZone(QTimeZone::UTC);
         long long ts = (long long)dt.toSecsSinceEpoch();
-        long long adjTs = ts;   // datetime is already UTC; no offset needed
-        uint64_t baseStep = (uint64_t)(adjTs / 30);
+        uint64_t baseStep = (uint64_t)(ts / 30);
 
-        std::time_t att = (std::time_t)adjTs;
+        std::time_t att = (std::time_t)ts;
         std::tm ag{};
 #ifdef _WIN32
         gmtime_s(&ag, &att);
@@ -3262,24 +3349,24 @@ QWidget* Gui::buildCloudPage() {
         char dtbuf[32];
         std::strftime(dtbuf, sizeof dtbuf, "%Y-%m-%d %H:%M:%S", &ag);
 
-        cloudLine("==== Engineering-menu TOTP candidates ====");
-        cloudLine(QString("seed %1 | ts %2 | datetime %3 UTC | base step %4")
-                      .arg(seedStr).arg(ts)
+        cloudLine("==== Engineering-menu TOTP ====");
+        cloudLine(QString("secret %1 | ts %2 | datetime %3 UTC | base step %4")
+                      .arg(secret).arg(ts)
                       .arg(dtbuf)
                       .arg((qulonglong)baseStep)
                       .toStdString());
         for (int skew = -1; skew <= 1; ++skew) {
             uint64_t step = baseStep + skew;
-            long long stepTs = adjTs + (long long)skew * 30;
+            long long stepTime = ts + static_cast<long long>(skew) * 30;
             cloudLine(QString("---- step %1 (%2) ----")
                           .arg((qulonglong)step)
                           .arg(skew == 0 ? "current"
                                          : (skew < 0 ? "previous 30s" : "next 30s"))
                           .toStdString());
-            for (const auto& c : totpCandidates(seed, seedStr, step, stepTs))
-                cloudLine(("  " + c.first.leftJustified(34, ' ') + c.second).toStdString());
+            cloudLine(("  RFC6238/HMAC-SHA1" + QString(18, ' ') +
+                       totpGetOtp(stepTime, secret, 6, 30)).toStdString());
         }
-        cloudLine("Try each code in the engineering menu within its 30s window.");
+        cloudLine("Use current/neighboring step code if there is clock skew.");
     });
 
     // ---- account handlers ------------------------------------------------
@@ -4606,6 +4693,7 @@ void Gui::syncSettingsFromUi() {
     if (edSecurityTarget_) securityTarget_ = parseHex16(edSecurityTarget_->text(), 0x1001);
     if (edSeedLevel_)  securityLevel_= parseHex16(edSeedLevel_->text(), 0x01);
     if (edKey_)        securityKeyHex_ = edKey_->text().toStdString();
+    if (edEcuKey_)     ecuKeyText_    = edEcuKey_->text().toStdString();
     if (edSweepStart_) sweepStart_   = parseHex16(edSweepStart_->text(), 0x1000);
     if (edSweepEnd_)   sweepEnd_     = parseHex16(edSweepEnd_->text(), 0x10FF);
     if (cbSweepAdd_)   sweepAddDiscovered_ = cbSweepAdd_->isChecked();

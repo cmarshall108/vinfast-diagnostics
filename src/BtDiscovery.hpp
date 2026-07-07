@@ -44,4 +44,17 @@ std::vector<Device> pairedSppDevices();
 // Returns the /dev/cu.* path, or an empty string with `err` set on failure.
 std::string resolveDevicePath(const std::string& macOrName, std::string& err);
 
+// Ensure the Bluetooth ACL/RFCOMM link behind a serial device node is actually
+// established before it is opened.
+//
+// macOS can expose a /dev/cu.* node for a paired VI whose data channel is not
+// connected; opening such a node succeeds but no bytes ever flow. When devPath
+// matches a paired SPP device, this brings up the baseband link so the kernel
+// serial manager activates a live RFCOMM channel.
+//
+// For non-Bluetooth paths (USB serial), unrecognised nodes, or non-Apple
+// platforms this is a no-op that returns true. Returns false with `err` set
+// only when a matching Bluetooth device is found but cannot be connected.
+bool prepareSerialPath(const std::string& devPath, std::string& err);
+
 } // namespace bt

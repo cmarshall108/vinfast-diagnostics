@@ -53,3 +53,8 @@ __pycache__/
 *.pyd
 env/
 venv/
+
+# other resources o_-
+reconstructed_cpp/
+tbox-firmware/
+vf_crypto_service

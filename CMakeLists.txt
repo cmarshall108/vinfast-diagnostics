@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
-project(vinfast_scanner VERSION 1.0.1 LANGUAGES C CXX OBJCXX)
+project(vinfast_scanner VERSION 1.0.1 LANGUAGES C CXX)
+
+if(APPLE)
+  enable_language(OBJCXX)
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -9,31 +13,24 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # -------------------------------------------------------------------
-# Windows: this is a 32-bit (x86) build.
+# Windows Mini-VCI CAN backup note.
 #
 # The CAN/OBD-II backup transport loads Toyota's Mini-VCI J2534 driver
 # (mvci32.dll), which is a 32-bit DLL. A 64-bit process CANNOT load a 32-bit
-# DLL - LoadLibrary fails with ERROR_BAD_EXE_FORMAT (193) - so the entire app
-# must be built as x86 on Windows. Configure a *separate* 32-bit build tree:
+# DLL - LoadLibrary fails with ERROR_BAD_EXE_FORMAT (193) - so Mini-VCI support
+# requires an x86 Windows build. OpenXC USB serial works in 64-bit builds.
+# Configure a separate 32-bit build tree when Mini-VCI backup is required:
 #
 #   Visual Studio:  cmake -A Win32 -S . -B build-win32
 #                   cmake --build build-win32 --config Release
 #   MinGW (i686):   configure with a 32-bit i686-w64-mingw32 toolchain
 #
-# The guard below makes a mismatched 64-bit Windows build fail fast with a
-# clear message instead of failing at runtime when mvci32.dll won't load.
-# Set -DALLOW_WIN64=ON only if you knowingly want a 64-bit build WITHOUT the
-# Mini-VCI CAN backup (OpenXC Bluetooth transport still works).
+# 64-bit Windows builds are allowed; CanClient compiles to a clear runtime stub
+# for the Mini-VCI-only backup path while the OpenXC USB serial path remains
+# available.
 # -------------------------------------------------------------------
-option(ALLOW_WIN64 "Permit a 64-bit Windows build (disables Mini-VCI CAN backup at runtime)" OFF)
-if(WIN32 AND NOT ALLOW_WIN64 AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-  message(FATAL_ERROR
-    "vinfast_scanner must be built as 32-bit (x86) on Windows: Toyota's Mini-VCI "
-    "J2534 driver (mvci32.dll) is a 32-bit DLL and a 64-bit process cannot load "
-    "it. OpenXC Bluetooth is not available on Windows; the CAN backup is the only transport.\n"
-    "  Visual Studio:  cmake -A Win32 -S . -B build-win32\n"
-    "  MinGW:          use a 32-bit (i686-w64-mingw32) toolchain\n"
-    "Or pass -DALLOW_WIN64=ON to build 64-bit without the CAN backup.")
+if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+  message(STATUS "vinfast_scanner: 64-bit Windows build - OpenXC USB enabled; Mini-VCI CAN backup disabled.")
 endif()
 if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
   message(STATUS "vinfast_scanner: 32-bit (x86) Windows build - Mini-VCI mvci32.dll loadable.")
@@ -137,7 +134,6 @@ set(_app_sources
   src/Logger.cpp
   src/OpenXcClient.cpp
   src/OpenXcTransport.cpp
-  src/BtDiscovery.mm
   src/CanClient.cpp
   src/UDSClient.cpp
   src/VF8Data.cpp
@@ -146,6 +142,11 @@ set(_app_sources
   src/Gui.cpp
   assets/resources.qrc
 )
+if(APPLE)
+  list(APPEND _app_sources src/BtDiscovery.mm)
+else()
+  list(APPEND _app_sources src/BtDiscovery.cpp)
+endif()
 if(APPLE AND EXISTS "${_app_macos_icon}")
   list(APPEND _app_sources "${_app_macos_icon}")
 endif()

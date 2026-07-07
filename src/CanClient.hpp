@@ -3,7 +3,7 @@
 // CanClient.hpp - UDS-over-CAN (ISO 14229 on ISO 15765-2) transport backed by
 // Toyota's Mini-VCI, whose `mvci32.dll` is a SAE J2534 PassThru library.
 //
-// This is the CAN fallback used when the primary OpenXC Bluetooth transport is
+// This is the CAN fallback used when the primary OpenXC serial transport is
 // unavailable. The public surface deliberately mirrors openxc::Transport so the UDS
 // layer can use it as a drop-in backup transport:
 //

@@ -91,13 +91,23 @@ std::string vf8DtcDescribe(const std::string& autelCode);
 
 // ---- Standard protocol identifiers usable on the VF8 -----------------------
 //
-// No VinFast-proprietary UDS specification (private logical addresses,
-// SecurityAccess seed/key algorithm or manufacturer DIDs/routines) is publicly
-// documented - those live only in VinFast's dealer tooling. However the VF8 is
-// built on a STANDARD ISO 14229 (UDS) over diagnostic stack reached
-// through the OBD port, so the ISO-standardized identification DID block and
-// the SAE J1979 / ISO 15031 legislated OBD-II services below are protocol-
-// guaranteed and therefore reliable on this vehicle.
+// The VF8 UDS stack is standard ISO 14229 (UDS) reached through the OBD port,
+// so the ISO-standardized identification DID block and the SAE J1979 /
+// ISO 15031 legislated OBD-II services below are protocol-guaranteed and
+// therefore reliable on this vehicle.
+//
+// The VinFast-proprietary SecurityAccess (0x27) seed→key algorithm was
+// recovered from the TBOX crypto binary `vf_crypto_service`
+// (Vfx::CryptoMgr::seed2Key_ / TpmService::GenHmacSha1 / EcuKeyData):
+//
+//     key = HMAC-SHA1( ecuKey[ecuId][level], seed )   truncated to seed length
+//
+// where `ecuKey` is a per-ECU / per-security-level secret stored in the TBOX
+// TPM's encrypted ECU keyset (ProvisioningEcuKeySet / DecryptwtEcuKey). That
+// secret is NOT present in cleartext in the firmware dump, so it must be
+// supplied by the operator; the app derives the key from a seed via the
+// "Derive key" action once the secret is provided. Private logical addresses
+// and manufacturer DIDs/routines remain undocumented (dealer-tool only).
 
 // An ISO 14229-1 standardized Data Identifier (the F1xx identification block
 // plus a few common ones). `did` is the 0x22 argument; `ascii` hints whether

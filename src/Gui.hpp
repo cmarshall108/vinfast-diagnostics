@@ -1,6 +1,6 @@
 #pragma once
 //
-// Gui.hpp - Qt6 front-end for the OpenXC Bluetooth UDS diagnostic scanner.
+// Gui.hpp - Qt6 front-end for the OpenXC USB/Bluetooth UDS diagnostic scanner.
 //
 // The interface is modelled on TEXA IDC6: an icon-driven navigator down the
 // left edge selects compact "pages" in a stacked view, and detail (ECU info,
@@ -151,11 +151,11 @@ private slots:
 
 private:
     // --- network ---
-    openxc::Transport transport_;   // OpenXC Bluetooth RFCOMM primary transport
+    openxc::Transport transport_;   // OpenXC USB/Bluetooth serial primary transport
     can::Client canBackup_;         // CAN (ISO 15765 / mvci32.dll) backup transport
 
     // --- settings (synced from widgets via syncSettingsFromUi) ---
-    std::string gatewayIp_   = "04:C4:61:C3:69:D0";
+    std::string gatewayIp_   = "auto";
     int  testerAddr_     = 0x0E80;
     int  functionalAddr_ = 0xE400;
     bool useFunctional_  = false;
@@ -168,6 +168,7 @@ private:
     int  securityTarget_ = 0x1001;
     int  securityLevel_  = 0x01;
     std::string securityKeyHex_;
+    std::string ecuKeyText_;      // per-ECU secret for VinFast HMAC-SHA1 seed->key
     std::string lastSeedHex_;
 
     int  sweepStart_ = 0x1000;
@@ -259,6 +260,7 @@ private:
     QLineEdit* edKeepAliveTarget_ = nullptr;
     QLineEdit* edSecurityTarget_ = nullptr;
     QLineEdit* edSeedLevel_ = nullptr;
+    QLineEdit* edEcuKey_    = nullptr;
     QLineEdit* edKey_       = nullptr;
     QLabel*    seedLabel_   = nullptr;
     QLineEdit* edSweepStart_= nullptr;
@@ -375,7 +377,7 @@ private:
     QPlainTextEdit* cloudView_      = nullptr;
     size_t          cloudViewRev_   = (size_t)-1;
 
-    // engineering-menu TOTP candidate generator
+    // engineering-menu TOTP generator
     QLineEdit*      edTotpSeed_     = nullptr;
     QDateTimeEdit*  edTotpTs_       = nullptr;
     QLineEdit*      edTotpTsText_   = nullptr;

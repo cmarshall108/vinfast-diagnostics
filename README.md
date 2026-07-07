@@ -33,13 +33,30 @@ telemetry and commands.
 - Background worker thread keeps the Qt GUI responsive during network I/O.
 
 > ⚠️ **Realistic expectations.** Reading DTCs typically works in the default
-> session. **Clearing very often requires Security Access (0x27)** whose
-> seed→key algorithm is *manufacturer-proprietary* — the app lets you request a
-> seed and submit a key you computed elsewhere, but it does not know VinFast's
-> algorithm. Likewise, most VF8 subsystems (radars, BMS, EPS, …) are CAN nodes
-> **behind the XGW gateway**: you address them by logical address and the
+> session. **Clearing very often requires Security Access (0x27).** The VF8
+> seed→key algorithm was recovered from the TBOX crypto binary
+> (`vf_crypto_service`): the key is **`HMAC-SHA1(ecuKey, seed)` truncated to the
+> seed length**, where `ecuKey` is a per-ECU / per-security-level secret held in
+> the TBOX TPM's encrypted ECU keyset. The app can compute the key for you
+> (**Derive key** button) once you supply that per-ECU secret — it is *not* in
+> the firmware in cleartext, so you must extract it from your own vehicle's
+> provisioning data. Likewise, most VF8 subsystems (radars, BMS, EPS, …) are CAN
+> nodes **behind the XGW gateway**: you address them by logical address and the
 > gateway routes onto CAN. The shipped logical addresses are **placeholders** —
 > use **Probe ECU Addresses** to find the ones that actually respond.
+
+## Firmware-derived facts (VF8 TBOX dump)
+
+Facts reverse-engineered from the on-vehicle TBOX rootfs (`tbox-firmware/`) and
+the `vf_crypto_service` binary, used to make the tool match the real vehicle:
+
+| Fact | Source | Where it's used |
+|------|--------|-----------------|
+| Diagnostic CAN bus is **500 kbit/s** | `etc/init.d/init-can.sh` (`ip link set can0 type can bitrate 500000`) | Default CAN baud rate. |
+| SecurityAccess key = **HMAC-SHA1(ecuKey, seed)** | `vf_crypto_service`: `Vfx::CryptoMgr::seed2Key_`, `TpmService::GenHmacSha1` ("EcuId/KeyLv"), `EcuKeyData` | **Derive key** button (Session & Security panel). |
+| Per-ECU keys stored as an encrypted keyset (4 levels/ECU) in the TPM | `ProvisioningEcuKeySet` / `DecryptwtEcuKey` symbols | Documented; the secret must be user-supplied. |
+| Engineering-menu unlock is **RFC 4226 HOTP / 30 s TOTP** over `SHA1(oemsymkey ‖ seed)` | `CryptoToken::authenTOTP`, `GetFotaDecryptionKey` (loads `oemsymkey`) | `tools/vf8_totp.py` + in-app TOTP generator. |
+
 
 ## Architecture
 
@@ -164,8 +181,9 @@ Export the certificate to base64 with:
 ## Usage
 
 1. Connect the OpenXC Vehicle Interface to the computer with a USB cable. The
-   default device field expects a USB serial path (e.g. `/dev/ttyUSB0`,
-   `/dev/cu.usbmodem*`, `COM3`) or a Bluetooth MAC.
+  default device field is `auto`, which probes likely USB serial ports first.
+  You can also enter a USB serial path (e.g. `/dev/ttyUSB0`,
+  `/dev/cu.usbmodem*`, `COM3`) or a Bluetooth MAC.
 2. Click **Scan USB** on the Connection page to list available USB serial ports,
    or **Scan BT** to list paired Bluetooth devices. You can also type the path
    or MAC manually.

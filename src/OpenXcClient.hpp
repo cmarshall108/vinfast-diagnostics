@@ -18,6 +18,12 @@
 
 namespace openxc {
 
+struct DiagnosticFrame {
+    uint32_t             arbitrationId = 0;
+    int                  bus = 0;
+    std::vector<uint8_t> uds;
+};
+
 class Client {
 public:
     Client();
@@ -39,7 +45,7 @@ public:
     // sendDiagnostic() calls (no per-request reconnect overhead).
     bool connect(const std::string& deviceOrMac, std::string& err);
 
-    bool isConnected() const { return fd_ >= 0; }
+    bool isConnected() const;
     const std::string& connectedPath() const { return connectedPath_; }
     void disconnect();
 
@@ -57,15 +63,26 @@ public:
     //
     // Returns true when a response was received (check udsResp[0] for +/-).
     bool sendDiagnostic(uint32_t              arbId,
+                        uint32_t              expectedRespId,
                         const std::vector<uint8_t>& udsReq,
                         std::vector<uint8_t>& udsResp,
                         int                   timeoutMs,
                         int                   bus,
                         std::string&          err);
 
-    // Send an arbitrary OpenXC command (JSON, without trailing '\n') and read
-    // the first response line within timeoutMs.  Returns true when a line was
-    // read; false on timeout/error.  Useful for VI setup commands such as
+    // Send one request and collect every matching diagnostic response within
+    // collectMs. expected response IDs are intentionally not constrained here;
+    // callers use arbitrationId on each frame to distinguish responders.
+    bool sendDiagnosticMulti(uint32_t                    arbId,
+                             const std::vector<uint8_t>& udsReq,
+                             std::vector<DiagnosticFrame>& responses,
+                             int                         collectMs,
+                             int                         bus,
+                             std::string&                err);
+
+    // Send an arbitrary OpenXC command (JSON, without trailing delimiter) and
+    // read the first response message within timeoutMs.  Returns true when a
+    // message was read; false on timeout/error.  Useful for VI setup commands such as
     // af_bypass / predefined_obd2 before diagnostic traffic begins.
     bool sendCommand(const std::string& command, std::string& response,
                      int timeoutMs, std::string& err);
@@ -86,13 +103,14 @@ private:
     static std::string resolvePath(const std::string& deviceOrMac,
                                    std::string& err);
 
-    // Write all bytes to fd_, handling EINTR.
+    // Write all bytes to the serial handle.
     bool writeAll(const char* data, size_t n, std::string& err);
 
-    // Read one newline-terminated line within timeoutMs ms.
+    // Read one OpenXC message within timeoutMs ms. Stock firmware uses NUL
+    // delimiters; newline is accepted for traces and development tools.
     bool readLine(std::string& line, int timeoutMs, std::string& err);
 
-    // Build the OpenXC JSON diagnostic_request string (without trailing '\n').
+    // Build the OpenXC JSON diagnostic_request string without its delimiter.
     static std::string buildRequest(uint32_t                     arbId,
                                     const std::vector<uint8_t>&  udsReq,
                                     int                          bus);
@@ -101,12 +119,18 @@ private:
     // Returns true when a complete diagnostic response was found.
     // Returns false when the line is not a diagnostic response (vehicle data
     // message) — caller should skip and read the next line.
-    static bool parseResponse(const std::string&    jsonLine,
-                               uint8_t               requestMode,
-                               std::vector<uint8_t>& udsResp,
-                               std::string&          err);
+    static bool parseResponse(const std::string& jsonLine,
+                              uint8_t requestMode,
+                              uint32_t expectedRespId,
+                              int expectedBus,
+                              DiagnosticFrame& frame,
+                              std::string& err);
 
+#ifdef _WIN32
+    void* handle_ = nullptr;  // HANDLE without pulling windows.h into the header
+#else
     int fd_ = -1;
+#endif
     std::string connectedPath_;
 };
 

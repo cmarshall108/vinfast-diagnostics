@@ -443,6 +443,59 @@ std::string resolveDevicePath(const std::string& macOrName, std::string& err) {
     return {};
 }
 
+bool prepareSerialPath(const std::string& devPath, std::string& err) {
+    // Only device nodes are candidates; anything else is left untouched.
+    if (devPath.rfind("/dev/", 0) != 0) return true;
+
+    // Reduce "/dev/cu.OpenXC-VI-A7B7" -> "OpenXC-VI-A7B7" for name matching.
+    std::string base = devPath;
+    auto slash = base.find_last_of('/');
+    if (slash != std::string::npos) base = base.substr(slash + 1);
+    if (base.rfind("cu.", 0) == 0) base = base.substr(3);
+    else if (base.rfind("tty.", 0) == 0) base = base.substr(4);
+
+    const std::string baseFolded = foldedToken(base);
+    if (baseFolded.empty()) return true;
+
+    // Find the paired SPP device whose name maps to this serial node.
+    IOBluetoothDevice* match = nil;
+    for (IOBluetoothDevice* dev in [IOBluetoothDevice pairedDevices]) {
+        uint8_t channelID = 1;
+        if (!hasSpp(dev, channelID)) continue;
+
+        const std::string name = dev.name ? [dev.name UTF8String] : "";
+        const std::string nameFolded = foldedToken(name);
+        bool matched = !nameFolded.empty() &&
+            (baseFolded.find(nameFolded) != std::string::npos ||
+             nameFolded.find(baseFolded) != std::string::npos);
+        if (!matched && !name.empty()) {
+            for (const auto& cand : candidatePaths(name)) {
+                if (cand == devPath) { matched = true; break; }
+            }
+        }
+        if (matched) { match = dev; break; }
+    }
+
+    // Not a recognised paired Bluetooth node (e.g. a USB serial port): no-op.
+    if (!match) return true;
+    if (match.isConnected) return true;
+
+    std::string connErr;
+    if (!ensureConnected(match, connErr)) {
+        err = connErr;
+        return false;
+    }
+
+    // Give the kernel serial manager a moment to (re)activate the node now that
+    // the ACL link is up.
+    for (int i = 0; i < 20; ++i) {
+        struct stat st{};
+        if (stat(devPath.c_str(), &st) == 0) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    return true;
+}
+
 } // namespace bt
 
 #else // !__APPLE__
@@ -458,6 +511,8 @@ std::string resolveDevicePath(const std::string& macOrName, std::string& err) {
           "Enter the serial port path manually (e.g. /dev/ttyUSB0).";
     return {};
 }
+
+bool prepareSerialPath(const std::string&, std::string&) { return true; }
 
 } // namespace bt
 

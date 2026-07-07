@@ -2,7 +2,7 @@
 //
 // OpenXcTransport.hpp - Primary diagnostic transport for the VinFast scanner.
 //
-// Wraps openxc::Client (Bluetooth RFCOMM to an OpenXC Vehicle Interface) and
+// Wraps openxc::Client (USB/Bluetooth serial to an OpenXC Vehicle Interface) and
 // exposes a UDS-shaped API used by UDSClient.  The optional CAN (ISO 15765 /
 // J2534) backup is still supported: when an OpenXC exchange fails and a CAN
 // backup client has been registered and connected, the request is retried
@@ -36,8 +36,8 @@ public:
     Transport(const Transport&)            = delete;
     Transport& operator=(const Transport&) = delete;
 
-    // Open the RFCOMM serial link to the OpenXC VI.  `deviceOrMac` may be a
-    // Bluetooth MAC ("04:C4:61:C3:69:D0") or a /dev/cu.* device path.
+    // Open the serial link to the OpenXC VI. `deviceOrMac` may be a USB serial
+    // path ("/dev/ttyUSB0", "/dev/cu.usbmodem*", "COM3") or a Bluetooth MAC.
     bool connect(const std::string& deviceOrMac, std::string& err);
     bool isConnected() const;
     void disconnect();
@@ -97,6 +97,13 @@ private:
 
     // Map a logical UDS address to the CAN request arbitration ID.
     uint32_t mapLogicalToCanId(uint16_t logicalAddr, bool functional) const;
+
+    // Map a CAN response arbitration ID back to the request-ID-shaped logical
+    // key used by the UI when true logical addresses are unknown.
+    uint16_t mapCanResponseToLogical(uint32_t responseId) const;
+
+    uint32_t responseIdForRequest(uint32_t requestId, bool functional) const;
+    bool retargetCanBackup(uint16_t target, bool functional, std::string& err);
 
     openxc::Client openxcClient_;
     bool     connected_      = false;
