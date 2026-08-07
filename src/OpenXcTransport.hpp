@@ -8,10 +8,15 @@
 // backup client has been registered and connected, the request is retried
 // transparently over UDS-on-CAN.
 //
-// Logical UDS addresses (e.g. 0x1001 for the gateway) are mapped to physical
-// CAN arbitration IDs using a configurable scheme.  The default is the common
-// OEM scheme request = 0x700 + (addr & 0xFF), response = request + 8, which
-// gives the standard 0x7E0/0x7E8 pair for address 0x00E0.
+// Logical UDS addresses are mapped to physical CAN arbitration IDs:
+//   • 0x600-0x7FF  → used directly (Info-CAN DiagReq IDs, OBD 0x7E0, etc.)
+//   • otherwise    → request = canIdBase + (addr & 0xFF)
+//                     (default base 0x700 → 0x00E0 becomes 0x7E0)
+// Response arb for J2534/raw CAN:
+//   • Info DiagReq 0x680-0x6FF → resp = req - 0x80 (DBC pair rule)
+//   • otherwise                → resp = req + canRespOffset (default +8)
+// Functional / broadcast request arbs (0x7DF, 0x6EF, 0x6FF) leave the OpenXC
+// match id open so any responder module arb is accepted.
 //
 #include "OpenXcClient.hpp"
 #include "CanClient.hpp"
@@ -71,17 +76,21 @@ public:
     void setBus(int bus) { bus_ = (bus == 2 ? 2 : 1); }
     int  bus() const { return bus_; }
 
-    // Configure how logical UDS addresses are translated to CAN arbitration IDs.
-    // For a physical request to logical address `addr`:
-    //   requestId  = canIdBase_ + (addr & 0xFF)
-    //   responseId = requestId + canRespOffset_
-    // Functional requests always use 0x7DF.
-    void setCanIdMapping(uint32_t baseRequestId, uint32_t responseOffset) {
+    // Configure how non-direct logical UDS addresses are translated to CAN IDs.
+    // Addresses already in 0x600-0x7FF are passed through as raw request arbs.
+    // `responseOffset` may be negative (e.g. -0x80). Applied as:
+    //   requestId  = canIdBase_ + (addr & 0xFF)   when addr is not 0x600-0x7FF
+    //   responseId = requestId + responseOffset   when not in Info DiagReq band
+    // Info DiagReq 0x680-0x6FF always uses resp = req - 0x80 automatically.
+    void setCanIdMapping(uint32_t baseRequestId, int32_t responseOffset) {
         canIdBase_ = baseRequestId & 0x7FFu;
-        canRespOffset_ = responseOffset & 0x7FFu;
+        // Keep offset in a sane 11-bit-ish range (allow negative for −0x80).
+        if (responseOffset > 0x7FF) responseOffset = 0x7FF;
+        if (responseOffset < -0x7FF) responseOffset = -0x7FF;
+        canRespOffset_ = responseOffset;
     }
     uint32_t canIdBase() const { return canIdBase_; }
-    uint32_t canRespOffset() const { return canRespOffset_; }
+    int32_t  canRespOffset() const { return canRespOffset_; }
 
     uint16_t testerAddress() const { return testerAddr_; }
 
@@ -102,10 +111,13 @@ private:
     // key used by the UI when true logical addresses are unknown.
     uint16_t mapCanResponseToLogical(uint32_t responseId) const;
 
+    // True for OBD/Info functional broadcast request arbitration IDs.
+    static bool isBroadcastRequestId(uint32_t requestId);
+
     // OpenXC JSON id to match for a physical request (request arb id).
-    // Functional returns 0 (accept any responder).
+    // Broadcast / functional returns 0 (accept any responder).
     uint32_t openXcMatchIdForRequest(uint32_t requestId, bool functional) const;
-    // True ISO-TP CAN response arbitration id (request + offset) for J2534.
+    // True ISO-TP CAN response arbitration id for J2534.
     uint32_t canResponseIdForRequest(uint32_t requestId, bool functional) const;
     bool retargetCanBackup(uint16_t target, bool functional, std::string& err);
 
@@ -115,8 +127,8 @@ private:
     can::Client* canBackup_  = nullptr;
     bool     lastUsedCanBackup_ = false;
     int      bus_            = 1;
-    uint32_t canIdBase_      = 0x700u;  // default OEM base
-    uint32_t canRespOffset_  = 0x08u;   // response = request + 8
+    uint32_t canIdBase_      = 0x700u;  // default OEM / OBD base
+    int32_t  canRespOffset_  = 0x08;    // response = request + offset (OBD +8)
 };
 
 } // namespace openxc

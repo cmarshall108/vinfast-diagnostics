@@ -254,16 +254,38 @@ bool Transport::initializeLink(std::string& err) {
 // ---------------------------------------------------------------------------
 // CAN arbitration ID mapping
 //
-// UDS logical addresses (16-bit, e.g. 0x1001) are not CAN IDs.  Most OEM
-// gateways map the low byte of the logical address to a physical CAN ID.
-// The default base 0x700 with +8 response offset yields the standard pairs:
-//   0x00E0 -> 0x7E0 / 0x7E8 (primary ECU / gateway)
-//   0x0001 -> 0x701 / 0x709
-// Functional broadcasts always use 0x7DF.
+// Addresses already in the 11-bit diagnostic band (0x600-0x7FF) are treated as
+// raw CAN request IDs.  That covers:
+//   • Legislated OBD physical 0x7E0 / functional 0x7DF
+//   • VF8 Info-CAN DiagReq tunnels from the MHU matrix (0x681, 0x682, …)
+//
+// Smaller logical aliases (e.g. 0x00E0, legacy 0x1001 placeholders) still use
+//   request = canIdBase_ + (addr & 0xFF)   default base 0x700 → 0x7E0 / 0x701
+//
+// Response IDs (J2534):
+//   • Info DiagReq 0x680-0x6FF → req - 0x80  (DBC DiagResp pair)
+//   • else                    → req + canRespOffset_  (OBD default +8)
 // ---------------------------------------------------------------------------
+bool Transport::isBroadcastRequestId(uint32_t requestId) {
+    return requestId == static_cast<uint32_t>(OBD2_FUNCTIONAL_BROADCAST_ID) ||
+           requestId == 0x6EFu ||  // DIAG_Req_All_CAN (Info DBC)
+           requestId == 0x6FFu;    // DIAG_Req_All_Ecu (Info DBC)
+}
+
 uint32_t Transport::mapLogicalToCanId(uint16_t logicalAddr, bool functional) const {
-    if (functional)
+    // Explicit functional path: honour known broadcast arbs / direct CAN IDs,
+    // otherwise fall back to legislated 0x7DF.
+    if (functional) {
+        if (isBroadcastRequestId(logicalAddr) ||
+            (logicalAddr >= 0x600u && logicalAddr <= 0x7FFu))
+            return logicalAddr;
         return static_cast<uint32_t>(OBD2_FUNCTIONAL_BROADCAST_ID);
+    }
+
+    // Direct 11-bit diagnostic CAN ID (Info DiagReq, OBD physical, etc.).
+    if (logicalAddr >= 0x600u && logicalAddr <= 0x7FFu)
+        return logicalAddr;
+
     uint32_t id = canIdBase_ + (logicalAddr & 0xFFu);
     if (id > 0x7FFu) id = 0x7FFu;
     return id;
@@ -271,34 +293,52 @@ uint32_t Transport::mapLogicalToCanId(uint16_t logicalAddr, bool functional) con
 
 // OpenXC JSON diagnostic_response.id for a *physical* request is the request
 // arbitration id (VI subtracts 0x8 from the CAN response arb). For functional
-// 0x7DF it is the real responding module arb id — leave unconstrained (0).
-// CAN-backup still needs the true ISO-TP response arb (request + offset).
+// / broadcast requests the VI publishes the real responding module arb — leave
+// the match unconstrained (0). CAN-backup still needs the true ISO-TP response.
 uint32_t Transport::openXcMatchIdForRequest(uint32_t requestId, bool functional) const {
-    if (functional) return 0u;
+    if (functional || isBroadcastRequestId(requestId)) return 0u;
     return requestId <= 0x7FFu ? requestId : 0u;
 }
 
 uint32_t Transport::canResponseIdForRequest(uint32_t requestId, bool functional) const {
-    if (functional) return 0u;
-    uint32_t id = requestId + canRespOffset_;
-    return id <= 0x7FFu ? id : 0u;
+    if (functional || isBroadcastRequestId(requestId)) return 0u;
+
+    // Info-CAN MHU diagnostic tunnels (01_Info_CAN_Matrix): DiagResp = DiagReq - 0x80.
+    if (requestId >= 0x680u && requestId <= 0x6FFu)
+        return requestId - 0x80u;
+
+    const int32_t sum = static_cast<int32_t>(requestId) + canRespOffset_;
+    if (sum < 0 || sum > 0x7FF) return 0u;
+    return static_cast<uint32_t>(sum);
 }
 
 uint16_t Transport::mapCanResponseToLogical(uint32_t responseId) const {
     // OpenXC multi/functional path may hand us either:
-    //   • actual CAN response arb (e.g. 0x7E8) — functional broadcast case, or
-    //   • request-shaped id (e.g. 0x7E0) — if a physical reply was rewritten.
-    // Prefer stripping base+offset when it looks like a response arb; else
-    // strip base alone (request-shaped).
-    if (responseId >= canIdBase_ + canRespOffset_) {
-        uint32_t low = responseId - canIdBase_ - canRespOffset_;
-        if (low <= 0xFFu) return static_cast<uint16_t>(low);
+    //   • actual CAN response arb (e.g. 0x7E8 or Info 0x602), or
+    //   • request-shaped id (e.g. 0x7E0 / 0x682) after VI rewrite.
+    responseId &= 0x7FFu;
+
+    // Info DiagResp band → prefer the matching DiagReq as the logical key.
+    if (responseId >= 0x600u && responseId <= 0x67Fu)
+        return static_cast<uint16_t>(responseId + 0x80u);
+
+    // Already a diagnostic request-shaped id (Info DiagReq or OBD 0x7Ex).
+    if (responseId >= 0x680u && responseId <= 0x7FFu)
+        return static_cast<uint16_t>(responseId);
+
+    // Legacy base+offset reverse map (OBD-style logical aliases).
+    if (canRespOffset_ >= 0) {
+        const uint32_t off = static_cast<uint32_t>(canRespOffset_);
+        if (responseId >= canIdBase_ + off) {
+            uint32_t low = responseId - canIdBase_ - off;
+            if (low <= 0xFFu) return static_cast<uint16_t>(low);
+        }
     }
     if (responseId >= canIdBase_) {
         uint32_t low = responseId - canIdBase_;
         if (low <= 0xFFu) return static_cast<uint16_t>(low);
     }
-    return static_cast<uint16_t>(responseId & 0x7FFu);
+    return static_cast<uint16_t>(responseId);
 }
 
 bool Transport::retargetCanBackup(uint16_t target, bool functional, std::string& err) {
@@ -308,13 +348,16 @@ bool Transport::retargetCanBackup(uint16_t target, bool functional, std::string&
     }
 
     uint32_t reqId = mapLogicalToCanId(target, functional);
-    // J2534/ISO-TP needs the real CAN response arbitration id (request+offset).
+    // J2534/ISO-TP needs the real CAN response arbitration id.
     uint32_t respId = canResponseIdForRequest(reqId, functional);
-    if (functional) {
-        // Functional UDS requests use the broadcast request ID. Use the common
-        // physical gateway response as the flow-control anchor so the VCI has a
-        // concrete ISO-TP response ID while waiting for the first answer.
-        respId = (canIdBase_ + 0xE0u + canRespOffset_) & 0x7FFu;
+    if (functional || isBroadcastRequestId(reqId) || respId == 0u) {
+        // Broadcast / unknown response: anchor flow-control on the common OBD
+        // physical gateway response (0x7E8 under default mapping).
+        const int32_t anchor = static_cast<int32_t>(canIdBase_ + 0xE0u) + canRespOffset_;
+        if (anchor >= 0 && anchor <= 0x7FF)
+            respId = static_cast<uint32_t>(anchor);
+        else
+            respId = 0x7E8u;
     }
     if (respId == 0u || respId > 0x7FFu) {
         err = "Invalid CAN response ID for target";

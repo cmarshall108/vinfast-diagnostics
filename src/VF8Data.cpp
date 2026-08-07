@@ -11,48 +11,53 @@
 // applicable; engineering-only controllers (from the on-vehicle "ECUs
 // Information" screen) are also included so a full scan can address them.
 // HW/SW part numbers are the ACTUAL part numbers read from the vehicle.
-// placeholderAddr values are NOT official - configure them in the UI.
-// altAddr (6th field, where present) is an ALTERNATIVE logical-address candidate
-// taken from the VinFast ECU-identifier byte reported via connected-car telemetry
-// object 34220 (tahung9x/VF-DB). It is tried automatically if the primary address
-// does not respond. These bytes are hints, not confirmed UDS addresses.
+//
+// canReqId values are Info-CAN DiagReq arbitration IDs from
+// 01_Info_CAN_Matrix_BEV_V10.6.dbc where a matching BO_ exists
+// (DiagResp = DiagReq - 0x80). Transport passes 0x600-0x7FF through as raw
+// CAN request IDs. altAddr is tried automatically if the primary fails:
+//   • XGW also tries legislated OBD physical 0x7E0 (OBD-port path)
+//   • modules with a second DBC name (EPS2, CCUR, …) try that DiagReq
+// Modules with no DBC DiagReq keep a legacy 0x10xx placeholder so the UI still
+// lists them; those will not answer until a real ID is configured.
 // ===========================================================================
 const std::vector<VF8Ecu> kVF8Ecus = {
-    
-    // Autel-scanned diagnostic systems (confirmed to respond to UDS).
-    {"XGW",     "Extendable Gateway",                    0x1001, "EEP30009521-01", "SOW30050503-04", 0x0002},
-    {"VCU",     "Vehicle Control Unit",                  0x1002, "",               "SOW30050205-30", 0x002C},
-    {"BMS",     "Battery Management System",             0x1003, "BAT30002013-01", "SOW30002100-25", 0x0013},
+
+    // Autel-scanned diagnostic systems (confirmed to respond to UDS on-vehicle).
+    // XGW: Info 0x682 first; OBD 0x7E0 as automatic fallback for pin 6/14.
+    {"XGW",     "Extendable Gateway",                    0x0682, "EEP30009521-01", "SOW30050503-04", 0x07E0},
+    {"VCU",     "Vehicle Control Unit",                  0x06AC, "",               "SOW30050205-30"},
+    {"BMS",     "Battery Management System",             0x0693, "BAT30002013-01", "SOW30002100-25"},
     {"MCU",     "Motor Control Unit",                    0x1004, "",               ""},
     {"ESC",     "Electronic Stability Control",          0x1005, "",               ""},
-    {"EPS",     "Electric Power Steering",               0x1006, "CHS30004062-01", "SOW30000224-02", 0x0028},
-    {"ADAS",    "Advanced Driver Assistance System",     0x1007, "",               ""},
-    {"BCM",     "Body Control Module",                   0x1008, "EEP30220027-01", "SOW30220361-01"},
-    {"CCU",     "Climate Control Unit",                  0x1009, "EEP30006107-04", "SOW30006116-04"},
-    {"DDC",     "DC-DC Converter",                       0x100A, "EEP30005276-03", "SOW30050170-10"},
-    {"MHU",     "Multimedia Headunit",                   0x100B, "EEP30005211-01", "SOW30051001-84", 0x0004},
+    {"EPS",     "Electric Power Steering",               0x06A8, "CHS30004062-01", "SOW30000224-02", 0x06AB},
+    {"ADAS",    "Advanced Driver Assistance System",     0x06C0, "",               ""},
+    {"BCM",     "Body Control Module",                   0x0681, "EEP30220027-01", "SOW30220361-01"},
+    {"CCU",     "Climate Control Unit",                  0x0689, "EEP30006107-04", "SOW30006116-04", 0x0694},
+    {"DDC",     "DC-DC Converter",                       0x06BD, "EEP30005276-03", "SOW30050170-10"},
+    {"MHU",     "Multimedia Headunit",                   0x0684, "EEP30005211-01", "SOW30051001-84"},
     {"RLS",     "Rain / Light Sensor",                   0x100C, "",               ""},
-    
+
     // Engineering controllers (from on-vehicle ECUs Information screen).
     {"TBOX",    "Telematics Box",                        0x100D, "EEP30005211-01", "SOW30052001-53"},
-    {"ACM",     "Airbag Control Module",                 0x100E, "EEP30010045-02", "SOW30010051-01"},
-    {"HUD",     "Head-Up Display",                       0x100F, "EEP30006274-01", "SOW30205101-31", 0x000D},
-    {"EDS_F",   "Electric Drive System - Front",         0x1010, "EEH30073014-01", "SOW30073520-01", 0x001B},
-    {"EDS_R",   "Electric Drive System - Rear",          0x1011, "EEH30073015-01", "SOW30073522-01", 0x001A},
-    {"PSM_D",   "Power Supply Module - Driver",          0x1012, "BIN30023940-01", "SOW30171972-01", 0x001E},
-    {"MRGEN",   "Mid-Range Radar / Gen Module",          0x1013, "EEP30008110-01", "SOW30008009-05"},
-    {"SCAM",    "Surround/Smart Camera Module",          0x1014, "EEP30008131-01", "SOW30008021-11"},
-    {"RCU",     "Restraint Control Unit",                0x1015, "CHS30014035-01", "SOW30000411-02", 0x0027},
-    {"IDR",     "Interior Domain / Radar",               0x1016, "",               "SOW20000213-02"},
-    {"SRR_FR",  "Short-Range Radar - Front Right",       0x1017, "EEP30008133-01", "SOW30008022-05", 0x0034},
-    {"SRR_FL",  "Short-Range Radar - Front Left",        0x1018, "EEP30008133-01", "SOW30008022-05"},
-    {"SRR_RR",  "Short-Range Radar - Rear Right",        0x1019, "EEP30008133-01", "SOW30008022-05"},
-    {"SRR_RL",  "Short-Range Radar - Rear Left",         0x101A, "EEP30008133-01", "SOW30008022-05"},
-    {"DCDC",    "DC-DC Converter (HV)",                  0x101B, "EEP30005276-03", "SOW30050170-10", 0x003D},
-    {"APM",     "Auxiliary Power Module",                0x101C, "EEP10006197-03", "SOW30050770-02"},
-    {"SHVU_F",  "Smart HV Unit - Front",                 0x101D, "BIN30022879-01", "SOW30171038-01"},
-    {"OCS",     "Occupant Classification System",        0x101E, "BIN30022839-01", "SOW30022845-01", 0x0044},
-    {"BCM_BPM", "Body Control - Battery Pack Monitor",   0x101F, "EEP30220027-01", "SOW30220363-01"},
+    {"ACM",     "Airbag Control Module",                 0x0688, "EEP30010045-02", "SOW30010051-01"},
+    {"HUD",     "Head-Up Display",                       0x068D, "EEP30006274-01", "SOW30205101-31", 0x068B},
+    {"EDS_F",   "Electric Drive System - Front",         0x069B, "EEH30073014-01", "SOW30073520-01"},
+    {"EDS_R",   "Electric Drive System - Rear",          0x069A, "EEH30073015-01", "SOW30073522-01"},
+    {"PSM_D",   "Power Supply Module - Driver",          0x069E, "BIN30023940-01", "SOW30171972-01"},
+    {"MRGEN",   "Mid-Range Radar / Gen Module",          0x06A5, "EEP30008110-01", "SOW30008009-05"},
+    {"SCAM",    "Surround/Smart Camera Module",          0x06A6, "EEP30008131-01", "SOW30008021-11"},
+    {"RCU",     "Restraint Control Unit",                0x06A7, "CHS30014035-01", "SOW30000411-02"},
+    {"IDR",     "Interior Domain / Radar",               0x1016, "",               "SOW20000213-02"}, // no DBC DiagReq; placeholder
+    {"SRR_FR",  "Short-Range Radar - Front Right",       0x06B4, "EEP30008133-01", "SOW30008022-05"},
+    {"SRR_FL",  "Short-Range Radar - Front Left",        0x06B5, "EEP30008133-01", "SOW30008022-05"},
+    {"SRR_RR",  "Short-Range Radar - Rear Right",        0x06B6, "EEP30008133-01", "SOW30008022-05"},
+    {"SRR_RL",  "Short-Range Radar - Rear Left",         0x06B7, "EEP30008133-01", "SOW30008022-05"},
+    {"DCDC",    "DC-DC Converter (HV)",                  0x06BD, "EEP30005276-03", "SOW30050170-10"},
+    {"APM",     "Auxiliary Power Module",                0x06C1, "EEP10006197-03", "SOW30050770-02", 0x06E4},
+    {"SHVU_F",  "Smart HV Unit - Front",                 0x06C2, "BIN30022879-01", "SOW30171038-01"},
+    {"OCS",     "Occupant Classification System",        0x06C4, "BIN30022839-01", "SOW30022845-01"},
+    {"BCM_BPM", "Body Control - Battery Pack Monitor",   0x06FB, "EEP30220027-01", "SOW30220363-01"},
 };
 
 // ===========================================================================

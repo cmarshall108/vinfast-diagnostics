@@ -692,7 +692,8 @@ Gui::Gui() {
     for (const auto& d : kVF8Ecus) {
         EcuRow r;
         r.name = std::string(d.code) + " - " + d.name;
-        r.logicalAddr = d.placeholderAddr;
+        // canReqId is a raw 11-bit DiagReq / OBD arb when in 0x600-0x7FF.
+        r.logicalAddr = d.canReqId;
         r.altAddr = d.altAddr;
         r.statusMsg = "idle";
         ecus_.push_back(std::move(r));
@@ -1026,22 +1027,22 @@ QWidget* Gui::buildConnectionPage() {
 
     nf->addRow("OpenXC device", devRow);
     edTester_    = hexEdit("0E80", 4);
-    edGwAddr_    = hexEdit("1001", 4);
+    edGwAddr_    = hexEdit("0682", 4);  // Info XGW_DiagReq; scan also tries 0x7E0
     nf->addRow("Tester source addr", edTester_);
     nf->addRow("Default target addr", edGwAddr_);
     sbOpenxcBus_ = new QSpinBox; sbOpenxcBus_->setRange(1, 2); sbOpenxcBus_->setValue(openxcBus_);
     nf->addRow("OpenXC CAN bus", sbOpenxcBus_);
     edCanIdBase_ = new QLineEdit(QString::asprintf("0x%X", canIdBase_));
-    edCanIdBase_->setPlaceholderText("0x700");
+    edCanIdBase_->setPlaceholderText("0x700 (aliases only)");
     edCanRespOffset_ = new QLineEdit(QString::asprintf("0x%X", canRespOffset_));
-    edCanRespOffset_->setPlaceholderText("0x8");
+    edCanRespOffset_->setPlaceholderText("+8 OBD; Info 0x680-6FF uses -0x80");
     auto* canIdRow = new QHBoxLayout;
     canIdRow->addWidget(new QLabel("Base req ID")); canIdRow->addWidget(edCanIdBase_);
     canIdRow->addWidget(new QLabel("Resp offset")); canIdRow->addWidget(edCanRespOffset_);
     canIdRow->addStretch(1);
     nf->addRow("CAN ID mapping", canIdRow);
     cbFunctional_ = new QCheckBox("Use functional addressing");
-    edFunctional_ = hexEdit("E400", 4);
+    edFunctional_ = hexEdit("07DF", 4);  // legislated OBD functional (not 0xE400)
     auto* fr = new QHBoxLayout; fr->addWidget(cbFunctional_); fr->addWidget(edFunctional_); fr->addStretch(1);
     nf->addRow(fr);
     edStatusMask_ = hexEdit("08", 2);
@@ -1059,7 +1060,7 @@ QWidget* Gui::buildConnectionPage() {
     cbAutoExt_ = new QCheckBox("Auto-enter Extended before Clear"); cbAutoExt_->setChecked(true);
     sf->addRow(cbAutoExt_);
     cbKeepAlive_ = new QCheckBox("Keep session alive (background TesterPresent)");
-    edKeepAliveTarget_ = hexEdit("1001", 4);
+    edKeepAliveTarget_ = hexEdit("0682", 4);
     auto* kaRow = new QHBoxLayout;
     kaRow->addWidget(cbKeepAlive_);
     kaRow->addSpacing(10);
@@ -1079,7 +1080,7 @@ QWidget* Gui::buildConnectionPage() {
     sbtns->addWidget(enterBtn); sbtns->addWidget(tpBtn); sbtns->addStretch(1);
     sf->addRow(sbtns);
 
-    edSecurityTarget_ = hexEdit("1001", 4);
+    edSecurityTarget_ = hexEdit("0682", 4);
     sf->addRow("Session/Security target", edSecurityTarget_);
     edSeedLevel_ = hexEdit("01", 2);
     sf->addRow("Seed level (odd sub-func)", edSeedLevel_);
@@ -1105,8 +1106,8 @@ QWidget* Gui::buildConnectionPage() {
     auto* discBtn = new QPushButton("OpenXC link check");
     df->addWidget(discBtn);
     auto* sweepRow = new QHBoxLayout;
-    edSweepStart_ = hexEdit("1000", 4);
-    edSweepEnd_   = hexEdit("10FF", 4);
+    edSweepStart_ = hexEdit("0680", 4);
+    edSweepEnd_   = hexEdit("07EF", 4);
     cbSweepAdd_   = new QCheckBox("Add responders as ECU rows"); cbSweepAdd_->setChecked(true);
     auto* sweepBtn = new QPushButton("Run address sweep");
     sweepRow->addWidget(new QLabel("Start")); sweepRow->addWidget(edSweepStart_);
@@ -1116,15 +1117,16 @@ QWidget* Gui::buildConnectionPage() {
     sweepRow->addWidget(sweepBtn);
     df->addLayout(sweepRow);
     auto* enumRow = new QHBoxLayout;
-    edEnumFunc_ = hexEdit("E400", 4);
+    edEnumFunc_ = hexEdit("07DF", 4);
     auto* enumBtn = new QPushButton("Enumerate ECUs (functional)");
     enumRow->addWidget(new QLabel("Functional addr")); enumRow->addWidget(edEnumFunc_);
     enumRow->addStretch(1);
     enumRow->addWidget(enumBtn);
     df->addLayout(enumRow);
     auto* discNote = new QLabel(
-        "<i>OpenXC transport uses USB/Bluetooth serial to the VI. Use sweep/enumeration "
-        "to find responsive diagnostic addresses.</i>");
+        "<i>OpenXC transport uses USB/Bluetooth serial to the VI. ECU rows default to "
+        "Info-CAN DiagReq IDs from the VF8 DBC (e.g. XGW 0x682); 0x600-0x7FF are sent "
+        "as raw CAN arbs. Functional default is OBD 0x7DF. Sweep covers 0x680-0x7EF.</i>");
     discNote->setWordWrap(true);
     df->addWidget(discNote);
     lay->addWidget(disc);
@@ -1324,7 +1326,7 @@ QWidget* Gui::buildConnectionPage() {
 
     connect(enumBtn, &QPushButton::clicked, this, [this] {
         syncSettingsFromUi();
-        uint16_t funcAddr = parseHex16(edEnumFunc_->text(), 0xE400);
+        uint16_t funcAddr = parseHex16(edEnumFunc_->text(), 0x07DF);
         bool add = cbSweepAdd_->isChecked();
         startWorker([this, funcAddr, add] {
             std::string err;
@@ -1512,7 +1514,7 @@ QWidget* Gui::buildEcuPage() {
 
                 uint16_t target = functional ? funcAddr : addr;
 
-                // 1) Probe address first, trying alternative routing.
+                // 1) Probe primary DiagReq / OBD id, then alt (e.g. XGW 0x682 → 0x7E0).
                 bool probed = false;
                 std::string probeErr;
                 if (uds.probe(target, probeErr)) {
@@ -1521,9 +1523,23 @@ QWidget* Gui::buildEcuPage() {
                     std::string e2;
                     if (uds.probe(alt, e2)) {
                         std::lock_guard<std::mutex> g(mutex_);
-                        if (i < ecus_.size()) ecus_[i].logicalAddr = alt;
+                        if (i < ecus_.size()) {
+                            ecus_[i].logicalAddr = alt;
+                            // Keep the failed primary as the next alt candidate.
+                            ecus_[i].altAddr = addr;
+                        }
                         target = alt;
                         probed = true;
+                        char a1[8], a2[8];
+                        std::snprintf(a1, sizeof a1, "%04X", alt);
+                        std::snprintf(a2, sizeof a2, "%04X", addr);
+                        Logger::instance().info(
+                            name + " answered on alt 0x" + a1 +
+                            " (primary 0x" + a2 + " silent)");
+                    } else {
+                        char a1[8];
+                        std::snprintf(a1, sizeof a1, "%04X", alt);
+                        probeErr += " | alt 0x" + std::string(a1) + ": " + e2;
                     }
                 }
 
@@ -1692,7 +1708,7 @@ QWidget* Gui::buildServicePage() {
 
     auto* cfg = card("Scan");
     auto* f = new QFormLayout(cfg);
-    edSvcTarget_ = hexEdit("1003", 4);
+    edSvcTarget_ = hexEdit("0693", 4);  // BMS_DiagReq
     edSvcStart_  = hexEdit("0000", 4);
     edSvcEnd_    = hexEdit("00FF", 4);
     auto* tr = new QHBoxLayout;
@@ -1866,7 +1882,7 @@ QWidget* Gui::buildProtocolPage() {
     // ---- target for UDS operations ----
     auto* tgtCard = card("UDS target");
     auto* tf = new QFormLayout(tgtCard);
-    edProtoTarget_ = hexEdit("1003", 4);
+    edProtoTarget_ = hexEdit("0693", 4);
     tf->addRow("ECU logical addr", edProtoTarget_);
     auto* tgtNote = new QLabel("Applies to every UDS action below.");
     tgtNote->setWordWrap(true);
@@ -1956,7 +1972,7 @@ QWidget* Gui::buildProtocolPage() {
         "vehicle and HV system have been inspected and confirmed safe.");
     crashIntro->setWordWrap(true);
     xl->addWidget(crashIntro);
-    edCrashTarget_   = hexEdit("1003", 4);
+    edCrashTarget_   = hexEdit("0693", 4);
     edCrashSecLevel_ = hexEdit("09", 2);
     edCrashKey_      = new QLineEdit; edCrashKey_->setPlaceholderText("key hex for current seed (blank = skip security)");
     edCrashRid_      = hexEdit("FF01", 4);
@@ -2027,7 +2043,7 @@ QWidget* Gui::buildProtocolPage() {
 
     // ---------------- handlers ----------------
     connect(memBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         uint32_t addr = (uint32_t)edProtoMemAddr_->text().toULong(nullptr, 16);
         uint32_t size = (uint32_t)sbProtoMemSize_->value();
         uint8_t ab = (uint8_t)sbProtoAddrBytes_->value();
@@ -2044,7 +2060,7 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
     connect(extBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         uint32_t dtc = (uint32_t)edProtoDtc_->text().toULong(nullptr, 16);
         uint8_t rec = (uint8_t)parseHex16(edProtoDtcRec_->text(), 0xFF);
         startWorker([this, tgt, dtc, rec] {
@@ -2058,7 +2074,7 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
     connect(fdcBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         startWorker([this, tgt] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Fault counters: " + err); return; }
@@ -2072,7 +2088,7 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
     connect(idBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         startWorker([this, tgt] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Std ID block: " + err); return; }
@@ -2129,7 +2145,7 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
     connect(wrBtn, &QPushButton::clicked, this, [this, wrBtn] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         uint16_t did = parseHex16(edProtoWriteDid_->text(), 0);
         auto data = parseHexBytes(edProtoWriteData_->text().toStdString());
         if (data.empty()) { protoLine("Write: enter hex data bytes"); return; }
@@ -2150,7 +2166,7 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
     connect(rcBtn, &QPushButton::clicked, this, [this, rcBtn] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         uint16_t rid = parseHex16(edProtoRid_->text(), 0);
         int subIdx = cbProtoRoutine_->currentIndex();
         RoutineCtrl sub = subIdx == 0 ? RoutineCtrl::Start
@@ -2177,7 +2193,7 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
     connect(ccBtn, &QPushButton::clicked, this, [this, ccBtn] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         CommCtrl ctrl = (CommCtrl)cbProtoComm_->currentIndex();
         uint8_t commType = (uint8_t)parseHex16(edProtoCommType_->text(), 0x01);
         if (!confirmPopup(ccBtn, "Communication control",
@@ -2199,7 +2215,7 @@ QWidget* Gui::buildProtocolPage() {
 
     // ---- BMS crash-data / HV-lockout reset handlers ----
     connect(crashSeedBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt = parseHex16(edCrashTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edCrashTarget_->text(), 0x0693);
         uint8_t  lvl = (uint8_t)parseHex16(edCrashSecLevel_->text(), 0x09);
         startWorker([this, tgt, lvl] {
             std::string err;
@@ -2215,7 +2231,7 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
     connect(crashResetBtn, &QPushButton::clicked, this, [this, crashResetBtn] {
-        uint16_t tgt = parseHex16(edCrashTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edCrashTarget_->text(), 0x0693);
         uint8_t  lvl = (uint8_t)parseHex16(edCrashSecLevel_->text(), 0x09);
         uint16_t rid = parseHex16(edCrashRid_->text(), 0);
         uint32_t dtc = (uint32_t)std::strtoul(
@@ -2293,7 +2309,7 @@ QWidget* Gui::buildProtocolPage() {
 
     // ---- Periodic (0x2A) ----
     connect(perBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         int modeIdx = cbProtoPeriodicMode_->currentIndex();
         std::vector<uint8_t> pdids;
         for (const QString& tok : edProtoPdid_->text().split(' ', Qt::SkipEmptyParts)) {
@@ -2317,7 +2333,7 @@ QWidget* Gui::buildProtocolPage() {
 
     // ---- Dynamically define (0x2C) ----
     connect(defBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt   = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt   = parseHex16(edProtoTarget_->text(), 0x0693);
         uint16_t dddid = parseHex16(edProtoDddid_->text(), 0xF300);
         std::vector<DddSource> srcs;
         for (const QString& tok : edProtoDddSrc_->text().split(' ', Qt::SkipEmptyParts)) {
@@ -2341,7 +2357,7 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
     connect(rdBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt   = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt   = parseHex16(edProtoTarget_->text(), 0x0693);
         uint16_t dddid = parseHex16(edProtoDddid_->text(), 0xF300);
         startWorker([this, tgt, dddid] {
             std::string err;
@@ -2354,7 +2370,7 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
     connect(clrBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt   = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt   = parseHex16(edProtoTarget_->text(), 0x0693);
         uint16_t dddid = parseHex16(edProtoDddid_->text(), 0xF300);
         startWorker([this, tgt, dddid] {
             std::string err;
@@ -2396,7 +2412,7 @@ QWidget* Gui::buildProtocolPage() {
     outer->addWidget(ioCard);
 
     connect(ioRunBtn, &QPushButton::clicked, this, [this, ioRunBtn] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         uint16_t did = parseHex16(edProtoIoDid_->text(), 0xF010);
         int optIdx = cbProtoIoOption_->currentIndex();   // 0..3 -> ShortTerm..Return
         auto state = parseHexBytes(edProtoIoState_->text().toStdString());
@@ -2425,7 +2441,7 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
     connect(ioRetBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         uint16_t did = parseHex16(edProtoIoDid_->text(), 0xF010);
         startWorker([this, tgt, did] {
             std::string err;
@@ -2479,7 +2495,7 @@ QWidget* Gui::buildProtocolPage() {
     outer->addWidget(memCard);
 
     connect(scBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         uint16_t did = parseHex16(edProtoScalingDid_->text(), 0xF190);
         startWorker([this, tgt, did] {
             std::string err;
@@ -2493,7 +2509,7 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
     connect(wmBtn, &QPushButton::clicked, this, [this, wmBtn] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         uint32_t addr = (uint32_t)edProtoWmbaAddr_->text().toUInt(nullptr, 16);
         auto data = parseHexBytes(edProtoWmbaData_->text().toStdString());
         int addrB = sbProtoWmbaAddrB_->value(), sizeB = sbProtoWmbaSizeB_->value();
@@ -2515,7 +2531,7 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
     connect(upBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         uint32_t addr = (uint32_t)edProtoUpAddr_->text().toUInt(nullptr, 16);
         uint32_t size = (uint32_t)sbProtoUpSize_->value();
         startWorker([this, tgt, addr, size] {
@@ -2566,7 +2582,7 @@ QWidget* Gui::buildProtocolPage() {
     outer->addWidget(dumpCard);
 
     connect(dumpBtn, &QPushButton::clicked, this, [this, dumpBtn] {
-        uint16_t tgt   = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt   = parseHex16(edProtoTarget_->text(), 0x0693);
         uint32_t addr  = (uint32_t)edDumpAddr_->text().toUInt(nullptr, 16);
         uint32_t total = (uint32_t)edDumpSize_->text().toUInt(nullptr, 16);
         uint32_t chunk = (uint32_t)edDumpChunk_->text().toUInt(nullptr, 16);
@@ -2662,7 +2678,7 @@ QWidget* Gui::buildProtocolPage() {
     outer->addWidget(linkCard);
 
     connect(lkBtn, &QPushButton::clicked, this, [this, lkBtn] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         int subIdx = cbProtoLinkSub_->currentIndex();   // 0..2 -> 0x01..0x03
         auto param = parseHexBytes(edProtoLinkParam_->text().toStdString());
         auto sub = (LinkControlType)(subIdx + 1);
@@ -2681,7 +2697,7 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
     connect(tmBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         int subIdx = cbProtoTimingSub_->currentIndex();   // 0..3 -> 0x01..0x04
         auto vals = parseHexBytes(edProtoTimingVals_->text().toStdString());
         auto sub = (TimingParamAccess)(subIdx + 1);
@@ -2697,7 +2713,7 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
     connect(auBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         uint8_t sub = (uint8_t)parseHex16(edProtoAuthSub_->text(), 0x08);
         auto data = parseHexBytes(edProtoAuthData_->text().toStdString());
         startWorker([this, tgt, sub, data] {
@@ -2759,7 +2775,7 @@ QWidget* Gui::buildProtocolPage() {
     outer->addWidget(secEvtCard);
 
     connect(secBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         auto data = parseHexBytes(edProtoSecData_->text().toStdString());
         startWorker([this, tgt, data] {
             std::string err;
@@ -2775,7 +2791,7 @@ QWidget* Gui::buildProtocolPage() {
     });
 
     connect(roeBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         uint8_t eventType = (uint8_t)parseHex16(edProtoRoeEventType_->text(), 0x01);
         uint8_t window = (uint8_t)parseHex16(edProtoRoeWindow_->text(), 0x00);
         auto eventRec = parseHexBytes(edProtoRoeEventRec_->text().toStdString());
@@ -2795,7 +2811,7 @@ QWidget* Gui::buildProtocolPage() {
     });
 
     connect(ftBtn, &QPushButton::clicked, this, [this, ftBtn] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         auto mode = (FileTransferMode)(cbProtoFileMode_->currentIndex() + 1);
         std::string path = edProtoFilePath_->text().toStdString();
         uint8_t fmt = (uint8_t)parseHex16(edProtoFileFmt_->text(), 0x00);
@@ -2862,7 +2878,7 @@ QWidget* Gui::buildProtocolPage() {
         if (!f.isEmpty()) edProtoFlashFile_->setText(f);
     });
     connect(flProgBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         startWorker([this, tgt] {
             std::string err;
             if (!ensureConnected(err)) { protoLine("Programming session: " + err); return; }
@@ -2874,7 +2890,7 @@ QWidget* Gui::buildProtocolPage() {
         });
     });
     connect(flFlashBtn, &QPushButton::clicked, this, [this, flFlashBtn] {
-        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x1003);
+        uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         uint32_t addr = (uint32_t)edProtoFlashAddr_->text().toUInt(nullptr, 16);
         QString path = edProtoFlashFile_->text();
         if (path.isEmpty()) { protoLine("Flash: select an image file first."); return; }
@@ -3112,7 +3128,7 @@ QWidget* Gui::buildCloudPage() {
     bmsInfo->setWordWrap(true);
     bl->addWidget(bmsInfo);
     auto* bf = new QHBoxLayout;
-    edBmsTarget_ = hexEdit("1003", 4);
+    edBmsTarget_ = hexEdit("0693", 4);
     edBmsStart_  = hexEdit("0000", 4);
     edBmsEnd_    = hexEdit("00FF", 4);
     bf->addWidget(new QLabel("BMS addr")); bf->addWidget(edBmsTarget_);
@@ -3130,7 +3146,7 @@ QWidget* Gui::buildCloudPage() {
     outer->addWidget(bmsCard);
 
     connect(snapBtn, &QPushButton::clicked, this, [this] {
-        uint16_t tgt   = parseHex16(edBmsTarget_->text(), 0x1003);
+        uint16_t tgt   = parseHex16(edBmsTarget_->text(), 0x0693);
         int      start = parseHex16(edBmsStart_->text(), 0x0000);
         int      end   = parseHex16(edBmsEnd_->text(), 0x00FF);
         if (end < start || (end - start) > 4096) {
@@ -4410,7 +4426,7 @@ void Gui::openAddSignalDialog(QWidget* anchor) {
     dlg->setWindowTitle("Add live signal");
     dlg->setAttribute(Qt::WA_DeleteOnClose);
     auto* f = new QFormLayout(dlg);
-    auto* edTarget = hexEdit("1003", 4);
+    auto* edTarget = hexEdit("0693", 4);
     auto* edDid    = hexEdit("F190", 4);
     auto* edName   = new QLineEdit("Signal");
     auto* cbInterp = new QComboBox;
@@ -4434,7 +4450,7 @@ void Gui::openAddSignalDialog(QWidget* anchor) {
     connect(cancel, &QPushButton::clicked, dlg, &QDialog::reject);
     connect(ok, &QPushButton::clicked, this, [=, this] {
         LiveSignal s;
-        s.target = parseHex16(edTarget->text(), 0x1003);
+        s.target = parseHex16(edTarget->text(), 0x0693);
         s.did    = parseHex16(edDid->text(), 0xF190);
         s.name   = edName->text().toStdString();
         s.interp = cbInterp->currentIndex();
@@ -4725,23 +4741,23 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
 void Gui::syncSettingsFromUi() {
     if (edGateway_)    gatewayIp_   = edGateway_->text().toStdString();
     if (edTester_)     testerAddr_  = parseHex16(edTester_->text(), 0x0E80);
-    if (edGwAddr_)     gatewayAddr_ = parseHex16(edGwAddr_->text(), 0x1001);
+    if (edGwAddr_)     gatewayAddr_ = parseHex16(edGwAddr_->text(), 0x0682);
     if (sbOpenxcBus_)  openxcBus_   = sbOpenxcBus_->value();
-    if (edFunctional_) functionalAddr_ = parseHex16(edFunctional_->text(), 0xE400);
+    if (edFunctional_) functionalAddr_ = parseHex16(edFunctional_->text(), 0x07DF);
     if (cbFunctional_) useFunctional_  = cbFunctional_->isChecked();
     if (edStatusMask_) statusMask_   = parseHex16(edStatusMask_->text(), 0x08);
     if (cbSession_)    sessionType_  = cbSession_->currentIndex() + 1;
     if (cbAutoExt_)    autoExtendedOnClear_ = cbAutoExt_->isChecked();
     if (cbKeepAlive_)  keepAlive_    = cbKeepAlive_->isChecked();
-    if (edKeepAliveTarget_) keepAliveTarget_ = parseHex16(edKeepAliveTarget_->text(), 0x1001);
-    if (edSecurityTarget_) securityTarget_ = parseHex16(edSecurityTarget_->text(), 0x1001);
+    if (edKeepAliveTarget_) keepAliveTarget_ = parseHex16(edKeepAliveTarget_->text(), 0x0682);
+    if (edSecurityTarget_) securityTarget_ = parseHex16(edSecurityTarget_->text(), 0x0682);
     if (edSeedLevel_)  securityLevel_= parseHex16(edSeedLevel_->text(), 0x01);
     if (edKey_)        securityKeyHex_ = edKey_->text().toStdString();
     if (edEcuKey_)     ecuKeyText_    = edEcuKey_->text().toStdString();
-    if (edSweepStart_) sweepStart_   = parseHex16(edSweepStart_->text(), 0x1000);
-    if (edSweepEnd_)   sweepEnd_     = parseHex16(edSweepEnd_->text(), 0x10FF);
+    if (edSweepStart_) sweepStart_   = parseHex16(edSweepStart_->text(), 0x0680);
+    if (edSweepEnd_)   sweepEnd_     = parseHex16(edSweepEnd_->text(), 0x07EF);
     if (cbSweepAdd_)   sweepAddDiscovered_ = cbSweepAdd_->isChecked();
-    if (edSvcTarget_)  svcTarget_    = parseHex16(edSvcTarget_->text(), 0x1003);
+    if (edSvcTarget_)  svcTarget_    = parseHex16(edSvcTarget_->text(), 0x0693);
     if (edSvcStart_)   svcStart_     = parseHex16(edSvcStart_->text(), 0x0000);
     if (edSvcEnd_)     svcEnd_       = parseHex16(edSvcEnd_->text(), 0x00FF);
     if (cbSvcDIDs_)    svcScanDIDs_  = cbSvcDIDs_->isChecked();
@@ -4764,14 +4780,27 @@ void Gui::syncSettingsFromUi() {
         uint v = t.toUInt(&ok, 16);
         return ok ? (int)v : def;
     };
+    // Signed hex for response offset (supports "-0x80" Info-CAN pair rule).
+    auto parseSignedHex = [](const QString& s, int def) -> int {
+        QString t = s.trimmed();
+        int sign = 1;
+        if (t.startsWith('-')) { sign = -1; t = t.mid(1).trimmed(); }
+        else if (t.startsWith('+')) { t = t.mid(1).trimmed(); }
+        if (t.startsWith("0x", Qt::CaseInsensitive)) t = t.mid(2);
+        bool ok = false;
+        uint v = t.toUInt(&ok, 16);
+        if (!ok) return def;
+        return sign * (int)v;
+    };
     if (edCanReqId_)   canReqId_     = parseHex32(edCanReqId_->text(), 0x7E0);
     if (edCanRespId_)  canRespId_    = parseHex32(edCanRespId_->text(), 0x7E8);
     if (cbCanExt_)     canExtended_  = cbCanExt_->isChecked();
     if (edCanIdBase_)     canIdBase_     = parseHex32(edCanIdBase_->text(), 0x700);
-    if (edCanRespOffset_) canRespOffset_ = parseHex32(edCanRespOffset_->text(), 0x08);
-    // Clamp to 11-bit arbitration IDs.
+    if (edCanRespOffset_) canRespOffset_ = parseSignedHex(edCanRespOffset_->text(), 0x08);
+    // Clamp to 11-bit arbitration IDs / sane offset range.
     canIdBase_     &= 0x7FF;
-    canRespOffset_ &= 0x7FF;
+    if (canRespOffset_ > 0x7FF) canRespOffset_ = 0x7FF;
+    if (canRespOffset_ < -0x7FF) canRespOffset_ = -0x7FF;
 }
 
 void Gui::startKeepAlive() {
@@ -4970,7 +4999,7 @@ bool Gui::ensureConnected(std::string& err) {
 
     // Apply the latest OpenXC settings before opening the link.
     transport_.setBus(openxcBus_);
-    transport_.setCanIdMapping((uint32_t)canIdBase_, (uint32_t)canRespOffset_);
+    transport_.setCanIdMapping((uint32_t)canIdBase_, (int32_t)canRespOffset_);
 
     if (transport_.isConnected()) return true;
     if (!transport_.connect(gatewayIp_, err)) {

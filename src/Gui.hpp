@@ -157,22 +157,25 @@ private:
     // --- settings (synced from widgets via syncSettingsFromUi) ---
     std::string gatewayIp_   = "auto";
     int  testerAddr_     = 0x0E80;
-    int  functionalAddr_ = 0xE400;
+    // Legislated OBD functional broadcast (not DoIP-style 0xE400).
+    int  functionalAddr_ = 0x07DF;
     bool useFunctional_  = false;
     int  statusMask_     = 0x08;
-    int  gatewayAddr_    = 0x1001;
+    // Default physical target: Info-CAN XGW DiagReq (alt 0x7E0 tried on scan).
+    int  gatewayAddr_    = 0x0682;
     int  sessionType_    = (int)UdsSession::Extended;
     bool autoExtendedOnClear_ = true;
     bool keepAlive_      = false;
-    int  keepAliveTarget_= 0x1001;
-    int  securityTarget_ = 0x1001;
+    int  keepAliveTarget_= 0x0682;
+    int  securityTarget_ = 0x0682;
     int  securityLevel_  = 0x01;
     std::string securityKeyHex_;
     std::string ecuKeyText_;      // per-ECU secret for VinFast HMAC-SHA1 seed->key
     std::string lastSeedHex_;
 
-    int  sweepStart_ = 0x1000;
-    int  sweepEnd_   = 0x10FF;
+    // Default sweep covers Info DiagReq band + OBD physical range.
+    int  sweepStart_ = 0x0680;
+    int  sweepEnd_   = 0x07EF;
     bool sweepAddDiscovered_ = true;
 
     int  livePollMs_ = 500;
@@ -181,9 +184,10 @@ private:
     // OpenXC VI bus selection (1 or 2 on most VI hardware).
     int openxcBus_ = 1;
 
-    // Logical UDS address -> CAN arbitration ID mapping for the OpenXC VI.
-    // requestId  = canIdBase_ + (logicalAddr & 0xFF)
-    // responseId = requestId + canRespOffset_
+    // Fallback map for logical aliases outside 0x600-0x7FF:
+    //   requestId  = canIdBase_ + (logicalAddr & 0xFF)
+    //   responseId = requestId + canRespOffset_   (Info 0x680-0x6FF uses −0x80 auto)
+    // Direct DiagReq / OBD IDs in 0x600-0x7FF are passed through unchanged.
     int  canIdBase_     = 0x700;
     int  canRespOffset_ = 0x08;
 
@@ -197,7 +201,7 @@ private:
     bool        canExtended_  = false;   // 29-bit identifiers
 
     // service-discovery settings
-    int  svcTarget_       = 0x1003;
+    int  svcTarget_       = 0x0693;  // BMS_DiagReq
     int  svcStart_        = 0x0000;
     int  svcEnd_          = 0x00FF;
     bool svcScanDIDs_     = true;

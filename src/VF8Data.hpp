@@ -27,16 +27,25 @@ constexpr const char* kBluetoothMac = "04:C4:61:C3:69:D0";
 } // namespace vf8
 
 // ---- ECU definition --------------------------------------------------------
+//
+// `canReqId` is the preferred 11-bit diagnostic request arbitration ID used by
+// the OpenXC/J2534 transport (passed through when in 0x600-0x7FF). Values come
+// from 01_Info_CAN_Matrix_BEV_V10.6.dbc DiagReq_* messages where known
+// (DiagResp = DiagReq - 0x80). They are MHU/Info-CAN tunnel IDs — not proven
+// identical to OBD pins 6/14 without a live capture, but they are the best
+// in-repo OEM map and match the telemetry ECU-id low bytes (altAddr).
+//
+// `altAddr` is a fallback candidate tried automatically on probe failure:
+//   • OBD physical 0x7E0 for the gateway when Info IDs are not on the wire
+//   • additional Info DiagReq IDs when multiple names map to one module
+//   • 0 = no alternative
 struct VF8Ecu {
     const char* code;            // short diagnostic name
     const char* name;            // human-readable description
-    uint16_t    placeholderAddr; // PLACEHOLDER UDS logical address (configure!)
+    uint16_t    canReqId;        // preferred CAN request arb / logical target
     const char* hwPart;          // HW part number from engineering ECUs menu ("" if n/a)
     const char* swPart;          // SW part number from engineering ECUs menu ("" if n/a)
-    uint16_t    altAddr = 0;     // alternative UDS logical-address candidate to try if the
-                                 // primary fails. Derived from the VinFast ECU-identifier byte
-                                 // surfaced by the connected-car telemetry (object 34220, see
-                                 // tahung9x/VF-DB). 0 = no alternative known.
+    uint16_t    altAddr = 0;     // alternative request id to try if primary fails
 };
 
 // Combined list of diagnostic systems (Autel) and engineering controllers.
