@@ -31,6 +31,10 @@ extern "C" {
     #include <unistd.h>
 #endif
 
+#ifdef OPENXC_HAVE_LIBUSB
+#include <libusb.h>
+#endif
+
 namespace openxc {
 
 // ---------------------------------------------------------------------------
@@ -272,6 +276,23 @@ std::vector<std::string> Client::enumerateUsbSerialPorts() {
         return a < b;
     });
 
+#ifdef OPENXC_HAVE_LIBUSB
+    // If a raw-USB OpenXC VI (vendor interface, no serial node) is attached,
+    // advertise it first so "auto" connect reaches it directly via libusb.
+    {
+        libusb_context* ctx = nullptr;
+        if (libusb_init(&ctx) == 0) {
+            libusb_device_handle* h =
+                libusb_open_device_with_vid_pid(ctx, 0x1BC4, 0x0001);
+            if (h) {
+                out.insert(out.begin(), "usb:1BC4:0001");
+                libusb_close(h);
+            }
+            libusb_exit(ctx);
+        }
+    }
+#endif
+
     return out;
 }
 
@@ -284,6 +305,7 @@ Client::Client() = default;
 Client::~Client() { disconnect(); }
 
 bool Client::isConnected() const {
+    if (usbMode_) return usbHandle_ != nullptr;
 #ifdef _WIN32
     return handle_ != nullptr && handle_ != INVALID_HANDLE_VALUE;
 #else
@@ -292,8 +314,20 @@ bool Client::isConnected() const {
 }
 
 void Client::disconnect() {
+#ifdef OPENXC_HAVE_LIBUSB
+    if (usbMode_ && usbHandle_) {
+        auto* h = static_cast<libusb_device_handle*>(usbHandle_);
+        libusb_release_interface(h, usbIface_);
+        libusb_close(h);
+        if (usbCtx_) libusb_exit(static_cast<libusb_context*>(usbCtx_));
+    }
+#endif
+    usbHandle_ = nullptr;
+    usbCtx_    = nullptr;
+    usbMode_   = false;
+    usbRxBuf_.clear();
 #ifdef _WIN32
-    if (isConnected()) {
+    if (handle_ != nullptr && handle_ != INVALID_HANDLE_VALUE) {
         CloseHandle(static_cast<HANDLE>(handle_));
         handle_ = nullptr;
     }
@@ -304,6 +338,124 @@ void Client::disconnect() {
     }
 #endif
     connectedPath_.clear();
+}
+
+// ---------------------------------------------------------------------------
+// Native raw-USB (libusb) backend
+//
+// The stock Ford OpenXC VI (VID 0x1BC4, PID 0x0001) presents a vendor-specific
+// interface (class 0xFF) with bulk endpoints rather than a USB-CDC serial port,
+// so macOS creates no /dev/cu.* node. We talk to it directly: the VI streams
+// NUL-delimited OpenXC JSON on the bulk IN endpoint and accepts NUL-terminated
+// JSON commands / diagnostic_request messages on the bulk OUT endpoint - the
+// exact same wire format the serial backend uses, so the whole protocol layer
+// above is unchanged.
+// ---------------------------------------------------------------------------
+bool Client::isUsbToken(const std::string& token) {
+    std::string t = trimCopy(token);
+    for (char& c : t) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return t == "usb" || t == "openxc-usb" || t.rfind("usb:", 0) == 0;
+}
+
+bool Client::connectUsb(const std::string& token, std::string& err) {
+#ifndef OPENXC_HAVE_LIBUSB
+    (void)token;
+    err = "This build has no native USB support (libusb not found at build time)";
+    return false;
+#else
+    // Default to the Ford/OpenXC reference VI; allow "usb:VID:PID" overrides.
+    uint16_t vid = 0x1BC4, pid = 0x0001;
+    {
+        std::string t = trimCopy(token);
+        size_t c1 = t.find(':');
+        if (c1 != std::string::npos) {
+            size_t c2 = t.find(':', c1 + 1);
+            if (c2 != std::string::npos) {
+                vid = (uint16_t)std::strtoul(t.substr(c1 + 1, c2 - c1 - 1).c_str(), nullptr, 16);
+                pid = (uint16_t)std::strtoul(t.substr(c2 + 1).c_str(), nullptr, 16);
+            }
+        }
+    }
+
+    libusb_context* ctx = nullptr;
+    if (libusb_init(&ctx) != 0) { err = "libusb_init failed"; return false; }
+
+    // The OpenXC VI enumerates only briefly: with no CAN/vehicle activity its
+    // firmware sleeps and the device electrically drops off the USB bus. Poll
+    // for it to appear so the user can plug it in (or catch the wake window)
+    // right after pressing Connect, instead of failing instantly.
+    constexpr int kUsbAppearMs = 12000;
+    libusb_device_handle* h = nullptr;
+    {
+        using Clock = std::chrono::steady_clock;
+        auto deadline = Clock::now() + std::chrono::milliseconds(kUsbAppearMs);
+        for (;;) {
+            h = libusb_open_device_with_vid_pid(ctx, vid, pid);
+            if (h || Clock::now() >= deadline) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        }
+    }
+    if (!h) {
+        char buf[224];
+        std::snprintf(buf, sizeof buf,
+            "OpenXC VI (USB %04X:%04X) not found. It powers down and drops off "
+            "USB without CAN activity - plug it into the vehicle's OBD-II port "
+            "with ignition on, then Connect.", vid, pid);
+        err = buf;
+        libusb_exit(ctx);
+        return false;
+    }
+
+    // Vendor interfaces have no kernel driver on macOS; on Linux detach any.
+    libusb_set_auto_detach_kernel_driver(h, 1);   // ignored where unsupported
+
+    // Discover the FIRST bulk IN / OUT endpoints on the first interface. The
+    // Ford VI exposes two bulk IN endpoints (0x82 data, 0x8B logging); command
+    // responses only come back on the first (0x82), so we must keep the first
+    // one found and not let a later endpoint overwrite it.
+    int iface = 0;
+    unsigned char epIn = usbEpIn_, epOut = usbEpOut_;
+    bool haveIn = false, haveOut = false;
+    libusb_config_descriptor* cfg = nullptr;
+    libusb_device* dev = libusb_get_device(h);
+    if (dev && libusb_get_active_config_descriptor(dev, &cfg) == 0 && cfg) {
+        if (cfg->bNumInterfaces > 0) {
+            const libusb_interface& itf = cfg->interface[0];
+            if (itf.num_altsetting > 0) {
+                const libusb_interface_descriptor& id = itf.altsetting[0];
+                iface = id.bInterfaceNumber;
+                for (int e = 0; e < id.bNumEndpoints; ++e) {
+                    unsigned char a = id.endpoint[e].bEndpointAddress;
+                    unsigned char ty = id.endpoint[e].bmAttributes & 0x03;
+                    if (ty != LIBUSB_TRANSFER_TYPE_BULK) continue;
+                    if (a & 0x80) { if (!haveIn)  { epIn  = a; haveIn  = true; } }
+                    else          { if (!haveOut) { epOut = a; haveOut = true; } }
+                }
+            }
+        }
+        libusb_free_config_descriptor(cfg);
+    }
+
+    if (libusb_claim_interface(h, iface) != 0) {
+        err = "Found the OpenXC VI but could not claim its USB interface "
+              "(another process may be using it)";
+        libusb_close(h);
+        libusb_exit(ctx);
+        return false;
+    }
+
+    usbHandle_ = h;
+    usbCtx_    = ctx;
+    usbMode_   = true;
+    usbIface_  = iface;
+    usbEpIn_   = epIn;
+    usbEpOut_  = epOut;
+    usbRxBuf_.clear();
+    char pbuf[32];
+    std::snprintf(pbuf, sizeof pbuf, "usb:%04X:%04X", vid, pid);
+    connectedPath_ = pbuf;
+    return true;
+#endif
 }
 
 // Resolve a user-supplied identifier to the serial device path.
@@ -342,6 +494,11 @@ std::string Client::resolvePath(const std::string& deviceOrMac,
 
 bool Client::connect(const std::string& deviceOrMac, std::string& err) {
     disconnect();
+
+    // Native raw-USB backend: the stock VI has no serial node, so route
+    // "usb" / "usb:VID:PID" straight to libusb before any path resolution.
+    if (isUsbToken(deviceOrMac))
+        return connectUsb(deviceOrMac, err);
 
     std::string path = resolvePath(deviceOrMac, err);
     if (path.empty()) return false;
@@ -450,6 +607,25 @@ bool Client::connect(const std::string& deviceOrMac, std::string& err) {
 }
 
 bool Client::writeAll(const char* data, size_t n, std::string& err) {
+#ifdef OPENXC_HAVE_LIBUSB
+    if (usbMode_) {
+        auto* h = static_cast<libusb_device_handle*>(usbHandle_);
+        size_t off = 0;
+        while (off < n) {
+            int transferred = 0;
+            int r = libusb_bulk_transfer(h, usbEpOut_,
+                        reinterpret_cast<unsigned char*>(const_cast<char*>(data + off)),
+                        static_cast<int>(n - off), &transferred, 1000);
+            if (r == 0 || (r == LIBUSB_ERROR_TIMEOUT && transferred > 0)) {
+                off += static_cast<size_t>(transferred);
+                continue;
+            }
+            err = std::string("USB bulk write failed: ") + libusb_error_name(r);
+            return false;
+        }
+        return true;
+    }
+#endif
 #ifdef _WIN32
     size_t written = 0;
     while (written < n) {
@@ -483,6 +659,9 @@ bool Client::writeAll(const char* data, size_t n, std::string& err) {
 
 bool Client::readLine(std::string& line, int timeoutMs, std::string& err) {
     line.clear();
+#ifdef OPENXC_HAVE_LIBUSB
+    if (usbMode_) return readLineUsb(line, timeoutMs, err);
+#endif
     using Clock = std::chrono::steady_clock;
     auto deadline = Clock::now() + std::chrono::milliseconds(timeoutMs);
 
@@ -542,6 +721,51 @@ bool Client::readLine(std::string& line, int timeoutMs, std::string& err) {
     }
 }
 
+// Extract one NUL/newline-delimited message from the buffered USB bulk stream,
+// refilling the buffer with bulk reads until a delimiter arrives or timeout.
+bool Client::readLineUsb(std::string& line, int timeoutMs, std::string& err) {
+#ifndef OPENXC_HAVE_LIBUSB
+    (void)line; (void)timeoutMs; err = "USB backend not built"; return false;
+#else
+    line.clear();
+    using Clock = std::chrono::steady_clock;
+    auto deadline = Clock::now() + std::chrono::milliseconds(timeoutMs);
+    auto* h = static_cast<libusb_device_handle*>(usbHandle_);
+
+    for (;;) {
+        // Consume any complete message already buffered.
+        for (size_t i = 0; i < usbRxBuf_.size(); ++i) {
+            char c = usbRxBuf_[i];
+            if (c == '\0' || c == '\n') {
+                line.assign(usbRxBuf_.data(), i);
+                usbRxBuf_.erase(0, i + 1);
+                // Drop a stray CR from CRLF-style traces.
+                if (!line.empty() && line.back() == '\r') line.pop_back();
+                if (line.empty()) { i = (size_t)-1; continue; }  // skip blanks
+                return true;
+            }
+        }
+
+        auto now = Clock::now();
+        if (now >= deadline) { err = "Response timeout"; return false; }
+        int msLeft = (int)std::chrono::duration_cast<std::chrono::milliseconds>(
+                         deadline - now).count();
+
+        unsigned char buf[512];
+        int transferred = 0;
+        int r = libusb_bulk_transfer(h, usbEpIn_, buf, (int)sizeof buf,
+                                     &transferred, msLeft > 0 ? std::min(msLeft, 200) : 1);
+        if ((r == 0 || r == LIBUSB_ERROR_TIMEOUT) && transferred > 0) {
+            usbRxBuf_.append(reinterpret_cast<char*>(buf), (size_t)transferred);
+            continue;
+        }
+        if (r == 0 || r == LIBUSB_ERROR_TIMEOUT) continue;   // no data yet
+        err = std::string("USB bulk read failed: ") + libusb_error_name(r);
+        return false;
+    }
+#endif
+}
+
 // ---------------------------------------------------------------------------
 // OpenXC JSON protocol
 // ---------------------------------------------------------------------------
@@ -582,7 +806,16 @@ std::string Client::buildRequest(uint32_t                    arbId,
 // Parse one line of OpenXC JSON into a reconstructed UDS response PDU.
 //
 // OpenXC diagnostic_response format:
-//   {"bus":1,"id":2048,"mode":34,"success":true,"payload":"0xF190..."}
+//   {"bus":1,"id":2016,"mode":34,"success":true,"payload":"0xF190..."}
+//
+// IMPORTANT — OpenXC `id` is NOT the raw CAN response arbitration ID for
+// physical requests. Stock vi-firmware (wrapDiagnosticResponseWithSabot)
+// rewrites:
+//   physical:  message_id = can_response_arb_id - 0x8  (== request arb id)
+//   functional 0x7DF: message_id = actual responding module arb id
+// openxc-python matches the same way (response id == request id).
+// Callers must therefore pass the *request* arbitration ID as expectedId for
+// physical exchanges, or 0 to accept any diagnostic response on the bus.
 //
 // Reconstruction rules:
 //   success=true  → [mode+0x40] + payload_bytes
@@ -593,7 +826,7 @@ std::string Client::buildRequest(uint32_t                    arbId,
 //
 bool Client::parseResponse(const std::string& jsonLine,
                            uint8_t requestMode,
-                           uint32_t expectedRespId,
+                           uint32_t expectedId,
                            int expectedBus,
                            DiagnosticFrame& frame,
                            std::string& err) {
@@ -618,7 +851,17 @@ bool Client::parseResponse(const std::string& jsonLine,
         return false;
 
     if (expectedBus > 0 && bus != expectedBus) return false;
-    if (expectedRespId != 0 && static_cast<uint32_t>(id) != expectedRespId) return false;
+    // Match OpenXC's published id (request arb for physical; module arb for
+    // functional). Also accept request+8 in case a non-stock VI publishes the
+    // raw CAN response id.
+    if (expectedId != 0) {
+        const uint32_t published = static_cast<uint32_t>(id);
+        const uint32_t altCanResp = (expectedId + 0x8u) <= 0x7FFu
+                                        ? (expectedId + 0x8u) : 0u;
+        if (published != expectedId &&
+            !(altCanResp != 0u && published == altCanResp))
+            return false;
+    }
 
     const uint8_t positiveSid = static_cast<uint8_t>(requestMode + 0x40u);
     const uint8_t modeByte = static_cast<uint8_t>(mode & 0xFF);
@@ -663,7 +906,7 @@ bool Client::sendCommand(const std::string& command, std::string& response,
 }
 
 bool Client::sendDiagnostic(uint32_t                    arbId,
-                             uint32_t                    expectedRespId,
+                             uint32_t                    expectedId,
                              const std::vector<uint8_t>& udsReq,
                              std::vector<uint8_t>&       udsResp,
                              int                         timeoutMs,
@@ -674,6 +917,13 @@ bool Client::sendDiagnostic(uint32_t                    arbId,
 
     const uint8_t requestMode = udsReq[0];
 
+    // Discard any bytes buffered from a previous exchange (late responses or
+    // unsolicited vehicle-data frames) so this request's response can't be
+    // confused with stale data - important for rapid per-address probe scans.
+#ifdef OPENXC_HAVE_LIBUSB
+    if (usbMode_) usbRxBuf_.clear();
+#endif
+
     // Send the JSON request terminated with OpenXC's stock NUL delimiter.
     std::string json = buildRequest(arbId, udsReq, bus);
     json.push_back('\0');
@@ -683,6 +933,8 @@ bool Client::sendDiagnostic(uint32_t                    arbId,
     // a diagnostic response or the budget expires.
     using Clock = std::chrono::steady_clock;
     auto deadline = Clock::now() + std::chrono::milliseconds(timeoutMs);
+    lastRxCount_ = 0;
+    lastRxSample_.clear();
 
     while (Clock::now() < deadline) {
         auto msLeft = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -697,9 +949,16 @@ bool Client::sendDiagnostic(uint32_t                    arbId,
         }
         if (line.empty()) continue;
 
+        // Track what the VI returned so a "no matching response" outcome can be
+        // told apart from "no data at all" by the caller.
+        ++lastRxCount_;
+        lastRxSample_ = line.size() > 140 ? line.substr(0, 140) : line;
+
         std::string parseErr;
         DiagnosticFrame frame;
-        if (parseResponse(line, requestMode, expectedRespId, bus, frame, parseErr)) {
+        // expectedId: OpenXC physical responses publish the *request* arb id
+        // (not request+8). Pass arbId for physical; 0 to accept any id.
+        if (parseResponse(line, requestMode, expectedId, bus, frame, parseErr)) {
             bool pending = frame.uds.size() >= 3 && frame.uds[0] == 0x7Fu &&
                            frame.uds[1] == requestMode && frame.uds[2] == 0x78u;
             if (pending) {

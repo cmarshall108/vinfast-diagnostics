@@ -921,11 +921,12 @@ QWidget* Gui::buildConnectionPage() {
     auto* net = card("OpenXC USB/Bluetooth Transport");
     auto* nf = new QFormLayout(net);
     edGateway_   = new QLineEdit(QString::fromStdString(gatewayIp_));
-    edGateway_->setPlaceholderText("auto, /dev/ttyUSB0, /dev/cu.usbmodem*, COM3, or Bluetooth MAC");
+    edGateway_->setPlaceholderText("auto, usb, /dev/cu.usbmodem*, COM3, or Bluetooth MAC");
     usbScanBtn_  = new QPushButton("Scan USB");
     usbScanBtn_->setToolTip(
-        "List available USB/serial ports that may host an OpenXC VI.\n"
-        "USB is preferred because Bluetooth RFCOMM is only reliable on Linux.");
+        "List OpenXC VIs reachable over USB (native raw-USB 'usb' token or a\n"
+        "serial port). USB is preferred because Bluetooth RFCOMM is only\n"
+        "reliable on Linux. The stock Ford VI has no serial port - use 'usb'.");
     usbScanBtn_->setFixedWidth(72);
     btScanBtn_   = new QPushButton("Scan BT");
     btScanBtn_->setToolTip(
@@ -944,10 +945,13 @@ QWidget* Gui::buildConnectionPage() {
         auto ports = openxc::Client::enumerateUsbSerialPorts();
         if (ports.empty()) {
             QMessageBox::information(
-                this, "USB serial scan",
-                "No USB serial ports found.\n\n"
-                "Connect the OpenXC VI via USB and ensure its driver is loaded,\n"
-                "then click Scan USB again.");
+                this, "USB scan",
+                "No OpenXC VI found on USB.\n\n"
+                "• The stock Ford VI has no serial port - it's reached via the\n"
+                "  native 'usb' connection (type 'usb' in the device field).\n"
+                "• If nothing connects, the VI has likely powered down: it sleeps\n"
+                "  without CAN activity. Plug it into a live OBD-II port with the\n"
+                "  ignition on, then scan again.");
             return;
         }
         if (ports.size() == 1) {

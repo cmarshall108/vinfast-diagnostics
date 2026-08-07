@@ -39,6 +39,10 @@ public:
     //     "COM3", etc.
     //   • A Bluetooth MAC – "04:C4:61:C3:69:D0" (auto-resolved to the
     //     RFCOMM serial device when supported by the platform)
+    //   • A native raw-USB token – "usb" or "usb:1BC4:0001" (VID:PID). The
+    //     stock Ford OpenXC VI exposes a vendor-specific USB interface (bulk
+    //     endpoints, no serial port); when built with libusb the client talks
+    //     to it directly instead of through a /dev serial node.
     //
     // USB paths are used as-is; Bluetooth MACs are resolved via BtDiscovery.
     // Returns true on success.  The connection persists across multiple
@@ -58,12 +62,16 @@ public:
     // udsResp   – Reconstructed UDS response PDU on success
     //             Positive: [mode+0x40, ...]
     //             Negative: [0x7F, mode, NRC]
+    // expectedId – OpenXC diagnostic_response "id" to accept. Stock VI firmware
+    //             publishes the *request* arbitration id for physical replies
+    //             (response_arb - 8), and the real module arb id for functional
+    //             0x7DF replies. Pass arbId for physical; 0 to accept any.
     // timeoutMs – How long to wait for a diagnostic response line
     // bus       – OpenXC CAN bus index (1 = primary)
     //
     // Returns true when a response was received (check udsResp[0] for +/-).
     bool sendDiagnostic(uint32_t              arbId,
-                        uint32_t              expectedRespId,
+                        uint32_t              expectedId,
                         const std::vector<uint8_t>& udsReq,
                         std::vector<uint8_t>& udsResp,
                         int                   timeoutMs,
@@ -95,6 +103,14 @@ public:
     // Paths are sorted with common OpenXC/VI patterns first.
     static std::vector<std::string> enumerateUsbSerialPorts();
 
+    // Diagnostics for the most recent sendDiagnostic() exchange: how many
+    // OpenXC messages the VI returned (even non-matching / vehicle-data ones)
+    // and a short sample of the last one. Lets the transport distinguish "VI
+    // saw CAN traffic but nothing matched the target" from "VI returned nothing
+    // at all" (no live bus) when a request gets no response.
+    int                lastRxCount()  const { return lastRxCount_; }
+    const std::string& lastRxSample() const { return lastRxSample_; }
+
 private:
     // Resolve a user-supplied identifier to the actual serial device path.
     // If the input already looks like a path or COM port it is returned as-is;
@@ -110,6 +126,15 @@ private:
     // delimiters; newline is accepted for traces and development tools.
     bool readLine(std::string& line, int timeoutMs, std::string& err);
 
+    // Native raw-USB (libusb) backend for VIs that expose a vendor-specific
+    // bulk interface instead of a serial port. `token` is "usb" or
+    // "usb:VID:PID". No-op returning false when built without libusb.
+    bool connectUsb(const std::string& token, std::string& err);
+    // Read one NUL/newline-delimited message from the buffered USB bulk stream.
+    bool readLineUsb(std::string& line, int timeoutMs, std::string& err);
+    // True when `token` names the native USB backend ("usb" / "usb:VID:PID").
+    static bool isUsbToken(const std::string& token);
+
     // Build the OpenXC JSON diagnostic_request string without its delimiter.
     static std::string buildRequest(uint32_t                     arbId,
                                     const std::vector<uint8_t>&  udsReq,
@@ -119,9 +144,11 @@ private:
     // Returns true when a complete diagnostic response was found.
     // Returns false when the line is not a diagnostic response (vehicle data
     // message) — caller should skip and read the next line.
+    // expectedId is the OpenXC-published id (request arb for physical), not
+    // necessarily the raw CAN response arbitration id.
     static bool parseResponse(const std::string& jsonLine,
                               uint8_t requestMode,
-                              uint32_t expectedRespId,
+                              uint32_t expectedId,
                               int expectedBus,
                               DiagnosticFrame& frame,
                               std::string& err);
@@ -131,6 +158,17 @@ private:
 #else
     int fd_ = -1;
 #endif
+    // Native raw-USB (libusb) backend state. void* keeps libusb.h out of the
+    // header; these stay null/false unless a "usb[:VID:PID]" connection is open.
+    void*         usbHandle_ = nullptr;   // libusb_device_handle*
+    void*         usbCtx_    = nullptr;   // libusb_context*
+    bool          usbMode_   = false;
+    int           usbIface_  = 0;
+    unsigned char usbEpIn_   = 0x82;      // bulk IN  (VI -> host JSON stream)
+    unsigned char usbEpOut_  = 0x05;      // bulk OUT (host -> VI commands)
+    std::string   usbRxBuf_;              // buffered bytes awaiting delimiter
+    int           lastRxCount_ = 0;       // messages seen in last sendDiagnostic
+    std::string   lastRxSample_;          // sample of the last message seen
     std::string connectedPath_;
 };
 

@@ -88,19 +88,33 @@ bool Transport::connect(const std::string& deviceOrMac, std::string& err) {
     const std::string requested = trimCopy(deviceOrMac);
     const bool autoRequested = isAutoDeviceToken(requested);
     const bool explicitSerial = looksLikeSerialPath(requested);
+    // Native raw-USB backend token ("usb" or "usb:VID:PID"): the stock VI has
+    // no serial node, so this is handed straight to the libusb backend.
+    const std::string reqLower = lowerCopy(requested);
+    const bool usbToken = (reqLower == "usb" || reqLower.rfind("usb:", 0) == 0);
 
     std::vector<std::string> candidates;
+    if (usbToken) addUnique(candidates, requested);
     if (explicitSerial) addUnique(candidates, requested);
-    if (!explicitSerial) {
+    if (!explicitSerial && !usbToken) {
         for (const auto& path : openxc::Client::enumerateUsbSerialPorts())
             addUnique(candidates, path);
     }
-    if (!autoRequested && !explicitSerial)
+    if (!autoRequested && !explicitSerial && !usbToken)
         addUnique(candidates, requested);
+#ifdef OPENXC_HAVE_LIBUSB
+    // Native raw-USB fallback: when the user asked for auto/USB, always try the
+    // libusb backend last. It waits briefly for the VI to appear, so a device
+    // that isn't enumerated yet (the VI sleeps and drops off USB) can still be
+    // caught by plugging it in / waking it right after pressing Connect.
+    if (autoRequested || usbToken)
+        addUnique(candidates, "usb");
+#endif
 
     if (candidates.empty()) {
         err = autoRequested
-            ? "No OpenXC USB serial ports found; enter a serial path or Bluetooth MAC"
+            ? "No OpenXC device found; plug in the VI over USB, or enter a "
+              "serial path / Bluetooth MAC"
             : "No OpenXC device specified";
         connected_ = false;
         return false;
@@ -164,27 +178,39 @@ bool Transport::initializeLink(std::string& err) {
     std::string line;
     bool gotVersion = false;
 
-    // 1) Link handshake. The Bluetooth RFCOMM data channel and the VI's command
-    //    parser may need a moment after the port opens, so retry a few times
-    //    before giving up.
+    // 1) Link handshake. The VI needs a warm-up after the link opens before it
+    //    answers commands: the native-USB Ford VI silently DROPS the first ~2
+    //    commands (~2-3 s) right after connect, then answers reliably; the
+    //    Bluetooth RFCOMM channel likewise needs a moment. So poll persistently
+    //    for a real command_response instead of giving up after a few tries.
+    //    A genuine reply echoes {"command_response":...}; we require that token
+    //    so link-up is not falsely triggered by stray bytes.
+    const bool isUsb = openxcClient_.connectedPath().rfind("usb", 0) == 0;
+    const int warmupMs = isUsb ? 20000 : 4000;
+
+    using Clock = std::chrono::steady_clock;
+    const auto deadline = Clock::now() + std::chrono::milliseconds(warmupMs);
     bool linked = false;
     std::string lastErr;
-    for (int attempt = 0; attempt < 3 && !linked; ++attempt) {
-        if (openxcClient_.sendCommand(R"({"command":"platform"})", line, 1000, err)) {
-            linked = true;
-            break;
+    auto tryCmd = [&](const char* cmd) {
+        auto t0 = Clock::now();
+        bool ok = openxcClient_.sendCommand(cmd, line, 900, err) &&
+                  line.find("command_response") != std::string::npos;
+        if (!ok) {
+            lastErr = err.empty() ? "no handshake response" : err;
+            // Avoid a hot spin if the command failed fast (e.g. VI dropped off).
+            if (Clock::now() - t0 < std::chrono::milliseconds(150))
+                std::this_thread::sleep_for(std::chrono::milliseconds(150));
         }
-        lastErr = "platform query failed: " + err;
-        if (openxcClient_.sendCommand(R"({"command":"version"})", line, 1000, err)) {
-            linked = true;
-            gotVersion = true;
-            break;
-        }
-        lastErr += "; version query failed: " + err;
-        std::this_thread::sleep_for(std::chrono::milliseconds(400));
+        return ok;
+    };
+    while (Clock::now() < deadline && !linked) {
+        if (tryCmd(R"({"command":"version"})"))  { linked = true; gotVersion = true; break; }
+        if (tryCmd(R"({"command":"platform"})")) { linked = true; break; }
     }
     if (!linked) {
-        err = "OpenXC link check failed: " + lastErr;
+        err = "OpenXC link check failed (no handshake within " +
+              std::to_string(warmupMs / 1000) + "s): " + lastErr;
         return false;
     }
     Logger::instance().info("OpenXC VI: " + line);
@@ -243,16 +269,36 @@ uint32_t Transport::mapLogicalToCanId(uint16_t logicalAddr, bool functional) con
     return id;
 }
 
-uint32_t Transport::responseIdForRequest(uint32_t requestId, bool functional) const {
+// OpenXC JSON diagnostic_response.id for a *physical* request is the request
+// arbitration id (VI subtracts 0x8 from the CAN response arb). For functional
+// 0x7DF it is the real responding module arb id — leave unconstrained (0).
+// CAN-backup still needs the true ISO-TP response arb (request + offset).
+uint32_t Transport::openXcMatchIdForRequest(uint32_t requestId, bool functional) const {
+    if (functional) return 0u;
+    return requestId <= 0x7FFu ? requestId : 0u;
+}
+
+uint32_t Transport::canResponseIdForRequest(uint32_t requestId, bool functional) const {
     if (functional) return 0u;
     uint32_t id = requestId + canRespOffset_;
     return id <= 0x7FFu ? id : 0u;
 }
 
 uint16_t Transport::mapCanResponseToLogical(uint32_t responseId) const {
-    if (responseId < canIdBase_ + canRespOffset_) return static_cast<uint16_t>(responseId & 0x7FFu);
-    uint32_t low = responseId - canIdBase_ - canRespOffset_;
-    return static_cast<uint16_t>(low & 0xFFu);
+    // OpenXC multi/functional path may hand us either:
+    //   • actual CAN response arb (e.g. 0x7E8) — functional broadcast case, or
+    //   • request-shaped id (e.g. 0x7E0) — if a physical reply was rewritten.
+    // Prefer stripping base+offset when it looks like a response arb; else
+    // strip base alone (request-shaped).
+    if (responseId >= canIdBase_ + canRespOffset_) {
+        uint32_t low = responseId - canIdBase_ - canRespOffset_;
+        if (low <= 0xFFu) return static_cast<uint16_t>(low);
+    }
+    if (responseId >= canIdBase_) {
+        uint32_t low = responseId - canIdBase_;
+        if (low <= 0xFFu) return static_cast<uint16_t>(low);
+    }
+    return static_cast<uint16_t>(responseId & 0x7FFu);
 }
 
 bool Transport::retargetCanBackup(uint16_t target, bool functional, std::string& err) {
@@ -262,7 +308,8 @@ bool Transport::retargetCanBackup(uint16_t target, bool functional, std::string&
     }
 
     uint32_t reqId = mapLogicalToCanId(target, functional);
-    uint32_t respId = responseIdForRequest(reqId, functional);
+    // J2534/ISO-TP needs the real CAN response arbitration id (request+offset).
+    uint32_t respId = canResponseIdForRequest(reqId, functional);
     if (functional) {
         // Functional UDS requests use the broadcast request ID. Use the common
         // physical gateway response as the flow-control anchor so the VCI has a
@@ -367,20 +414,45 @@ bool Transport::sendDiagnosticOpenXc(uint16_t source, uint16_t target,
 
     testerAddr_ = source;
     uint32_t arbId = mapLogicalToCanId(target, functional);
-    uint32_t respId = responseIdForRequest(arbId, functional);
+    // Stock OpenXC publishes physical diagnostic_response.id == request arb
+    // (not the CAN response arb). Match that; functional leaves id open.
+    uint32_t matchId = openXcMatchIdForRequest(arbId, functional);
+    const uint32_t canRespId = canResponseIdForRequest(arbId, functional);
 
     {
         std::ostringstream dbg;
         dbg << "OpenXC TX bus=" << bus_ << " arb=0x" << std::hex << std::uppercase
             << arbId << " uds=" << bytesToHex(uds);
-        if (!functional && respId != 0u)
-            dbg << " (expect resp 0x" << std::hex << std::uppercase << respId << ")";
+        if (!functional) {
+            dbg << " (OpenXC match id 0x" << matchId;
+            if (canRespId != 0u)
+                dbg << ", CAN resp 0x" << canRespId;
+            dbg << ")";
+        } else {
+            dbg << " (functional; accept any responder id)";
+        }
         Logger::instance().info(dbg.str());
     }
 
-    if (!openxcClient_.sendDiagnostic(arbId, respId, uds, response,
+    if (!openxcClient_.sendDiagnostic(arbId, matchId, uds, response,
                                        timeoutMs > 0 ? timeoutMs : 2000,
                                        bus_, err)) {
+        // Help distinguish the two very different "no response" causes:
+        //   • VI returned other messages but none matched -> the bus is live,
+        //     the target address/bus is just wrong (placeholders!).
+        //   • VI returned nothing at all -> no CAN activity: the vehicle is
+        //     asleep, ignition off, or the VI isn't on the diagnostic bus.
+        int seen = openxcClient_.lastRxCount();
+        if (seen > 0) {
+            Logger::instance().warn(
+                "VI saw " + std::to_string(seen) + " CAN/data message(s) but none "
+                "matched (wrong target/bus/mode). Sample: " +
+                openxcClient_.lastRxSample());
+        } else {
+            Logger::instance().warn(
+                "VI returned no data - no CAN activity on bus " + std::to_string(bus_) +
+                " (vehicle asleep / ignition off / VI not on the diagnostic bus).");
+        }
         return false;
     }
 

@@ -98,11 +98,15 @@ private:
     // Map a logical UDS address to the CAN request arbitration ID.
     uint32_t mapLogicalToCanId(uint16_t logicalAddr, bool functional) const;
 
-    // Map a CAN response arbitration ID back to the request-ID-shaped logical
+    // Map a CAN / OpenXC response id back to the request-ID-shaped logical
     // key used by the UI when true logical addresses are unknown.
     uint16_t mapCanResponseToLogical(uint32_t responseId) const;
 
-    uint32_t responseIdForRequest(uint32_t requestId, bool functional) const;
+    // OpenXC JSON id to match for a physical request (request arb id).
+    // Functional returns 0 (accept any responder).
+    uint32_t openXcMatchIdForRequest(uint32_t requestId, bool functional) const;
+    // True ISO-TP CAN response arbitration id (request + offset) for J2534.
+    uint32_t canResponseIdForRequest(uint32_t requestId, bool functional) const;
     bool retargetCanBackup(uint16_t target, bool functional, std::string& err);
 
     openxc::Client openxcClient_;

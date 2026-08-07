@@ -159,6 +159,42 @@ if(WIN32)
   target_link_libraries(vinfast_scanner PRIVATE ws2_32 iphlpapi)
 endif()
 
+# -------------------------------------------------------------------
+# Optional: native raw-USB transport for the OpenXC VI (libusb-1.0)
+#
+# The stock Ford OpenXC VI exposes a vendor-specific USB interface
+# (class 0xFF, bulk endpoints) instead of a USB-CDC serial port, so on
+# macOS no /dev/cu.* node appears and the serial backend can't reach it.
+# When libusb-1.0 is available we compile a direct bulk-transfer backend
+# (OPENXC_HAVE_LIBUSB) so "usb" connects straight to the VI.
+# -------------------------------------------------------------------
+find_path(LIBUSB_INCLUDE_DIR
+  NAMES libusb.h
+  PATH_SUFFIXES libusb-1.0
+  HINTS
+    /opt/homebrew/opt/libusb/include
+    /usr/local/opt/libusb/include
+    /opt/homebrew/include
+    /usr/local/include
+    /usr/include)
+find_library(LIBUSB_LIBRARY
+  NAMES usb-1.0 libusb-1.0
+  HINTS
+    /opt/homebrew/opt/libusb/lib
+    /usr/local/opt/libusb/lib
+    /opt/homebrew/lib
+    /usr/local/lib
+    /usr/lib)
+
+if(LIBUSB_INCLUDE_DIR AND LIBUSB_LIBRARY)
+  target_include_directories(vinfast_scanner PRIVATE "${LIBUSB_INCLUDE_DIR}")
+  target_link_libraries(vinfast_scanner PRIVATE "${LIBUSB_LIBRARY}")
+  target_compile_definitions(vinfast_scanner PRIVATE OPENXC_HAVE_LIBUSB=1)
+  message(STATUS "libusb-1.0 found (${LIBUSB_LIBRARY}) - native OpenXC USB transport ENABLED")
+else()
+  message(STATUS "libusb-1.0 not found - native OpenXC USB transport DISABLED (serial/Bluetooth only)")
+endif()
+
 if(APPLE)
   target_link_libraries(vinfast_scanner PRIVATE
     "-framework Cocoa" "-framework IOKit" "-framework CoreVideo"
