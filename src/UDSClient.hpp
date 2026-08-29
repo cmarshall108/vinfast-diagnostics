@@ -177,13 +177,12 @@ public:
         bool        printable = false;
     };
 
-    // Sweeps the standard ISO 14229 identification block (0xF180-0xF1FF) with
-    // read-only 0x22 requests and returns every DID that answers. This both
-    // CONFIRMS the address (a positive read proves a live ECU) and harvests the
-    // real part/serial/version numbers without any destructive action. `answered`
-    // receives the number of DIDs that responded. Absent DIDs are skipped fast.
+    // Probes standard ISO 14229 identification DIDs with read-only 0x22
+    // requests and returns every DID that answers. This confirms the address
+    // and harvests part/serial/version numbers without a slow exhaustive DID
+    // sweep during a multi-ECU scan.
     std::vector<IdentField> sweepIdentificationDids(uint16_t target, int& answered,
-                                                    int timeoutMs = 800);
+                                                    int timeoutMs = 150);
 
 
     // 0x19 / 0x02 - reads DTCs matching the status mask (e.g. 0x08 confirmed).

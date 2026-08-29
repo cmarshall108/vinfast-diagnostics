@@ -398,9 +398,8 @@ bool Client::connectUsb(const std::string& token, std::string& err) {
     if (!h) {
         char buf[224];
         std::snprintf(buf, sizeof buf,
-            "OpenXC VI (USB %04X:%04X) not found. It powers down and drops off "
-            "USB without CAN activity - plug it into the vehicle's OBD-II port "
-            "with ignition on, then Connect.", vid, pid);
+            "OpenXC VI (USB %04X:%04X) not found. Reconnect or power-cycle the "
+            "VI and verify its USB connection before trying again.", vid, pid);
         err = buf;
         libusb_exit(ctx);
         return false;
@@ -610,20 +609,42 @@ bool Client::writeAll(const char* data, size_t n, std::string& err) {
 #ifdef OPENXC_HAVE_LIBUSB
     if (usbMode_) {
         auto* h = static_cast<libusb_device_handle*>(usbHandle_);
-        size_t off = 0;
-        while (off < n) {
-            int transferred = 0;
-            int r = libusb_bulk_transfer(h, usbEpOut_,
-                        reinterpret_cast<unsigned char*>(const_cast<char*>(data + off)),
-                        static_cast<int>(n - off), &transferred, 1000);
-            if (r == 0 || (r == LIBUSB_ERROR_TIMEOUT && transferred > 0)) {
-                off += static_cast<size_t>(transferred);
-                continue;
-            }
-            err = std::string("USB bulk write failed: ") + libusb_error_name(r);
+        constexpr uint8_t kOpenXcControlRequest = 0x83;
+        if (n > 0xFFFFu) {
+            err = "OpenXC control request is too large";
             return false;
         }
-        return true;
+        for (int attempt = 0; attempt < 3; ++attempt) {
+            int r = libusb_control_transfer(h, 0x40, kOpenXcControlRequest,
+                    0, 0, reinterpret_cast<unsigned char*>(const_cast<char*>(data)),
+                    static_cast<uint16_t>(n), 1000);
+            if (r >= 0) {
+                if (static_cast<size_t>(r) == n) {
+                    return true;
+                }
+                err = "OpenXC USB control write was incomplete";
+                return false;
+            }
+            if ((r != LIBUSB_ERROR_TIMEOUT && r != LIBUSB_ERROR_PIPE) || attempt == 2) {
+                if (r == LIBUSB_ERROR_TIMEOUT || r == LIBUSB_ERROR_PIPE) {
+                    int transferred = 0;
+                    int bulkResult = libusb_bulk_transfer(h, usbEpOut_,
+                            reinterpret_cast<unsigned char*>(const_cast<char*>(data)),
+                            static_cast<int>(n), &transferred, 2000);
+                    if (bulkResult == 0 && static_cast<size_t>(transferred) == n) {
+                        return true;
+                    }
+                        err = std::string("OpenXC USB control and bulk writes failed: ") +
+                            libusb_error_name(bulkResult);
+                    return false;
+                }
+                err = std::string("OpenXC USB control write failed: ") +
+                        libusb_error_name(r);
+                return false;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        return false;
     }
 #endif
 #ifdef _WIN32
@@ -796,8 +817,15 @@ std::string Client::buildRequest(uint32_t                    arbId,
          << "\"id\":"    << dr.arbitration_id
          << ",\"mode\":" << static_cast<int>(dr.mode)
          << ",\"bus\":"  << bus;
-    if (!payloadStr.empty())
+        // The legacy OpenXC diagnostics bridge represents the subfunction for
+        // session control and tester-present as a one-byte PID. This produces the
+        // same ISO-TP UDS PDU while following the proven 10 01 / 3E 80 command
+        // path used by the firmware CLI.
+        if ((dr.mode == 0x10 || dr.mode == 0x3e) && udsReq.size() == 2) {
+            json << ",\"pid\":" << static_cast<int>(udsReq[1]);
+        } else if (!payloadStr.empty()) {
         json << ",\"payload\":\"" << payloadStr << "\"";
+        }
     json << "},\"action\":\"add\"}";
     return json.str();
 }
@@ -858,8 +886,11 @@ bool Client::parseResponse(const std::string& jsonLine,
         const uint32_t published = static_cast<uint32_t>(id);
         const uint32_t altCanResp = (expectedId + 0x8u) <= 0x7FFu
                                         ? (expectedId + 0x8u) : 0u;
+        const uint32_t infoCanResp = expectedId >= 0x680u && expectedId <= 0x6FFu
+                         ? expectedId - 0x80u : 0u;
         if (published != expectedId &&
-            !(altCanResp != 0u && published == altCanResp))
+            !(altCanResp != 0u && published == altCanResp) &&
+            !(infoCanResp != 0u && published == infoCanResp))
             return false;
     }
 
@@ -898,6 +929,7 @@ bool Client::parseResponse(const std::string& jsonLine,
 
 bool Client::sendCommand(const std::string& command, std::string& response,
                          int timeoutMs, std::string& err) {
+    std::lock_guard<std::mutex> lock(ioMutex_);
     if (!isConnected()) { err = "OpenXC VI not connected"; return false; }
     std::string json = command;
     json.push_back('\0');
@@ -912,6 +944,7 @@ bool Client::sendDiagnostic(uint32_t                    arbId,
                              int                         timeoutMs,
                              int                         bus,
                              std::string&                err) {
+    std::lock_guard<std::mutex> lock(ioMutex_);
     if (!isConnected()) { err = "OpenXC VI not connected"; return false; }
     if (udsReq.empty()) { err = "Empty UDS request"; return false; }
 
@@ -981,6 +1014,7 @@ bool Client::sendDiagnosticMulti(uint32_t                    arbId,
                                  int                         collectMs,
                                  int                         bus,
                                  std::string&                err) {
+    std::lock_guard<std::mutex> lock(ioMutex_);
     responses.clear();
     if (!isConnected()) { err = "OpenXC VI not connected"; return false; }
     if (udsReq.empty()) { err = "Empty UDS request"; return false; }

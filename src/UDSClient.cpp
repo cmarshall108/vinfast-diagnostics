@@ -3,7 +3,9 @@
 #include "VF8Data.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
+#include <thread>
 #include <unordered_map>
 
 // Human-readable name for a UDS service ID (the first request byte).
@@ -145,18 +147,20 @@ std::string UDSClient::readEcuIdentification(uint16_t target, bool& anyOk) {
     std::string out;
     for (auto& it : ids) {
         std::string err;
-        auto data = readDataByIdentifier(target, it.did, err);
-        if (!data) continue;
+        std::vector<uint8_t> response;
+        if (probeDID(target, it.did, response, err, 150) != 1 || response.size() < 3)
+            continue;
+        std::vector<uint8_t> data(response.begin() + 3, response.end());
         anyOk = true;
         // Decide text vs hex.
-        bool printable = !data->empty();
-        for (uint8_t b : *data)
+        bool printable = !data.empty();
+        for (uint8_t b : data)
             if (b != 0 && (b < 0x20 || b > 0x7E)) { printable = false; break; }
         std::string val;
         if (printable) {
-            for (uint8_t b : *data) if (b) val.push_back((char)b);
+            for (uint8_t b : data) if (b) val.push_back((char)b);
         } else {
-            val = toHex(data->data(), data->size());
+            val = toHex(data.data(), data.size());
         }
         char did[8];
         std::snprintf(did, sizeof did, "%04X", it.did);
@@ -203,9 +207,11 @@ UDSClient::sweepIdentificationDids(uint16_t target, int& answered, int timeoutMs
 
     answered = 0;
     std::vector<IdentField> fields;
-    // Sweep the whole standard identification block. probeDID uses read-only
-    // 0x22 and classifies absent DIDs quickly, so this stays responsive.
-    for (uint16_t did = 0xF180; did <= 0xF1FF; ++did) {
+    // Restrict automatic scans to standardized identification DIDs. Many VF8
+    // modules silently ignore unsupported DIDs, making an exhaustive 0xF1xx
+    // sweep take minutes before moving to the next ECU.
+    for (const auto& known : kKnown) {
+        const uint16_t did = known.first;
         std::vector<uint8_t> resp;
         std::string err;
         int r = probeDID(target, did, resp, err, timeoutMs);
@@ -368,12 +374,18 @@ bool UDSClient::testerPresent(uint16_t target, std::string& err,
 }
 
 bool UDSClient::probe(uint16_t target, std::string& err) {
-    // A negative response (0x7F) still proves the address is reachable and
-    // routable, so treat "any UDS reply" as success.
-    std::vector<uint8_t> req = {0x3E, 0x00};
+    // The VF8 gateway exposes ECU discovery through default-session control.
+    // Autel retries each physical address about 1.15 seconds later; matching
+    // that cadence makes gateway-routed modules substantially more reliable.
+    // A negative response still proves the address is reachable and routable.
+    std::vector<uint8_t> req = {0x10, 0x01};
     std::vector<uint8_t> resp;
-    if (transport_.sendDiagnostic(tester_, target, req, resp, 1500, err))
-        return !resp.empty();
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        if (transport_.sendDiagnostic(tester_, target, req, resp, 1500, err))
+            return !resp.empty();
+        if (attempt == 0)
+            std::this_thread::sleep_for(std::chrono::milliseconds(1150));
+    }
     return false;  // err set by transport layer (timeout / nack)
 }
 

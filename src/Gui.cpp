@@ -814,6 +814,7 @@ QWidget* Gui::buildHeader() {
         if (transport_.isConnected() || canBackup_.isConnected()) {
             stopLivePoll();
             stopKeepAlive();
+            if (worker_.joinable()) worker_.join();
             transport_.disconnect();
             canBackup_.disconnect();
             std::lock_guard<std::mutex> g(mutex_);
@@ -1060,6 +1061,7 @@ QWidget* Gui::buildConnectionPage() {
     cbAutoExt_ = new QCheckBox("Auto-enter Extended before Clear"); cbAutoExt_->setChecked(true);
     sf->addRow(cbAutoExt_);
     cbKeepAlive_ = new QCheckBox("Keep session alive (background TesterPresent)");
+    cbKeepAlive_->setChecked(true);
     edKeepAliveTarget_ = hexEdit("0682", 4);
     auto* kaRow = new QHBoxLayout;
     kaRow->addWidget(cbKeepAlive_);
@@ -1375,13 +1377,16 @@ QWidget* Gui::buildEcuPage() {
     lay->addWidget(subtitle);
 
     auto* toolbar = new QHBoxLayout;
-    auto* scanBtn  = new QPushButton("Scan all (read DTCs)");
-    auto* clearBtn = new QPushButton("Clear DTCs on ALL"); clearBtn->setObjectName("danger");
-    auto* addBtn   = new QPushButton("Add ECU");
-    toolbar->addWidget(scanBtn);
-    toolbar->addWidget(clearBtn);
+    scanAllBtn_  = new QPushButton("Scan all (read DTCs)");
+    clearAllBtn_ = new QPushButton("Clear DTCs on ALL"); clearAllBtn_->setObjectName("danger");
+    addEcuBtn_   = new QPushButton("Add ECU");
+    scanStateLabel_ = new QLabel("Connect to begin scanning");
+    scanStateLabel_->setObjectName("scanState");
+    toolbar->addWidget(scanAllBtn_);
+    toolbar->addWidget(clearAllBtn_);
+    toolbar->addWidget(scanStateLabel_);
     toolbar->addStretch(1);
-    toolbar->addWidget(addBtn);
+    toolbar->addWidget(addEcuBtn_);
     lay->addLayout(toolbar);
 
     auto* row = new QHBoxLayout;
@@ -1483,7 +1488,7 @@ QWidget* Gui::buildEcuPage() {
     row->addWidget(legend);
     lay->addLayout(row, 1);
 
-    connect(scanBtn, &QPushButton::clicked, this, [this] {
+    connect(scanAllBtn_, &QPushButton::clicked, this, [this] {
         syncSettingsFromUi();
         uint8_t mask = (uint8_t)statusMask_;
         bool functional = useFunctional_;
@@ -1593,8 +1598,8 @@ QWidget* Gui::buildEcuPage() {
                                     std::to_string(identified) + " identified");
         });
     });
-    connect(clearBtn, &QPushButton::clicked, this, [this, clearBtn] {
-        if (!confirmPopup(clearBtn, "Clear DTCs on ALL ECUs",
+    connect(clearAllBtn_, &QPushButton::clicked, this, [this] {
+        if (!confirmPopup(clearAllBtn_, "Clear DTCs on ALL ECUs",
                 "This erases stored fault history on EVERY module in the list. "
                 "Record the codes first. Proceed?", "Yes, clear ALL"))
             return;
@@ -1610,7 +1615,15 @@ QWidget* Gui::buildEcuPage() {
             for (size_t i = 0; i < count; ++i) {
                 uint16_t addr; { std::lock_guard<std::mutex> g(mutex_); addr = ecus_[i].logicalAddr; }
                 uint16_t target = functional ? funcAddr : addr;
-                if (autoExt) { std::string se; uds.diagnosticSessionControl(target, UdsSession::Extended, se); }
+                if (autoExt) {
+                    std::string se;
+                    if (!uds.diagnosticSessionControl(target, UdsSession::Extended, se)) {
+                        std::lock_guard<std::mutex> g(mutex_);
+                        ecus_[i].statusMsg = "clear skipped: extended session failed: " + se;
+                        if (functional) break;
+                        continue;
+                    }
+                }
                 std::string e; bool ok = uds.clearDiagnosticInformation(target, 0xFFFFFFu, e);
                 std::lock_guard<std::mutex> g(mutex_);
                 if (ok) { ecus_[i].dtcs.clear(); ecus_[i].statusMsg = "DTCs cleared"; ++cleared; }
@@ -1621,7 +1634,7 @@ QWidget* Gui::buildEcuPage() {
                 (functional ? " (functional broadcast)" : ("/" + std::to_string(count))));
         });
     });
-    connect(addBtn, &QPushButton::clicked, this, [this] {
+    connect(addEcuBtn_, &QPushButton::clicked, this, [this] {
         std::lock_guard<std::mutex> g(mutex_);
         EcuRow r; r.name = "New ECU"; r.logicalAddr = 0x1000; r.statusMsg = "idle";
         ecus_.push_back(std::move(r));
@@ -3652,6 +3665,7 @@ void Gui::applyStyle() {
         }
         QLabel#ecuLegendTitle { font-size: 17px; font-weight: 700; color: #10233d; }
         QLabel#ecuLegendNote { color: #5f7287; font-size: 12px; }
+        QLabel#scanState { color: #5f7287; font-weight: 600; padding-left: 6px; }
         QToolButton#tile { background: #ffffff; border: 1px solid #d1dbe6;
                            border-radius: 10px; font-weight: 600; }
         QToolButton#tile:hover { background: #eef4f9; border-color: #2e7dd1; }
@@ -3672,6 +3686,7 @@ void Gui::applyStyle() {
 // ==========================================================================
 void Gui::onTick() {
     refreshHeader();
+    refreshActionState();
     refreshDashboard();
     if (pages_->currentIndex() == 2) refreshEcuTiles();
     if (pages_->currentIndex() == 3) refreshLive();
@@ -3685,6 +3700,53 @@ void Gui::onTick() {
         std::lock_guard<std::mutex> g(mutex_);
         if (!lastSeedHex_.empty())
             seedLabel_->setText(QString("seed: %1").arg(QString::fromStdString(lastSeedHex_)));
+    }
+}
+
+void Gui::resizeEvent(QResizeEvent* event) {
+    QMainWindow::resizeEvent(event);
+    if (!nav_) return;
+
+    const bool compact = event->size().width() < 900;
+    nav_->setFixedWidth(compact ? 112 : 168);
+    for (int index = 0; index < nav_->count(); ++index)
+        nav_->item(index)->setSizeHint(QSize(compact ? 104 : 160, compact ? 52 : 46));
+
+    if (hdrSubtitle_) hdrSubtitle_->setVisible(!compact);
+    if (busyText_) busyText_->setVisible(!compact);
+    if (connText_) connText_->setVisible(event->size().width() >= 1060);
+}
+
+void Gui::refreshActionState() {
+    const bool busy = busy_.load();
+    const bool connected = transport_.isConnected() || canBackup_.isConnected();
+    if (scanAllBtn_) scanAllBtn_->setEnabled(!busy);
+    if (clearAllBtn_) clearAllBtn_->setEnabled(!busy && connected);
+    if (addEcuBtn_) addEcuBtn_->setEnabled(!busy);
+    if (usbScanBtn_) usbScanBtn_->setEnabled(!busy && !connected);
+    if (btScanBtn_) btScanBtn_->setEnabled(!busy && !connected);
+
+    if (!scanStateLabel_) return;
+    if (busy) {
+        int activeIndex = -1;
+        int total = 0;
+        {
+            std::lock_guard<std::mutex> g(mutex_);
+            total = static_cast<int>(ecus_.size());
+            for (size_t index = 0; index < ecus_.size(); ++index) {
+                if (ecus_[index].statusMsg.find("scanning module") != std::string::npos) {
+                    activeIndex = static_cast<int>(index) + 1;
+                    break;
+                }
+            }
+        }
+        scanStateLabel_->setText(activeIndex > 0
+                ? QString("Scanning %1 / %2").arg(activeIndex).arg(total)
+                : QString("Working with vehicle"));
+    } else if (connected) {
+        scanStateLabel_->setText("Connected - ready to scan");
+    } else {
+        scanStateLabel_->setText("Connect to begin scanning");
     }
 }
 
@@ -4621,7 +4683,14 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
             if (autoExt) { std::string se;
                 if (uds.diagnosticSessionControl(target, UdsSession::Extended, se))
                     Logger::instance().info("Extended session for clear");
-                else Logger::instance().warn("Extended session refused: " + se); }
+                else {
+                    std::lock_guard<std::mutex> g(mutex_);
+                    if (idx < (int)ecus_.size())
+                        ecus_[idx].statusMsg = "clear skipped: extended session failed: " + se;
+                    Logger::instance().warn("Extended session refused: " + se);
+                    return;
+                }
+            }
             bool ok = uds.clearDiagnosticInformation(target, 0xFFFFFFu, err);
             std::lock_guard<std::mutex> g(mutex_);
             if (idx >= (int)ecus_.size()) return;

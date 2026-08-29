@@ -14,6 +14,8 @@
 
 #include <QMainWindow>
 
+class QResizeEvent;
+
 #include <atomic>
 #include <functional>
 #include <mutex>
@@ -48,6 +50,9 @@ class Gui : public QMainWindow {
 public:
     Gui();
     ~Gui() override;
+
+protected:
+    void resizeEvent(QResizeEvent* event) override;
 
 private:
     // A configurable target ECU.
@@ -128,6 +133,7 @@ private:
     void refreshProtocol();
     void refreshCloud();
     void refreshLog();
+    void refreshActionState();
 
     // Appends a line to the protocol page output (thread-safe).
     void protoLine(const std::string& s);
@@ -285,6 +291,10 @@ private:
     EcuTopologyView* topology_     = nullptr;
     int              openEcuIdx_   = -1;   // currently open detail dialog index
     QWidget*         openEcuDialog_= nullptr;
+    QPushButton*     scanAllBtn_   = nullptr;
+    QPushButton*     clearAllBtn_  = nullptr;
+    QPushButton*     addEcuBtn_    = nullptr;
+    QLabel*          scanStateLabel_ = nullptr;
 
     // live page
     QLineEdit*    edLiveInterval_ = nullptr;

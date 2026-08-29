@@ -13,6 +13,7 @@
 // UDSClient does not need changes.
 //
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -169,6 +170,7 @@ private:
     std::string   usbRxBuf_;              // buffered bytes awaiting delimiter
     int           lastRxCount_ = 0;       // messages seen in last sendDiagnostic
     std::string   lastRxSample_;          // sample of the last message seen
+    std::mutex    ioMutex_;                // serializes USB/serial request-response exchanges
     std::string connectedPath_;
 };
 
