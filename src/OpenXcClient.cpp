@@ -306,6 +306,7 @@ Client::~Client() { disconnect(); }
 
 bool Client::isConnected() const {
     if (usbMode_) return usbHandle_ != nullptr;
+    if (btConnection_) return bt::rfcommConnected(btConnection_);
 #ifdef _WIN32
     return handle_ != nullptr && handle_ != INVALID_HANDLE_VALUE;
 #else
@@ -326,6 +327,10 @@ void Client::disconnect() {
     usbCtx_    = nullptr;
     usbMode_   = false;
     usbRxBuf_.clear();
+    if (btConnection_) {
+        bt::closeRfcommConnection(btConnection_);
+        btConnection_ = nullptr;
+    }
 #ifdef _WIN32
     if (handle_ != nullptr && handle_ != INVALID_HANDLE_VALUE) {
         CloseHandle(static_cast<HANDLE>(handle_));
@@ -499,6 +504,17 @@ bool Client::connect(const std::string& deviceOrMac, std::string& err) {
     if (isUsbToken(deviceOrMac))
         return connectUsb(deviceOrMac, err);
 
+#ifdef __APPLE__
+    if (!looksLikeUsbSerialPath(deviceOrMac)) {
+        btConnection_ = bt::openRfcommConnection(deviceOrMac, err);
+        if (btConnection_) {
+            connectedPath_ = "bluetooth:" + trimCopy(deviceOrMac);
+            return true;
+        }
+        return false;
+    }
+#endif
+
     std::string path = resolvePath(deviceOrMac, err);
     if (path.empty()) return false;
 
@@ -647,6 +663,7 @@ bool Client::writeAll(const char* data, size_t n, std::string& err) {
         return false;
     }
 #endif
+    if (btConnection_) return bt::writeRfcomm(btConnection_, data, n, err);
 #ifdef _WIN32
     size_t written = 0;
     while (written < n) {
@@ -683,6 +700,25 @@ bool Client::readLine(std::string& line, int timeoutMs, std::string& err) {
 #ifdef OPENXC_HAVE_LIBUSB
     if (usbMode_) return readLineUsb(line, timeoutMs, err);
 #endif
+    if (btConnection_) {
+        using Clock = std::chrono::steady_clock;
+        const auto deadline = Clock::now() + std::chrono::milliseconds(timeoutMs);
+        while (Clock::now() < deadline) {
+            int remainingMs = (int)std::chrono::duration_cast<std::chrono::milliseconds>(
+                deadline - Clock::now()).count();
+            char character = 0;
+            int received = bt::readRfcomm(btConnection_, &character,
+                                           std::max(1, remainingMs), err);
+            if (received <= 0) return false;
+            if (character == '\0' || character == '\n') {
+                if (!line.empty()) return true;
+            } else if (character != '\r') {
+                line += character;
+            }
+        }
+        err = "Response timeout";
+        return false;
+    }
     using Clock = std::chrono::steady_clock;
     auto deadline = Clock::now() + std::chrono::milliseconds(timeoutMs);
 

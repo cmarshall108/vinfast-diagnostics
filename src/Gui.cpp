@@ -994,10 +994,8 @@ QWidget* Gui::buildConnectionPage() {
                 }
 
                 if (devices.size() == 1) {
-                    // Auto-fill: use devPath if available, else MAC address.
                     const auto& d = devices[0];
-                    QString val = QString::fromStdString(
-                        d.devPath.empty() ? d.address : d.devPath);
+                    QString val = QString::fromStdString(d.address);
                     edGateway_->setText(val);
                     Logger::instance().info(
                         "Auto-selected OpenXC Bluetooth device: " + d.name +
@@ -1016,8 +1014,7 @@ QWidget* Gui::buildConnectionPage() {
                     else if (d.connected)
                         label += "  (connected)";
                     auto* act = menu->addAction(label);
-                    QString val = QString::fromStdString(
-                        d.devPath.empty() ? d.address : d.devPath);
+                    QString val = QString::fromStdString(d.address);
                     connect(act, &QAction::triggered, this,
                             [this, val] { edGateway_->setText(val); });
                 }

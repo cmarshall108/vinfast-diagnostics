@@ -17,6 +17,8 @@
 #include <string>
 #include <vector>
 
+namespace bt { class Connection; }
+
 namespace openxc {
 
 struct DiagnosticFrame {
@@ -159,6 +161,7 @@ private:
 #else
     int fd_ = -1;
 #endif
+    bt::Connection* btConnection_ = nullptr;
     // Native raw-USB (libusb) backend state. void* keeps libusb.h out of the
     // header; these stay null/false unless a "usb[:VID:PID]" connection is open.
     void*         usbHandle_ = nullptr;   // libusb_device_handle*

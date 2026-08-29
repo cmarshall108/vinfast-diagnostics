@@ -14,6 +14,8 @@
 
 namespace bt {
 
+class Connection;
+
 // A paired Bluetooth device that advertises the Serial Port Profile (SPP).
 struct Device {
     std::string name;     // e.g. "OpenXC VI"
@@ -56,5 +58,15 @@ std::string resolveDevicePath(const std::string& macOrName, std::string& err);
 // platforms this is a no-op that returns true. Returns false with `err` set
 // only when a matching Bluetooth device is found but cannot be connected.
 bool prepareSerialPath(const std::string& devPath, std::string& err);
+
+// Open a paired Classic Bluetooth SPP service directly through IOBluetooth.
+// This avoids depending on macOS to create a /dev/cu.* serial node.
+Connection* openRfcommConnection(const std::string& macOrName, std::string& err);
+void closeRfcommConnection(Connection* connection);
+bool rfcommConnected(const Connection* connection);
+bool writeRfcomm(Connection* connection, const char* data, size_t size,
+                 std::string& err);
+int readRfcomm(Connection* connection, char* data, int timeoutMs,
+               std::string& err);
 
 } // namespace bt
