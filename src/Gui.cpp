@@ -1009,9 +1009,7 @@ QWidget* Gui::buildConnectionPage() {
                     QString label = QString::fromStdString(d.name);
                     if (!d.address.empty())
                         label += "  [" + QString::fromStdString(d.address) + "]";
-                    if (!d.devPath.empty())
-                        label += "  " + QString::fromStdString(d.devPath);
-                    else if (d.connected)
+                    if (d.connected)
                         label += "  (connected)";
                     auto* act = menu->addAction(label);
                     QString val = QString::fromStdString(d.address);

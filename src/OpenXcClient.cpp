@@ -493,7 +493,8 @@ std::string Client::resolvePath(const std::string& deviceOrMac,
         return serialPath;
     }
 
-    return bt::resolveDevicePath(trimmed, err);
+    err = "Bluetooth SPP requires macOS; enter a USB serial path or use the native USB transport.";
+    return {};
 }
 
 bool Client::connect(const std::string& deviceOrMac, std::string& err) {
@@ -517,12 +518,6 @@ bool Client::connect(const std::string& deviceOrMac, std::string& err) {
 
     std::string path = resolvePath(deviceOrMac, err);
     if (path.empty()) return false;
-
-    // Bring up the Bluetooth ACL/RFCOMM link for BT serial nodes before opening.
-    // A paired-but-disconnected VI exposes a node that accepts writes but never
-    // replies; this is a no-op for USB serial and on non-macOS platforms.
-    if (!bt::prepareSerialPath(path, err))
-        return false;
 
 #ifdef _WIN32
     HANDLE h = CreateFileA(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0,
