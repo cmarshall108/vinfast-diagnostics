@@ -14,7 +14,7 @@ telemetry and commands.
 
 ## Features
 
-- **Connection settings** — OpenXC USB serial port or Bluetooth MAC, tester source address,
+- **Connection settings** — OpenXC USB or Bluetooth MAC, tester source address,
   functional/physical addressing toggle, and fallback CAN parameters.
 - **Address probing** — sends TesterPresent to every configured ECU and marks
   which addresses actually respond (a negative response still proves the
@@ -57,6 +57,17 @@ the `vf_crypto_service` binary, used to make the tool match the real vehicle:
 | Per-ECU keys stored as an encrypted keyset (4 levels/ECU) in the TPM | `ProvisioningEcuKeySet` / `DecryptwtEcuKey` symbols | Documented; the secret must be user-supplied. |
 | Engineering-menu unlock is **RFC 4226 HOTP / 30 s TOTP** over `SHA1(oemsymkey ‖ seed)` | `CryptoToken::authenTOTP`, `GetFotaDecryptionKey` (loads `oemsymkey`) | `tools/vf8_totp.py` + in-app TOTP generator. |
 
+## Field-validation notes
+
+The following is an observed result from the reference 2024 US VF8. It is kept
+separate from firmware-derived facts because it does not establish a complete
+vehicle diagnostic path.
+
+| Observation | Result | Interpretation |
+|---|---|---|
+| OpenXC `diagnostic_request`: bus 1, ID `0x682`, UDS `0x22 F190` | The VI acknowledged the host command; no `diagnostic_response` arrived within 3 seconds. | The computer-to-VI link was working. It does **not** confirm VCI CAN transmission, the physical OBD network, XGW wake state, or that `0x682` is reachable from the connected port. |
+| XGW candidates | `0x682` is the preferred Info-CAN tunnel candidate; `0x7E0` is tried as the standard OBD physical fallback. | Both are candidates until a matching response is captured on the vehicle. A timeout is not evidence that an ECU is absent. |
+
 
 ## Architecture
 
@@ -75,10 +86,13 @@ the `vf_crypto_service` binary, used to make the tool match the real vehicle:
 ### OpenXC flow recap
 
 1. **USB connection (preferred)** — connect the OpenXC Vehicle Interface (VI)
-   to the computer with a USB cable. The VI exposes a USB serial port
-   (e.g. `/dev/ttyUSB0`, `/dev/cu.usbmodem*`, `COM3`).
-   **Bluetooth** is also supported, but RFCOMM is only reliable on Linux; on
-   macOS and Windows USB is strongly recommended.
+  to the computer with a USB cable. The stock Ford/OpenXC VI uses a
+  vendor-specific USB bulk interface rather than USB-CDC on macOS; the app
+  connects to it through libusb using the `usb` device token. USB-serial VIs
+  (for example `/dev/ttyUSB0`, `/dev/cu.usbmodem*`, or `COM3`) are also
+  supported. **Bluetooth Classic SPP** is supported on macOS through a direct
+  IOBluetooth RFCOMM channel selected by the paired device's MAC address, so
+  it does not depend on a `/dev/cu.*` Bluetooth serial node.
 2. **Connect** — the app opens the serial link to the VI and configures it to
    pass arbitrary diagnostic frames on the selected CAN bus.
 3. **Diagnostic messages** — UDS requests are sent as OpenXC JSON
@@ -93,7 +107,7 @@ the `vf_crypto_service` binary, used to make the tool match the real vehicle:
 - A C++20 compiler (MSVC 2022 / Clang / GCC)
 - **Qt 6** (Widgets)
 - **libcurl**
-- **Python 3** with OpenXC Bluetooth support (`openxc` + `pybluez`)
+- **Python 3** for optional helper tools
 
 Install the dependencies:
 
