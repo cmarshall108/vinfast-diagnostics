@@ -1491,9 +1491,7 @@ QWidget* Gui::buildEcuPage() {
     connect(scanAllBtn_, &QPushButton::clicked, this, [this] {
         syncSettingsFromUi();
         uint8_t mask = (uint8_t)statusMask_;
-        bool functional = useFunctional_;
-        uint16_t funcAddr = (uint16_t)functionalAddr_;
-        startWorker([this, mask, functional, funcAddr] {
+        startWorker([this, mask] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
@@ -1517,14 +1515,14 @@ QWidget* Gui::buildEcuPage() {
                 // Intentional pacing so the topology animation clearly shows each ECU sweep.
                 std::this_thread::sleep_for(std::chrono::milliseconds(480));
 
-                uint16_t target = functional ? funcAddr : addr;
+                uint16_t target = addr;
 
                 // 1) Probe primary DiagReq / OBD id, then alt (e.g. XGW 0x682 → 0x7E0).
                 bool probed = false;
                 std::string probeErr;
                 if (uds.probe(target, probeErr)) {
                     probed = true;
-                } else if (!functional && alt != 0 && alt != addr) {
+                } else if (alt != 0 && alt != addr) {
                     std::string e2;
                     if (uds.probe(alt, e2)) {
                         std::lock_guard<std::mutex> g(mutex_);
@@ -1591,7 +1589,6 @@ QWidget* Gui::buildEcuPage() {
                     }
                 }
 
-                if (functional) break;
             }
             Logger::instance().info("Scan All complete: " + std::to_string(reachable) +
                                     "/" + std::to_string(count) + " reachable, " +
