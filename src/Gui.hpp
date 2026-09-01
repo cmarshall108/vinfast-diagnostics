@@ -28,6 +28,7 @@ class QStackedWidget;
 class QListWidget;
 class QLabel;
 class QPushButton;
+class QProgressBar;
 class QLineEdit;
 class QDateTimeEdit;
 class QSpinBox;
@@ -243,6 +244,7 @@ private:
     QListWidget*    nav_        = nullptr;
     QLabel*         busyDot_    = nullptr;
     QLabel*         busyText_   = nullptr;
+    QProgressBar*   busyBar_    = nullptr;
     QLabel*         connDot_    = nullptr;
     QLabel*         connText_   = nullptr;
     QLabel*         hdrSubtitle_= nullptr;

@@ -806,8 +806,17 @@ QWidget* Gui::buildHeader() {
     busyDot_ = new QLabel("●");
     busyDot_->setObjectName("dotIdle");
     busyText_ = new QLabel("Ready");
+    busyBar_  = new QProgressBar();
+    busyBar_->setObjectName("busyBar");
+    busyBar_->setRange(0, 0); // Indeterminate animated progress bar
+    busyBar_->setFixedHeight(14);
+    busyBar_->setFixedWidth(110);
+    busyBar_->setTextVisible(false);
+    busyBar_->setVisible(false);
+
     lay->addWidget(busyDot_);
     lay->addWidget(busyText_);
+    lay->addWidget(busyBar_);
     lay->addSpacing(18);
 
     connDot_ = new QLabel("●");
@@ -837,7 +846,7 @@ QWidget* Gui::buildHeader() {
                     std::lock_guard<std::mutex> g(mutex_);
                     connStatus_ = "Disconnected";
                 }
-                QMetaObject::invokeMethod(this, [this] {
+                QMetaObject::invokeMethod(connectBtn_, [this] {
                     connectBtn_->setEnabled(true);
                 }, Qt::QueuedConnection);
             });
@@ -861,7 +870,7 @@ QWidget* Gui::buildHeader() {
                 std::lock_guard<std::mutex> g(mutex_);
                 connStatus_ = "Connect failed: " + err;
             }
-            QMetaObject::invokeMethod(this, [this] {
+            QMetaObject::invokeMethod(connectBtn_, [this] {
                 connectBtn_->setEnabled(true);
             }, Qt::QueuedConnection);
         });
@@ -982,7 +991,7 @@ QWidget* Gui::buildConnectionPage() {
         startWorker([this] {
             auto ports = openxc::Client::enumerateUsbSerialPorts();
 
-            QMetaObject::invokeMethod(this, [this, ports = std::move(ports)]() mutable {
+            QMetaObject::invokeMethod(usbScanBtn_, [this, ports = std::move(ports)]() mutable {
                 usbScanBtn_->setEnabled(true);
                 usbScanBtn_->setText("Scan USB");
 
@@ -1023,7 +1032,7 @@ QWidget* Gui::buildConnectionPage() {
             auto devices = bt::pairedSppDevices();
 
             // Post back to the UI thread.
-            QMetaObject::invokeMethod(this, [this, devices = std::move(devices)]() mutable {
+            QMetaObject::invokeMethod(btScanBtn_, [this, devices = std::move(devices)]() mutable {
                 btScanBtn_->setEnabled(true);
                 btScanBtn_->setText("Scan BT");
 
@@ -3502,9 +3511,11 @@ QWidget* Gui::buildCloudPage() {
                 .arg(QString::fromStdString(vs[0].vin))
                 .arg(QString::fromStdString(vs[0].model))
                 .arg(vs[0].plate.empty() ? "" : QString("  ·  %1").arg(QString::fromStdString(vs[0].plate)));
-            QMetaObject::invokeMethod(this, [this, summary] {
-                if (cloudVehLabel_) cloudVehLabel_->setText(summary);
-            });
+            if (cloudVehLabel_) {
+                QMetaObject::invokeMethod(cloudVehLabel_, [this, summary] {
+                    if (cloudVehLabel_) cloudVehLabel_->setText(summary);
+                }, Qt::QueuedConnection);
+            }
         });
     });
 
@@ -3687,6 +3698,16 @@ void Gui::applyStyle() {
         QLabel#dotBad  { color: #e0556a; font-size: 16px; }
         QLabel#dotIdle { color: #8a97a8; font-size: 16px; }
         QLabel#dotBusy { color: #f2b134; font-size: 16px; }
+        QProgressBar#busyBar {
+            background: #e2eaf2;
+            border: 1px solid #c7d8ea;
+            border-radius: 7px;
+            text-align: center;
+        }
+        QProgressBar#busyBar::chunk {
+            background-color: #2e7dd1;
+            border-radius: 6px;
+        }
         QListWidget#nav { background: #ebf1f7; border: none; outline: none; }
         QListWidget#nav::item { color: #304255; border-radius: 6px; margin: 2px 8px; }
         QListWidget#nav::item:selected { background: #2e7dd1; color: #ffffff; }
@@ -3805,6 +3826,7 @@ void Gui::refreshHeader() {
     bool busy = busy_.load();
     busyDot_->setObjectName(busy ? "dotBusy" : "dotIdle");
     busyText_->setText(busy ? "Working..." : "Ready");
+    if (busyBar_) busyBar_->setVisible(busy);
 
     bool conn = transport_.isConnected() || canBackup_.isConnected();
     connDot_->setObjectName(conn ? "dotGood" : "dotBad");
