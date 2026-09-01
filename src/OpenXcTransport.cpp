@@ -116,7 +116,7 @@ bool Transport::connect(const std::string& deviceOrMac, std::string& err) {
             ? "No OpenXC device found; plug in the VI over USB, or enter a "
               "serial path / Bluetooth MAC"
             : "No OpenXC device specified";
-        connected_ = false;
+        connected_.store(false, std::memory_order_release);
         return false;
     }
 
@@ -137,7 +137,7 @@ bool Transport::connect(const std::string& deviceOrMac, std::string& err) {
             continue;
         }
 
-        connected_ = true;
+        connected_.store(true, std::memory_order_release);
         const std::string& path = openxcClient_.connectedPath();
         Logger::instance().info("OpenXC transport connected: " +
                                 (path.empty() ? candidate : path));
@@ -149,18 +149,18 @@ bool Transport::connect(const std::string& deviceOrMac, std::string& err) {
         openxcClient_.disconnect();
     }
 
-    connected_ = false;
+    connected_.store(false, std::memory_order_release);
     err = allErr.empty() ? "No OpenXC device responded" : allErr;
     return false;
 }
 
 void Transport::disconnect() {
+    connected_.store(false, std::memory_order_release);
     openxcClient_.disconnect();
-    connected_ = false;
 }
 
 bool Transport::isConnected() const {
-    return connected_ && openxcClient_.isConnected();
+    return connected_.load(std::memory_order_acquire) && openxcClient_.isConnected();
 }
 
 // ---------------------------------------------------------------------------
@@ -380,7 +380,7 @@ bool Transport::sendDiagnostic(uint16_t source, uint16_t target,
                                const std::vector<uint8_t>& uds,
                                std::vector<uint8_t>& response, int timeoutMs,
                                std::string& err, bool functional) {
-    lastUsedCanBackup_ = false;
+    lastUsedCanBackup_.store(false, std::memory_order_relaxed);
 
     if (sendDiagnosticOpenXc(source, target, uds, response, timeoutMs, err, functional))
         return true;
@@ -394,7 +394,7 @@ bool Transport::sendDiagnostic(uint16_t source, uint16_t target,
         }
         if (canBackup_->sendDiagnostic(source, target, uds, response,
                                        timeoutMs, canErr, functional)) {
-            lastUsedCanBackup_ = true;
+            lastUsedCanBackup_.store(true, std::memory_order_relaxed);
             Logger::instance().warn("OpenXC transport failed, used CAN backup");
             return true;
         }
@@ -434,7 +434,7 @@ bool Transport::sendDiagnosticMulti(uint16_t source, uint16_t target,
             responses.reserve(canResp.size());
             for (auto& r : canResp)
                 responses.push_back({r.source, std::move(r.uds)});
-            lastUsedCanBackup_ = true;
+            lastUsedCanBackup_.store(true, std::memory_order_relaxed);
             return true;
         }
         err += (err.empty() ? "" : " | ");

@@ -304,21 +304,22 @@ Client::Client() = default;
 
 Client::~Client() { disconnect(); }
 
-bool Client::isConnected() const {
-    if (usbMode_) return usbHandle_ != nullptr;
-    if (btConnection_) return bt::rfcommConnected(btConnection_);
-#ifdef _WIN32
-    return handle_ != nullptr && handle_ != INVALID_HANDLE_VALUE;
-#else
-    return fd_ >= 0;
-#endif
+bool Client::isConnectedUnlocked() const {
+    return isConnected_.load(std::memory_order_acquire);
 }
 
-void Client::disconnect() {
+bool Client::isConnected() const {
+    return isConnected_.load(std::memory_order_acquire);
+}
+
+void Client::disconnectUnlocked() {
+    isConnected_.store(false, std::memory_order_release);
 #ifdef OPENXC_HAVE_LIBUSB
-    if (usbMode_ && usbHandle_) {
+    if (usbHandle_) {
         auto* h = static_cast<libusb_device_handle*>(usbHandle_);
-        libusb_release_interface(h, usbIface_);
+        if (usbMode_ && usbInterfaceClaimed_ && usbIface_ >= 0) {
+            libusb_release_interface(h, usbIface_);
+        }
         libusb_close(h);
         if (usbCtx_) libusb_exit(static_cast<libusb_context*>(usbCtx_));
     }
@@ -326,7 +327,11 @@ void Client::disconnect() {
     usbHandle_ = nullptr;
     usbCtx_    = nullptr;
     usbMode_   = false;
+    usbInterfaceClaimed_ = false;
+    usbIface_  = 0;
+    // Clear USB RX buffer and release heap memory to prevent data leakage on reconnect
     usbRxBuf_.clear();
+    usbRxBuf_.shrink_to_fit();
     if (btConnection_) {
         bt::closeRfcommConnection(btConnection_);
         btConnection_ = nullptr;
@@ -345,6 +350,11 @@ void Client::disconnect() {
     connectedPath_.clear();
 }
 
+void Client::disconnect() {
+    std::lock_guard<std::mutex> lock(ioMutex_);
+    disconnectUnlocked();
+}
+
 // ---------------------------------------------------------------------------
 // Native raw-USB (libusb) backend
 //
@@ -356,6 +366,34 @@ void Client::disconnect() {
 // exact same wire format the serial backend uses, so the whole protocol layer
 // above is unchanged.
 // ---------------------------------------------------------------------------
+
+// RAII helper to ensure USB resources are cleaned up on scope exit.
+// Useful for guaranteed cleanup on error paths.
+#ifdef OPENXC_HAVE_LIBUSB
+namespace {
+struct LibUsbCleanup {
+    libusb_device_handle* h = nullptr;
+    libusb_context* ctx = nullptr;
+    int iface = -1;
+    bool shouldClose = true;
+    
+    ~LibUsbCleanup() {
+        if (shouldClose) {
+            if (h) {
+                if (iface >= 0) libusb_release_interface(h, iface);
+                libusb_close(h);
+                h = nullptr;
+            }
+            if (ctx) {
+                libusb_exit(ctx);
+                ctx = nullptr;
+            }
+        }
+    }
+};
+} // namespace
+#endif
+
 bool Client::isUsbToken(const std::string& token) {
     std::string t = trimCopy(token);
     for (char& c : t) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -400,6 +438,7 @@ bool Client::connectUsb(const std::string& token, std::string& err) {
             std::this_thread::sleep_for(std::chrono::milliseconds(250));
         }
     }
+    
     if (!h) {
         char buf[224];
         std::snprintf(buf, sizeof buf,
@@ -409,6 +448,9 @@ bool Client::connectUsb(const std::string& token, std::string& err) {
         libusb_exit(ctx);
         return false;
     }
+    
+    // Set up RAII cleanup guard for error paths
+    LibUsbCleanup cleanup{h, ctx, -1, true};  // shouldClose = true initially
 
     // Vendor interfaces have no kernel driver on macOS; on Linux detach any.
     libusb_set_auto_detach_kernel_driver(h, 1);   // ignored where unsupported
@@ -439,25 +481,33 @@ bool Client::connectUsb(const std::string& token, std::string& err) {
         }
         libusb_free_config_descriptor(cfg);
     }
+    
+    cleanup.iface = iface;  // Update cleanup guard with interface number
 
     if (libusb_claim_interface(h, iface) != 0) {
         err = "Found the OpenXC VI but could not claim its USB interface "
               "(another process may be using it)";
-        libusb_close(h);
-        libusb_exit(ctx);
-        return false;
+        return false;  // cleanup guard will handle cleanup
     }
 
-    usbHandle_ = h;
-    usbCtx_    = ctx;
-    usbMode_   = true;
-    usbIface_  = iface;
-    usbEpIn_   = epIn;
-    usbEpOut_  = epOut;
-    usbRxBuf_.clear();
-    char pbuf[32];
-    std::snprintf(pbuf, sizeof pbuf, "usb:%04X:%04X", vid, pid);
-    connectedPath_ = pbuf;
+    {
+        std::lock_guard<std::mutex> lock(ioMutex_);
+        usbHandle_ = h;
+        usbCtx_    = ctx;
+        usbMode_   = true;
+        usbInterfaceClaimed_ = true;
+        usbIface_  = iface;
+        usbEpIn_   = epIn;
+        usbEpOut_  = epOut;
+        usbRxBuf_.clear();
+        char pbuf[32];
+        std::snprintf(pbuf, sizeof pbuf, "usb:%04X:%04X", vid, pid);
+        connectedPath_ = pbuf;
+        isConnected_.store(true, std::memory_order_release);
+    }
+    
+    // Success: prevent cleanup guard from freeing our resources
+    cleanup.shouldClose = false;
     return true;
 #endif
 }
@@ -510,6 +560,7 @@ bool Client::connect(const std::string& deviceOrMac, std::string& err) {
         btConnection_ = bt::openRfcommConnection(deviceOrMac, err);
         if (btConnection_) {
             connectedPath_ = "bluetooth:" + trimCopy(deviceOrMac);
+            isConnected_.store(true, std::memory_order_release);
             return true;
         }
         return false;
@@ -564,6 +615,7 @@ bool Client::connect(const std::string& deviceOrMac, std::string& err) {
 
     handle_ = h;
     connectedPath_ = path;
+    isConnected_.store(true, std::memory_order_release);
     return true;
 #else
     fd_ = ::open(path.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
@@ -611,7 +663,7 @@ bool Client::connect(const std::string& deviceOrMac, std::string& err) {
     }
 
     connectedPath_ = path;
-
+    isConnected_.store(true, std::memory_order_release);
     return true;
 #endif
 }
@@ -620,6 +672,10 @@ bool Client::writeAll(const char* data, size_t n, std::string& err) {
 #ifdef OPENXC_HAVE_LIBUSB
     if (usbMode_) {
         auto* h = static_cast<libusb_device_handle*>(usbHandle_);
+        if (!h) {
+            err = "USB device handle is null";
+            return false;
+        }
         constexpr uint8_t kOpenXcControlRequest = 0x83;
         if (n > 0xFFFFu) {
             err = "OpenXC control request is too large";
@@ -628,7 +684,7 @@ bool Client::writeAll(const char* data, size_t n, std::string& err) {
         for (int attempt = 0; attempt < 3; ++attempt) {
             int r = libusb_control_transfer(h, 0x40, kOpenXcControlRequest,
                     0, 0, reinterpret_cast<unsigned char*>(const_cast<char*>(data)),
-                    static_cast<uint16_t>(n), 1000);
+                    static_cast<uint16_t>(n), 2000);
             if (r >= 0) {
                 if (static_cast<size_t>(r) == n) {
                     return true;
@@ -636,25 +692,22 @@ bool Client::writeAll(const char* data, size_t n, std::string& err) {
                 err = "OpenXC USB control write was incomplete";
                 return false;
             }
-            if ((r != LIBUSB_ERROR_TIMEOUT && r != LIBUSB_ERROR_PIPE) || attempt == 2) {
-                if (r == LIBUSB_ERROR_TIMEOUT || r == LIBUSB_ERROR_PIPE) {
-                    int transferred = 0;
-                    int bulkResult = libusb_bulk_transfer(h, usbEpOut_,
-                            reinterpret_cast<unsigned char*>(const_cast<char*>(data)),
-                            static_cast<int>(n), &transferred, 2000);
-                    if (bulkResult == 0 && static_cast<size_t>(transferred) == n) {
-                        return true;
-                    }
-                        err = std::string("OpenXC USB control and bulk writes failed: ") +
-                            libusb_error_name(bulkResult);
-                    return false;
-                }
+            if (r == LIBUSB_ERROR_PIPE)
+                libusb_clear_halt(h, usbEpOut_);
+            if (r == LIBUSB_ERROR_NO_DEVICE) {
+                disconnectUnlocked();
+                err = "OpenXC VI disconnected from USB; wait for it to re-enumerate, then reconnect.";
+                return false;
+            }
+            if (r != LIBUSB_ERROR_TIMEOUT && r != LIBUSB_ERROR_PIPE) {
                 err = std::string("OpenXC USB control write failed: ") +
                         libusb_error_name(r);
                 return false;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            if (attempt < 2)
+                std::this_thread::sleep_for(std::chrono::milliseconds(150));
         }
+        err = "OpenXC USB control write timed out";
         return false;
     }
 #endif
@@ -783,6 +836,13 @@ bool Client::readLineUsb(std::string& line, int timeoutMs, std::string& err) {
     using Clock = std::chrono::steady_clock;
     auto deadline = Clock::now() + std::chrono::milliseconds(timeoutMs);
     auto* h = static_cast<libusb_device_handle*>(usbHandle_);
+    if (!h) {
+        err = "USB device handle is null";
+        return false;
+    }
+    
+    // Safety limit: prevent unbounded buffer growth if VI sends malformed data
+    constexpr size_t kMaxBufferSize = 1048576;  // 1 MB safety limit
 
     for (;;) {
         // Consume any complete message already buffered.
@@ -796,6 +856,15 @@ bool Client::readLineUsb(std::string& line, int timeoutMs, std::string& err) {
                 if (line.empty()) { i = (size_t)-1; continue; }  // skip blanks
                 return true;
             }
+        }
+        
+        // Safety check: if buffer has grown too large without finding a delimiter,
+        // the VI firmware is either broken or sending malformed data. Clear and bail.
+        if (usbRxBuf_.size() > kMaxBufferSize) {
+            err = "USB RX buffer overflow (VI sending malformed/undelimited data?)";
+            usbRxBuf_.clear();
+            usbRxBuf_.shrink_to_fit();  // Release heap memory
+            return false;
         }
 
         auto now = Clock::now();
@@ -812,6 +881,11 @@ bool Client::readLineUsb(std::string& line, int timeoutMs, std::string& err) {
             continue;
         }
         if (r == 0 || r == LIBUSB_ERROR_TIMEOUT) continue;   // no data yet
+        if (r == LIBUSB_ERROR_NO_DEVICE) {
+            disconnectUnlocked();
+            err = "OpenXC VI disconnected from USB";
+            return false;
+        }
         err = std::string("USB bulk read failed: ") + libusb_error_name(r);
         return false;
     }
@@ -961,7 +1035,7 @@ bool Client::parseResponse(const std::string& jsonLine,
 bool Client::sendCommand(const std::string& command, std::string& response,
                          int timeoutMs, std::string& err) {
     std::lock_guard<std::mutex> lock(ioMutex_);
-    if (!isConnected()) { err = "OpenXC VI not connected"; return false; }
+    if (!isConnectedUnlocked()) { err = "OpenXC VI not connected"; return false; }
     std::string json = command;
     json.push_back('\0');
     if (!writeAll(json.c_str(), json.size(), err)) return false;
@@ -976,7 +1050,7 @@ bool Client::sendDiagnostic(uint32_t                    arbId,
                              int                         bus,
                              std::string&                err) {
     std::lock_guard<std::mutex> lock(ioMutex_);
-    if (!isConnected()) { err = "OpenXC VI not connected"; return false; }
+    if (!isConnectedUnlocked()) { err = "OpenXC VI not connected"; return false; }
     if (udsReq.empty()) { err = "Empty UDS request"; return false; }
 
     const uint8_t requestMode = udsReq[0];
@@ -996,11 +1070,16 @@ bool Client::sendDiagnostic(uint32_t                    arbId,
     // Read response messages, discarding vehicle-data messages, until we receive
     // a diagnostic response or the budget expires.
     using Clock = std::chrono::steady_clock;
-    auto deadline = Clock::now() + std::chrono::milliseconds(timeoutMs);
+    const int responseBudgetMs = timeoutMs > 0 ? timeoutMs : 2000;
+    constexpr int kMaxResponsePendingReplies = 3;
+    const auto absoluteDeadline = Clock::now() +
+        std::chrono::milliseconds(responseBudgetMs * (kMaxResponsePendingReplies + 1));
+    auto deadline = Clock::now() + std::chrono::milliseconds(responseBudgetMs);
+    int responsePendingReplies = 0;
     lastRxCount_ = 0;
     lastRxSample_.clear();
 
-    while (Clock::now() < deadline) {
+    while (Clock::now() < deadline && Clock::now() < absoluteDeadline) {
         auto msLeft = std::chrono::duration_cast<std::chrono::milliseconds>(
             deadline - Clock::now()).count();
         if (msLeft <= 0) break;
@@ -1012,6 +1091,11 @@ bool Client::sendDiagnostic(uint32_t                    arbId,
             return false;
         }
         if (line.empty()) continue;
+
+        // The VI acknowledges each diagnostic_request command before the ECU
+        // response. It proves host-to-VI transport, not CAN bus activity.
+        if (line.find("\"command_response\"") != std::string::npos)
+            continue;
 
         // Track what the VI returned so a "no matching response" outcome can be
         // told apart from "no data at all" by the caller.
@@ -1026,7 +1110,12 @@ bool Client::sendDiagnostic(uint32_t                    arbId,
             bool pending = frame.uds.size() >= 3 && frame.uds[0] == 0x7Fu &&
                            frame.uds[1] == requestMode && frame.uds[2] == 0x78u;
             if (pending) {
-                deadline = Clock::now() + std::chrono::milliseconds(timeoutMs > 0 ? timeoutMs : 2000);
+                if (++responsePendingReplies > kMaxResponsePendingReplies) {
+                    err = "UDS response pending limit exceeded";
+                    return false;
+                }
+                deadline = std::min(absoluteDeadline, Clock::now() +
+                    std::chrono::milliseconds(responseBudgetMs));
                 continue;
             }
             udsResp = std::move(frame.uds);
@@ -1047,7 +1136,7 @@ bool Client::sendDiagnosticMulti(uint32_t                    arbId,
                                  std::string&                err) {
     std::lock_guard<std::mutex> lock(ioMutex_);
     responses.clear();
-    if (!isConnected()) { err = "OpenXC VI not connected"; return false; }
+    if (!isConnectedUnlocked()) { err = "OpenXC VI not connected"; return false; }
     if (udsReq.empty()) { err = "Empty UDS request"; return false; }
 
     const uint8_t requestMode = udsReq[0];

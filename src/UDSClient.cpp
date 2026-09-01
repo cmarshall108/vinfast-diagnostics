@@ -171,7 +171,8 @@ std::string UDSClient::readEcuIdentification(uint16_t target, bool& anyOk) {
 }
 
 std::vector<UDSClient::IdentField>
-UDSClient::sweepIdentificationDids(uint16_t target, int& answered, int timeoutMs) {
+UDSClient::sweepIdentificationDids(uint16_t target, int& answered, int timeoutMs,
+                                   int interRequestDelayMs) {
     // Well-known ISO 14229 identification DIDs in the 0xF1xx block. Unlisted
     // DIDs that still answer are reported with a generic label.
     static const std::unordered_map<uint16_t, const char*> kKnown = {
@@ -215,6 +216,8 @@ UDSClient::sweepIdentificationDids(uint16_t target, int& answered, int timeoutMs
         std::vector<uint8_t> resp;
         std::string err;
         int r = probeDID(target, did, resp, err, timeoutMs);
+        if (interRequestDelayMs > 0)
+            std::this_thread::sleep_for(std::chrono::milliseconds(interRequestDelayMs));
         if (r != 1) continue;                    // only keep positive reads (data present)
         if (resp.size() < 3) continue;           // need 0x62 <DID_hi> <DID_lo> [data]
         std::vector<uint8_t> data(resp.begin() + 3, resp.end());

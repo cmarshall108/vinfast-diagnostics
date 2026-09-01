@@ -22,6 +22,7 @@
 #include "CanClient.hpp"
 
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -45,6 +46,7 @@ public:
     // path ("/dev/ttyUSB0", "/dev/cu.usbmodem*", "COM3") or a Bluetooth MAC.
     bool connect(const std::string& deviceOrMac, std::string& err);
     bool isConnected() const;
+    const std::string& connectedPath() const { return openxcClient_.connectedPath(); }
     void disconnect();
 
     // Sends a UDS request to `target` and returns the raw UDS response bytes.
@@ -69,7 +71,7 @@ public:
     // diagnostic exchange automatically falls back to it.  The pointer is
     // borrowed; the caller retains ownership.
     void setCanBackup(can::Client* backup) { canBackup_ = backup; }
-    bool usingCanBackup() const { return lastUsedCanBackup_; }
+    bool usingCanBackup() const { return lastUsedCanBackup_.load(std::memory_order_acquire); }
 
     // Select the OpenXC CAN bus used for diagnostic requests (1 or 2).
     // Default is 1.  Must be set before connect() to take effect.
@@ -122,10 +124,10 @@ private:
     bool retargetCanBackup(uint16_t target, bool functional, std::string& err);
 
     openxc::Client openxcClient_;
-    bool     connected_      = false;
+    std::atomic<bool> connected_{false};
     uint16_t testerAddr_     = 0x0E80;
     can::Client* canBackup_  = nullptr;
-    bool     lastUsedCanBackup_ = false;
+    std::atomic<bool> lastUsedCanBackup_{false};
     int      bus_            = 1;
     uint32_t canIdBase_      = 0x700u;  // default OEM / OBD base
     int32_t  canRespOffset_  = 0x08;    // response = request + offset (OBD +8)

@@ -167,14 +167,19 @@ private:
     void*         usbHandle_ = nullptr;   // libusb_device_handle*
     void*         usbCtx_    = nullptr;   // libusb_context*
     bool          usbMode_   = false;
+    bool          usbInterfaceClaimed_ = false;
     int           usbIface_  = 0;
     unsigned char usbEpIn_   = 0x82;      // bulk IN  (VI -> host JSON stream)
     unsigned char usbEpOut_  = 0x05;      // bulk OUT (host -> VI commands)
     std::string   usbRxBuf_;              // buffered bytes awaiting delimiter
     int           lastRxCount_ = 0;       // messages seen in last sendDiagnostic
     std::string   lastRxSample_;          // sample of the last message seen
-    std::mutex    ioMutex_;                // serializes USB/serial request-response exchanges
+    mutable std::mutex ioMutex_;           // serializes USB/serial request-response exchanges
+    std::atomic<bool> isConnected_{false}; // lock-free connection indicator
     std::string connectedPath_;
+
+    bool isConnectedUnlocked() const;
+    void disconnectUnlocked();
 };
 
 } // namespace openxc

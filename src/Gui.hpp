@@ -230,6 +230,7 @@ private:
 
     // --- worker / background threads ---
     std::atomic<bool> busy_{false};
+    std::atomic<bool> topologyScanCancel_{false};
     std::thread       worker_;
     std::atomic<bool> keepAliveRun_{false};
     std::thread       keepAliveThread_;
@@ -292,6 +293,7 @@ private:
     int              openEcuIdx_   = -1;   // currently open detail dialog index
     QWidget*         openEcuDialog_= nullptr;
     QPushButton*     scanAllBtn_   = nullptr;
+    QPushButton*     stopScanBtn_  = nullptr;
     QPushButton*     clearAllBtn_  = nullptr;
     QPushButton*     addEcuBtn_    = nullptr;
     QLabel*          scanStateLabel_ = nullptr;

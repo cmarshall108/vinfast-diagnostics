@@ -167,6 +167,17 @@ static std::string extractScannedVin(const std::string& idInfo) {
     return trimCopy(idInfo.substr(p + key.size()));
 }
 
+static bool isFullVin(const std::string& vin) {
+    if (vin.size() != 17) return false;
+    for (unsigned char character : vin) {
+        if (!std::isdigit(character) &&
+            (character < 'A' || character > 'Z') ||
+            character == 'I' || character == 'O' || character == 'Q')
+            return false;
+    }
+    return true;
+}
+
 static std::string decodeVinModelYear(const std::string& vin) {
     if (vin.size() < 10) return "";
     static const char* code = "123456789ABCDEFGHJKLMNPRSTVWXY";
@@ -812,26 +823,47 @@ QWidget* Gui::buildHeader() {
     lay->addWidget(connectBtn_);
     connect(connectBtn_, &QPushButton::clicked, this, [this] {
         if (transport_.isConnected() || canBackup_.isConnected()) {
-            stopLivePoll();
-            stopKeepAlive();
-            if (worker_.joinable()) worker_.join();
-            transport_.disconnect();
-            canBackup_.disconnect();
-            std::lock_guard<std::mutex> g(mutex_);
-            connStatus_ = "Disconnected";
+            connectBtn_->setEnabled(false);
+            {
+                std::lock_guard<std::mutex> g(mutex_);
+                connStatus_ = "Disconnecting...";
+            }
+            startWorker([this] {
+                stopLivePoll();
+                stopKeepAlive();
+                transport_.disconnect();
+                canBackup_.disconnect();
+                {
+                    std::lock_guard<std::mutex> g(mutex_);
+                    connStatus_ = "Disconnected";
+                }
+                QMetaObject::invokeMethod(this, [this] {
+                    connectBtn_->setEnabled(true);
+                }, Qt::QueuedConnection);
+            });
             return;
         }
         syncSettingsFromUi();
+        connectBtn_->setEnabled(false);
+        {
+            std::lock_guard<std::mutex> g(mutex_);
+            connStatus_ = "Connecting...";
+        }
         startWorker([this] {
             std::string err;
             if (ensureConnected(err)) {
                 std::lock_guard<std::mutex> g(mutex_);
-                connStatus_ = "Connected to OpenXC " + gatewayIp_;
+                std::string path = transport_.connectedPath();
+                if (path.empty()) path = gatewayIp_;
+                connStatus_ = "Connected to OpenXC " + (path.empty() ? "device" : path);
             } else {
                 Logger::instance().error(err);
                 std::lock_guard<std::mutex> g(mutex_);
                 connStatus_ = "Connect failed: " + err;
             }
+            QMetaObject::invokeMethod(this, [this] {
+                connectBtn_->setEnabled(true);
+            }, Qt::QueuedConnection);
         });
     });
 
@@ -944,30 +976,41 @@ QWidget* Gui::buildConnectionPage() {
 
     // USB scan: enumerate serial ports and present a popup menu.
     connect(usbScanBtn_, &QPushButton::clicked, this, [this] {
-        auto ports = openxc::Client::enumerateUsbSerialPorts();
-        if (ports.empty()) {
-            QMessageBox::information(
-                this, "USB scan",
-                "No OpenXC VI found on USB.\n\n"
-                "• The stock Ford VI has no serial port - it's reached via the\n"
-                "  native 'usb' connection (type 'usb' in the device field).\n"
-                "• If nothing connects, the VI has likely powered down: it sleeps\n"
-                "  without CAN activity. Plug it into a live OBD-II port with the\n"
-                "  ignition on, then scan again.");
-            return;
-        }
-        if (ports.size() == 1) {
-            edGateway_->setText(QString::fromStdString(ports[0]));
-            Logger::instance().info("Auto-selected USB serial port: " + ports[0]);
-            return;
-        }
-        auto* menu = new QMenu(usbScanBtn_);
-        for (const auto& p : ports) {
-            auto* act = menu->addAction(QString::fromStdString(p));
-            connect(act, &QAction::triggered, this,
-                    [this, p] { edGateway_->setText(QString::fromStdString(p)); });
-        }
-        menu->popup(usbScanBtn_->mapToGlobal(usbScanBtn_->rect().bottomLeft()));
+        usbScanBtn_->setEnabled(false);
+        usbScanBtn_->setText("…");
+
+        startWorker([this] {
+            auto ports = openxc::Client::enumerateUsbSerialPorts();
+
+            QMetaObject::invokeMethod(this, [this, ports = std::move(ports)]() mutable {
+                usbScanBtn_->setEnabled(true);
+                usbScanBtn_->setText("Scan USB");
+
+                if (ports.empty()) {
+                    QMessageBox::information(
+                        this, "USB scan",
+                        "No OpenXC VI found on USB.\n\n"
+                        "• The stock Ford VI has no serial port - it's reached via the\n"
+                        "  native 'usb' connection (type 'usb' in the device field).\n"
+                        "• If nothing connects, the VI has likely powered down: it sleeps\n"
+                        "  without CAN activity. Plug it into a live OBD-II port with the\n"
+                        "  ignition on, then scan again.");
+                    return;
+                }
+                if (ports.size() == 1) {
+                    edGateway_->setText(QString::fromStdString(ports[0]));
+                    Logger::instance().info("Auto-selected USB serial port: " + ports[0]);
+                    return;
+                }
+                auto* menu = new QMenu(usbScanBtn_);
+                for (const auto& p : ports) {
+                    auto* act = menu->addAction(QString::fromStdString(p));
+                    connect(act, &QAction::triggered, this,
+                            [this, p] { edGateway_->setText(QString::fromStdString(p)); });
+                }
+                menu->popup(usbScanBtn_->mapToGlobal(usbScanBtn_->rect().bottomLeft()));
+            }, Qt::QueuedConnection);
+        });
     });
 
     // Bluetooth scan: enumerate paired SPP devices via IOBluetooth and populate
@@ -1373,11 +1416,13 @@ QWidget* Gui::buildEcuPage() {
 
     auto* toolbar = new QHBoxLayout;
     scanAllBtn_  = new QPushButton("Scan all (read DTCs)");
+    stopScanBtn_ = new QPushButton("Stop scan"); stopScanBtn_->setEnabled(false);
     clearAllBtn_ = new QPushButton("Clear DTCs on ALL"); clearAllBtn_->setObjectName("danger");
     addEcuBtn_   = new QPushButton("Add ECU");
     scanStateLabel_ = new QLabel("Connect to begin scanning");
     scanStateLabel_->setObjectName("scanState");
     toolbar->addWidget(scanAllBtn_);
+    toolbar->addWidget(stopScanBtn_);
     toolbar->addWidget(clearAllBtn_);
     toolbar->addWidget(scanStateLabel_);
     toolbar->addStretch(1);
@@ -1486,6 +1531,7 @@ QWidget* Gui::buildEcuPage() {
     connect(scanAllBtn_, &QPushButton::clicked, this, [this] {
         syncSettingsFromUi();
         uint8_t mask = (uint8_t)statusMask_;
+        topologyScanCancel_ = false;
         startWorker([this, mask] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
@@ -1495,6 +1541,7 @@ QWidget* Gui::buildEcuPage() {
             int reachable = 0;
             int identified = 0;
             for (size_t i = 0; i < count; ++i) {
+                if (topologyScanCancel_.load()) break;
                 uint16_t addr, alt;
                 std::string name;
                 {
@@ -1507,8 +1554,10 @@ QWidget* Gui::buildEcuPage() {
                                          "/" + std::to_string(count) + "...";
                 }
 
-                // Intentional pacing so the topology animation clearly shows each ECU sweep.
-                std::this_thread::sleep_for(std::chrono::milliseconds(480));
+                // Keep the animation pacing interruptible.
+                for (int delay = 0; delay < 480 && !topologyScanCancel_.load(); delay += 40)
+                    std::this_thread::sleep_for(std::chrono::milliseconds(40));
+                if (topologyScanCancel_.load()) break;
 
                 uint16_t target = addr;
 
@@ -1541,6 +1590,8 @@ QWidget* Gui::buildEcuPage() {
                     }
                 }
 
+                if (topologyScanCancel_.load()) break;
+
                 if (!probed) {
                     std::lock_guard<std::mutex> g(mutex_);
                     if (i < ecus_.size()) {
@@ -1554,7 +1605,8 @@ QWidget* Gui::buildEcuPage() {
 
                 // 2) Identify module via DID sweep.
                 int answered = 0;
-                auto fields = uds.sweepIdentificationDids(target, answered);
+                auto fields = uds.sweepIdentificationDids(target, answered, 200, 75);
+                if (topologyScanCancel_.load()) break;
                 std::string idInfo;
                 if (answered > 0) {
                     for (const auto& f : fields) {
@@ -1585,10 +1637,16 @@ QWidget* Gui::buildEcuPage() {
                 }
 
             }
-            Logger::instance().info("Scan All complete: " + std::to_string(reachable) +
+            Logger::instance().info(std::string(topologyScanCancel_.load()
+                                    ? "Scan All stopped: " : "Scan All complete: ") +
+                                    std::to_string(reachable) +
                                     "/" + std::to_string(count) + " reachable, " +
                                     std::to_string(identified) + " identified");
         });
+    });
+    connect(stopScanBtn_, &QPushButton::clicked, this, [this] {
+        topologyScanCancel_ = true;
+        stopScanBtn_->setEnabled(false);
     });
     connect(clearAllBtn_, &QPushButton::clicked, this, [this] {
         if (!confirmPopup(clearAllBtn_, "Clear DTCs on ALL ECUs",
@@ -3713,6 +3771,7 @@ void Gui::refreshActionState() {
     const bool busy = busy_.load();
     const bool connected = transport_.isConnected() || canBackup_.isConnected();
     if (scanAllBtn_) scanAllBtn_->setEnabled(!busy);
+    if (stopScanBtn_) stopScanBtn_->setEnabled(busy && !topologyScanCancel_.load());
     if (clearAllBtn_) clearAllBtn_->setEnabled(!busy && connected);
     if (addEcuBtn_) addEcuBtn_->setEnabled(!busy);
     if (usbScanBtn_) usbScanBtn_->setEnabled(!busy && !connected);
@@ -3751,6 +3810,11 @@ void Gui::refreshHeader() {
     connDot_->setObjectName(conn ? "dotGood" : "dotBad");
     {
         std::lock_guard<std::mutex> g(mutex_);
+        if (!conn) {
+            if (connStatus_.rfind("Connected", 0) == 0) {
+                connStatus_ = "Disconnected (device sleeping / unpowered)";
+            }
+        }
         connText_->setText(QString::fromStdString(connStatus_));
     }
     connectBtn_->setText(conn ? "Disconnect" : "Connect");
@@ -3765,7 +3829,7 @@ void Gui::refreshHeader() {
             for (const auto& r : ecus_) {
                 if (!r.idInfo.empty()) ++identified;
                 std::string cand = extractScannedVin(r.idInfo);
-                if (!cand.empty()) vin = cand;
+                if (isFullVin(cand)) vin = cand;
             }
         }
         hdrSubtitle_->setText(QString("VIN %1   ·   Modules %2/%3 identified")
@@ -3800,7 +3864,7 @@ void Gui::refreshDashboard() {
             if (!r.idInfo.empty()) {
                 ++identified;
                 std::string candVin = extractScannedVin(r.idInfo);
-                if (!candVin.empty()) vin = candVin;
+                if (isFullVin(candVin)) vin = candVin;
             }
 
             std::string code = r.name;
@@ -5030,9 +5094,12 @@ void Gui::stopLivePoll() {
 
 void Gui::startWorker(std::function<void()> fn) {
     if (busy_) return;
-    if (worker_.joinable()) worker_.join();
+    if (worker_.joinable()) worker_.detach();
     busy_ = true;
-    worker_ = std::thread([this, fn] { fn(); busy_ = false; });
+    worker_ = std::thread([this, fn] {
+        fn();
+        busy_ = false;
+    });
 }
 
 bool Gui::ensureConnected(std::string& err) {

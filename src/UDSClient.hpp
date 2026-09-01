@@ -182,7 +182,8 @@ public:
     // and harvests part/serial/version numbers without a slow exhaustive DID
     // sweep during a multi-ECU scan.
     std::vector<IdentField> sweepIdentificationDids(uint16_t target, int& answered,
-                                                    int timeoutMs = 150);
+                                                    int timeoutMs = 150,
+                                                    int interRequestDelayMs = 0);
 
 
     // 0x19 / 0x02 - reads DTCs matching the status mask (e.g. 0x08 confirmed).
