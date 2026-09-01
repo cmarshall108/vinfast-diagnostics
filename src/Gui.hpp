@@ -144,6 +144,8 @@ private:
 
     // --- network helpers (unchanged semantics) ---
     bool ensureConnected(std::string& err);
+    bool ensureConnectedOrNotify(const QString& opName, std::string& err);
+    void showDisconnectPopup(const QString& operationName, const QString& details);
     void startWorker(std::function<void()> fn);
     void startKeepAlive();
     void stopKeepAlive();

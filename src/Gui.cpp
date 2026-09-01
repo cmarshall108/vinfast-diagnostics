@@ -1238,24 +1238,34 @@ QWidget* Gui::buildConnectionPage() {
         int s = sessionType_;
         startWorker([this, s] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("Diagnostic Session Control", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.diagnosticSessionControl((uint16_t)securityTarget_, (UdsSession)s, err))
                 Logger::instance().info("Session 0x" + byteHex((uint8_t)s) + " active");
-            else Logger::instance().error("SessionControl: " + err);
+            else {
+                Logger::instance().error("SessionControl: " + err);
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Diagnostic Session Control", QString::fromStdString(err));
+                }
+            }
         });
     });
     connect(tpBtn, &QPushButton::clicked, this, [this] {
         syncSettingsFromUi();
         startWorker([this] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("Tester Present", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             uint16_t tgt = useFunctional_ ? (uint16_t)functionalAddr_
                                           : (ecus_.empty() ? (uint16_t)gatewayAddr_
                                                            : ecus_.front().logicalAddr);
             if (uds.testerPresent(tgt, err)) Logger::instance().info("TesterPresent OK");
-            else Logger::instance().error("TesterPresent: " + err);
+            else {
+                Logger::instance().error("TesterPresent: " + err);
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Tester Present", QString::fromStdString(err));
+                }
+            }
         });
     });
     connect(seedBtn, &QPushButton::clicked, this, [this] {
@@ -1263,7 +1273,7 @@ QWidget* Gui::buildConnectionPage() {
         int lvl = securityLevel_;
         startWorker([this, lvl] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("Request Security Seed", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             auto seed = uds.requestSeed((uint16_t)securityTarget_, (uint8_t)lvl, err);
             std::lock_guard<std::mutex> g(mutex_);
@@ -1271,7 +1281,13 @@ QWidget* Gui::buildConnectionPage() {
                 lastSeedHex_ = seed->empty() ? "(already unlocked)"
                                              : toHex(seed->data(), seed->size());
                 Logger::instance().info("Seed: " + lastSeedHex_);
-            } else { lastSeedHex_ = "request failed: " + err; Logger::instance().error(err); }
+            } else {
+                lastSeedHex_ = "request failed: " + err;
+                Logger::instance().error(err);
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Request Security Seed", QString::fromStdString(err));
+                }
+            }
         });
     });
     connect(deriveBtn, &QPushButton::clicked, this, [this] {
@@ -1320,11 +1336,16 @@ QWidget* Gui::buildConnectionPage() {
             auto key = parseHexBytes(keyhex);
             if (key.empty()) { Logger::instance().error("Key is empty/invalid hex"); return; }
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("Send Security Key", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.sendKey((uint16_t)securityTarget_, (uint8_t)lvl, key, err))
                 Logger::instance().info("Security unlocked (level 0x" + byteHex((uint8_t)lvl) + ")");
-            else Logger::instance().error("SendKey: " + err);
+            else {
+                Logger::instance().error("SendKey: " + err);
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Send Security Key", QString::fromStdString(err));
+                }
+            }
         });
     });
     connect(discBtn, &QPushButton::clicked, this, [this] {
@@ -1332,7 +1353,10 @@ QWidget* Gui::buildConnectionPage() {
         startWorker([this] {
             std::string err;
             if (ensureConnected(err)) Logger::instance().info("OpenXC serial link ready");
-            else Logger::instance().warn("OpenXC link: " + err);
+            else {
+                Logger::instance().warn("OpenXC link: " + err);
+                showDisconnectPopup("OpenXC Link Check", QString::fromStdString(err));
+            }
         });
     });
     connect(sweepBtn, &QPushButton::clicked, this, [this] {
@@ -1344,10 +1368,14 @@ QWidget* Gui::buildConnectionPage() {
         }
         startWorker([this, start, end, add] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("CAN ID Sweep", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             int found = 0;
-            for (int a = start; a <= end && transport_.isConnected(); ++a) {
+            for (int a = start; a <= end && (transport_.isConnected() || canBackup_.isConnected()); ++a) {
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("CAN ID Sweep", "The OpenXC device disconnected or went to sleep.");
+                    break;
+                }
                 std::string e;
                 if (uds.probe((uint16_t)a, e)) {
                     ++found;
@@ -1368,6 +1396,9 @@ QWidget* Gui::buildConnectionPage() {
                     }
                 }
             }
+            if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                showDisconnectPopup("CAN ID Sweep", "The OpenXC device disconnected or went to sleep.");
+            }
             Logger::instance().info("Sweep complete: " + std::to_string(found) +
                                     " address(es) responded");
         });
@@ -1379,11 +1410,14 @@ QWidget* Gui::buildConnectionPage() {
         bool add = cbSweepAdd_->isChecked();
         startWorker([this, funcAddr, add] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("Functional Enumeration", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint16_t> found;
             if (!uds.enumerateEcus(funcAddr, found, err)) {
                 Logger::instance().warn("Functional enumeration: " + err);
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Functional Enumeration", QString::fromStdString(err));
+                }
                 return;
             }
             if (add) {
@@ -1543,7 +1577,7 @@ QWidget* Gui::buildEcuPage() {
         topologyScanCancel_ = false;
         startWorker([this, mask] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("Scan All (Topology)", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             size_t count; { std::lock_guard<std::mutex> g(mutex_); count = ecus_.size(); }
 
@@ -1551,6 +1585,10 @@ QWidget* Gui::buildEcuPage() {
             int identified = 0;
             for (size_t i = 0; i < count; ++i) {
                 if (topologyScanCancel_.load()) break;
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Scan All (Topology)", "The OpenXC device disconnected or went to sleep during module scan.");
+                    break;
+                }
                 uint16_t addr, alt;
                 std::string name;
                 {
@@ -1567,6 +1605,10 @@ QWidget* Gui::buildEcuPage() {
                 for (int delay = 0; delay < 480 && !topologyScanCancel_.load(); delay += 40)
                     std::this_thread::sleep_for(std::chrono::milliseconds(40));
                 if (topologyScanCancel_.load()) break;
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Scan All (Topology)", "The OpenXC device disconnected or went to sleep during module scan.");
+                    break;
+                }
 
                 uint16_t target = addr;
 
@@ -1600,6 +1642,10 @@ QWidget* Gui::buildEcuPage() {
                 }
 
                 if (topologyScanCancel_.load()) break;
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Scan All (Topology)", "The OpenXC device disconnected or went to sleep during module scan.");
+                    break;
+                }
 
                 if (!probed) {
                     std::lock_guard<std::mutex> g(mutex_);
@@ -1616,6 +1662,10 @@ QWidget* Gui::buildEcuPage() {
                 int answered = 0;
                 auto fields = uds.sweepIdentificationDids(target, answered, 200, 75);
                 if (topologyScanCancel_.load()) break;
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Scan All (Topology)", "The OpenXC device disconnected or went to sleep during module scan.");
+                    break;
+                }
                 std::string idInfo;
                 if (answered > 0) {
                     for (const auto& f : fields) {
@@ -1643,6 +1693,10 @@ QWidget* Gui::buildEcuPage() {
                         if (!idInfo.empty()) ecus_[i].idInfo = idInfo;
                         ecus_[i].statusMsg = "read failed: " + e;
                     }
+                    if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                        showDisconnectPopup("Scan All (Topology)", "The OpenXC device disconnected or went to sleep during module scan.");
+                        break;
+                    }
                 }
 
             }
@@ -1667,11 +1721,15 @@ QWidget* Gui::buildEcuPage() {
         uint16_t funcAddr = (uint16_t)functionalAddr_;
         startWorker([this, autoExt, functional, funcAddr] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("Clear All DTCs", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             size_t count; { std::lock_guard<std::mutex> g(mutex_); count = ecus_.size(); }
             int cleared = 0;
             for (size_t i = 0; i < count; ++i) {
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Clear All DTCs", "The OpenXC device disconnected or went to sleep.");
+                    break;
+                }
                 uint16_t addr; { std::lock_guard<std::mutex> g(mutex_); addr = ecus_[i].logicalAddr; }
                 uint16_t target = functional ? funcAddr : addr;
                 if (autoExt) {
@@ -1679,6 +1737,10 @@ QWidget* Gui::buildEcuPage() {
                     if (!uds.diagnosticSessionControl(target, UdsSession::Extended, se)) {
                         std::lock_guard<std::mutex> g(mutex_);
                         ecus_[i].statusMsg = "clear skipped: extended session failed: " + se;
+                        if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                            showDisconnectPopup("Clear All DTCs", "The OpenXC device disconnected or went to sleep.");
+                            break;
+                        }
                         if (functional) break;
                         continue;
                     }
@@ -1686,7 +1748,13 @@ QWidget* Gui::buildEcuPage() {
                 std::string e; bool ok = uds.clearDiagnosticInformation(target, 0xFFFFFFu, e);
                 std::lock_guard<std::mutex> g(mutex_);
                 if (ok) { ecus_[i].dtcs.clear(); ecus_[i].statusMsg = "DTCs cleared"; ++cleared; }
-                else ecus_[i].statusMsg = "clear failed: " + e;
+                else {
+                    ecus_[i].statusMsg = "clear failed: " + e;
+                    if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                        showDisconnectPopup("Clear All DTCs", "The OpenXC device disconnected or went to sleep.");
+                        break;
+                    }
+                }
                 if (functional) break;
             }
             Logger::instance().info("Clear All complete: " + std::to_string(cleared) +
@@ -1749,7 +1817,7 @@ QWidget* Gui::buildLivePage() {
         syncSettingsFromUi();
         startWorker([this] {
             std::string e;
-            if (!ensureConnected(e)) { Logger::instance().error(e); return; }
+            if (!ensureConnectedOrNotify("Live Data Polling", e)) { Logger::instance().error(e); return; }
             startLivePoll();
         });
     });
@@ -1842,7 +1910,7 @@ QWidget* Gui::buildServicePage() {
         bool ext = svcExtendedSess_, susp = svcSuspendDTC_, restore = svcRestoreAfter_;
         startWorker([this, tgt, start, end, dids, routines, io, ext, susp, restore] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("Service Discovery", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::string e;
             if (ext)  uds.diagnosticSessionControl(tgt, UdsSession::Extended, e);
@@ -1853,7 +1921,11 @@ QWidget* Gui::buildServicePage() {
                 svcResults_.push_back({svc, id, ex, note});
             };
             int found = 0;
-            for (int id = start; id <= end && transport_.isConnected(); ++id) {
+            for (int id = start; id <= end && (transport_.isConnected() || canBackup_.isConnected()); ++id) {
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Service Discovery", "The OpenXC device disconnected or went to sleep.");
+                    break;
+                }
                 std::vector<uint8_t> resp; std::string le;
                 if (dids) { int r = uds.probeDID(tgt, (uint16_t)id, resp, le);
                     if (r >= 0) { record(0x22, (uint16_t)id, r,
@@ -1873,6 +1945,9 @@ QWidget* Gui::buildServicePage() {
                         touchedIo.push_back((uint16_t)id); found++;
                     }
                 }
+            }
+            if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                showDisconnectPopup("Service Discovery", "The OpenXC device disconnected or went to sleep.");
             }
             if (restore) { std::string summary; uds.restoreSafeState(tgt, touchedIo, summary); }
             else if (susp) { uds.controlDTCSetting(tgt, true, e); }
@@ -2122,7 +2197,7 @@ QWidget* Gui::buildProtocolPage() {
         uint8_t sb = (uint8_t)sbProtoSizeBytes_->value();
         startWorker([this, tgt, addr, size, ab, sb] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("ReadMemory: " + err); return; }
+            if (!ensureConnectedOrNotify("Read Memory", err)) { protoLine("ReadMemory: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.readMemoryByAddress(tgt, addr, size, ab, sb, out, err))
@@ -2137,7 +2212,7 @@ QWidget* Gui::buildProtocolPage() {
         uint8_t rec = (uint8_t)parseHex16(edProtoDtcRec_->text(), 0xFF);
         startWorker([this, tgt, dtc, rec] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("DTC extended: " + err); return; }
+            if (!ensureConnectedOrNotify("DTC Extended Data", err)) { protoLine("DTC extended: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> raw;
             if (uds.readDTCExtendedData(tgt, dtc, rec, raw, err))
@@ -2149,7 +2224,7 @@ QWidget* Gui::buildProtocolPage() {
         uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         startWorker([this, tgt] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Fault counters: " + err); return; }
+            if (!ensureConnectedOrNotify("Fault Detection Counters", err)) { protoLine("Fault counters: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<Dtc> dtcs;
             if (uds.readDTCFaultDetectionCounter(tgt, dtcs, err)) {
@@ -2163,7 +2238,7 @@ QWidget* Gui::buildProtocolPage() {
         uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         startWorker([this, tgt] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Std ID block: " + err); return; }
+            if (!ensureConnectedOrNotify("Standard ID Block", err)) { protoLine("Std ID block: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             protoLine("Standard identification block (ISO 14229) on 0x" +
                       byteHex((tgt>>8)&0xFF) + byteHex(tgt&0xFF) + ":");
@@ -2188,7 +2263,7 @@ QWidget* Gui::buildProtocolPage() {
     connect(obdBtn, &QPushButton::clicked, this, [this] {
         startWorker([this] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("OBD-II VIN: " + err); return; }
+            if (!ensureConnectedOrNotify("OBD-II VIN", err)) { protoLine("OBD-II VIN: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             // SAE J1979 mode 0x09 PID 0x02 = VIN. Positive reply: 0x49 0x02 ...
             // ISO 15765-4 legislated addressing: try the functional broadcast
@@ -2229,7 +2304,7 @@ QWidget* Gui::buildProtocolPage() {
             return;
         startWorker([this, tgt, did, data] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Write: " + err); return; }
+            if (!ensureConnectedOrNotify("Write DID", err)) { protoLine("Write: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.writeDataByIdentifier(tgt, did, data, err))
                 protoLine("WriteDataByIdentifier DID 0x" + byteHex((did>>8)&0xFF) +
@@ -2255,7 +2330,7 @@ QWidget* Gui::buildProtocolPage() {
         }
         startWorker([this, tgt, sub, rid, params] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Routine: " + err); return; }
+            if (!ensureConnectedOrNotify("Routine Control", err)) { protoLine("Routine: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.routineControl(tgt, sub, rid, params, out, err))
@@ -2277,7 +2352,7 @@ QWidget* Gui::buildProtocolPage() {
             return;
         startWorker([this, tgt, ctrl, commType] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("CommControl: " + err); return; }
+            if (!ensureConnectedOrNotify("Communication Control", err)) { protoLine("CommControl: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.communicationControl(tgt, ctrl, commType, err))
                 protoLine("CommunicationControl: accepted");
@@ -2291,7 +2366,7 @@ QWidget* Gui::buildProtocolPage() {
         uint8_t  lvl = (uint8_t)parseHex16(edCrashSecLevel_->text(), 0x09);
         startWorker([this, tgt, lvl] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Crash seed: " + err); return; }
+            if (!ensureConnectedOrNotify("Request BMS Crash Seed", err)) { protoLine("Crash seed: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::string e;
             uds.diagnosticSessionControl(tgt, UdsSession::Extended, e);
@@ -2320,7 +2395,7 @@ QWidget* Gui::buildProtocolPage() {
             return;
         startWorker([this, tgt, lvl, rid, dtc, key, hasRid] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Crash reset: " + err); return; }
+            if (!ensureConnectedOrNotify("Clear BMS Crash Data", err)) { protoLine("Crash reset: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::string e;
 
@@ -2420,7 +2495,7 @@ QWidget* Gui::buildProtocolPage() {
         }
         startWorker([this, tgt, dddid, srcs] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Define DDDID: " + err); return; }
+            if (!ensureConnectedOrNotify("Define DDDID", err)) { protoLine("Define DDDID: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.defineDynamicDataIdentifier(tgt, dddid, srcs, err))
                 protoLine("Define DDDID 0x" + byteHex((dddid>>8)&0xFF) + byteHex(dddid&0xFF) +
@@ -2433,7 +2508,7 @@ QWidget* Gui::buildProtocolPage() {
         uint16_t dddid = parseHex16(edProtoDddid_->text(), 0xF300);
         startWorker([this, tgt, dddid] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Read DDDID: " + err); return; }
+            if (!ensureConnectedOrNotify("Read DDDID", err)) { protoLine("Read DDDID: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             auto v = uds.readDataByIdentifier(tgt, dddid, err);
             if (v) protoLine("Read DDDID 0x" + byteHex((dddid>>8)&0xFF) + byteHex(dddid&0xFF) +
@@ -2446,7 +2521,7 @@ QWidget* Gui::buildProtocolPage() {
         uint16_t dddid = parseHex16(edProtoDddid_->text(), 0xF300);
         startWorker([this, tgt, dddid] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Clear DDDID: " + err); return; }
+            if (!ensureConnectedOrNotify("Clear DDDID", err)) { protoLine("Clear DDDID: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.clearDynamicDataIdentifier(tgt, dddid, err))
                 protoLine("Clear DDDID 0x" + byteHex((dddid>>8)&0xFF) + byteHex(dddid&0xFF) + ": OK.");
@@ -2571,7 +2646,7 @@ QWidget* Gui::buildProtocolPage() {
         uint16_t did = parseHex16(edProtoScalingDid_->text(), 0xF190);
         startWorker([this, tgt, did] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Scaling: " + err); return; }
+            if (!ensureConnectedOrNotify("Read Scaling Data", err)) { protoLine("Scaling: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.readScalingDataByIdentifier(tgt, did, out, err))
@@ -2594,7 +2669,7 @@ QWidget* Gui::buildProtocolPage() {
             return;
         startWorker([this, tgt, addr, data, addrB, sizeB] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Write memory: " + err); return; }
+            if (!ensureConnectedOrNotify("Write Memory", err)) { protoLine("Write memory: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.writeMemoryByAddress(tgt, addr, data, addrB, sizeB, err))
                 protoLine("Write memory 0x" + std::to_string(addr) + ": OK (" +
@@ -2608,7 +2683,7 @@ QWidget* Gui::buildProtocolPage() {
         uint32_t size = (uint32_t)sbProtoUpSize_->value();
         startWorker([this, tgt, addr, size] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Upload: " + err); return; }
+            if (!ensureConnectedOrNotify("Upload Memory", err)) { protoLine("Upload: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> image;
             if (uds.uploadBlock(tgt, addr, size, 4, 4, 0x00, image, nullptr, err)) {
@@ -2677,7 +2752,7 @@ QWidget* Gui::buildProtocolPage() {
         std::string file = path.toStdString();
         startWorker([this, tgt, addr, total, chunk, addrB, sizeB, file] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Dump: " + err); return; }
+            if (!ensureConnectedOrNotify("Memory Dump", err)) { protoLine("Dump: " + err); return; }
 
             FILE* fp = std::fopen(file.c_str(), "wb");
             if (!fp) { protoLine("Dump: cannot open output file."); return; }
@@ -2689,7 +2764,11 @@ QWidget* Gui::buildProtocolPage() {
             uint32_t done = 0;
             uint32_t nextReport = 0;
             bool ok = true;
-            while (done < total && transport_.isConnected()) {
+            while (done < total && (transport_.isConnected() || canBackup_.isConnected())) {
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Memory Dump", "The OpenXC device disconnected or went to sleep.");
+                    break;
+                }
                 uint32_t want = (std::min)(chunk, total - done);
                 std::vector<uint8_t> part;
                 std::string e;
@@ -2709,6 +2788,9 @@ QWidget* Gui::buildProtocolPage() {
                 }
             }
             std::fclose(fp);
+            if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                showDisconnectPopup("Memory Dump", "The OpenXC device disconnected or went to sleep.");
+            }
             protoLine(std::string(ok ? "Dump complete: " : "Dump partial: ") +
                       std::to_string(done) + " byte(s) saved to " + file +
                       ". Edit it, then use the flash panel to reupload (0x34).");
@@ -2761,7 +2843,7 @@ QWidget* Gui::buildProtocolPage() {
             return;
         startWorker([this, tgt, sub, param] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("LinkControl: " + err); return; }
+            if (!ensureConnectedOrNotify("Link Control", err)) { protoLine("LinkControl: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.linkControl(tgt, sub, param, err))
                 protoLine("LinkControl sub 0x" + byteHex((uint8_t)sub) + ": OK.");
@@ -2775,7 +2857,7 @@ QWidget* Gui::buildProtocolPage() {
         auto sub = (TimingParamAccess)(subIdx + 1);
         startWorker([this, tgt, sub, vals] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Timing: " + err); return; }
+            if (!ensureConnectedOrNotify("Access Timing Parameter", err)) { protoLine("Timing: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.accessTimingParameter(tgt, sub, vals, out, err))
@@ -2790,7 +2872,7 @@ QWidget* Gui::buildProtocolPage() {
         auto data = parseHexBytes(edProtoAuthData_->text().toStdString());
         startWorker([this, tgt, sub, data] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Authentication: " + err); return; }
+            if (!ensureConnectedOrNotify("Authentication", err)) { protoLine("Authentication: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.authentication(tgt, sub, data, out, err))
@@ -2851,7 +2933,7 @@ QWidget* Gui::buildProtocolPage() {
         auto data = parseHexBytes(edProtoSecData_->text().toStdString());
         startWorker([this, tgt, data] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("SecuredDataTransmission: " + err); return; }
+            if (!ensureConnectedOrNotify("Secured Data Transmission", err)) { protoLine("SecuredDataTransmission: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.securedDataTransmission(tgt, data, out, err))
@@ -2871,7 +2953,7 @@ QWidget* Gui::buildProtocolPage() {
         if (svcRec.empty()) { protoLine("ResponseOnEvent: service record cannot be empty."); return; }
         startWorker([this, tgt, eventType, window, eventRec, svcRec] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("ResponseOnEvent: " + err); return; }
+            if (!ensureConnectedOrNotify("Response On Event", err)) { protoLine("ResponseOnEvent: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.responseOnEvent(tgt, eventType, window, eventRec, svcRec, out, err))
@@ -2907,7 +2989,7 @@ QWidget* Gui::buildProtocolPage() {
 
         startWorker([this, tgt, mode, path, fmt, sizeU, sizeC] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("RequestFileTransfer: " + err); return; }
+            if (!ensureConnectedOrNotify("Request File Transfer", err)) { protoLine("RequestFileTransfer: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<uint8_t> out;
             if (uds.requestFileTransfer(tgt, mode, path, fmt, sizeU, sizeC, out, err))
@@ -2953,7 +3035,7 @@ QWidget* Gui::buildProtocolPage() {
         uint16_t tgt = parseHex16(edProtoTarget_->text(), 0x0693);
         startWorker([this, tgt] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Programming session: " + err); return; }
+            if (!ensureConnectedOrNotify("Programming Session", err)) { protoLine("Programming session: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (uds.diagnosticSessionControl(tgt, UdsSession::Programming, err))
                 protoLine("Programming session on 0x" + byteHex((tgt>>8)&0xFF) + byteHex(tgt&0xFF) +
@@ -2983,7 +3065,7 @@ QWidget* Gui::buildProtocolPage() {
             return;
         startWorker([this, tgt, addr, image] {
             std::string err;
-            if (!ensureConnected(err)) { protoLine("Flash: " + err); return; }
+            if (!ensureConnectedOrNotify("Flash Firmware", err)) { protoLine("Flash: " + err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             protoLine("Flash: starting download of " + std::to_string(image.size()) +
                       " byte(s) to 0x" + std::to_string(addr) + " ...");
@@ -3227,7 +3309,7 @@ QWidget* Gui::buildCloudPage() {
         }
         startWorker([this, tgt, start, end] {
             std::string err;
-            if (!ensureConnected(err)) { cloudLine("BMS snapshot: " + err); return; }
+            if (!ensureConnectedOrNotify("BMS Snapshot", err)) { cloudLine("BMS snapshot: " + err); return; }
 
             BmsSnapshot snap;
             snap.tWallMs = (long long)std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -3246,7 +3328,11 @@ QWidget* Gui::buildCloudPage() {
             std::string e;
             uds.diagnosticSessionControl(tgt, UdsSession::Extended, e);
             int n = 0;
-            for (int id = start; id <= end && transport_.isConnected(); ++id) {
+            for (int id = start; id <= end && (transport_.isConnected() || canBackup_.isConnected()); ++id) {
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("BMS Snapshot", "The OpenXC device disconnected or went to sleep.");
+                    break;
+                }
                 std::vector<uint8_t> resp; std::string le;
                 if (uds.probeDID(tgt, (uint16_t)id, resp, le) == 1) {
                     snap.dids.emplace_back((uint16_t)id, resp);
@@ -4707,7 +4793,7 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
                     uint16_t target = targetOf();
                     startWorker([this, idx, code, target] {
                         std::string err;
-                        if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+                        if (!ensureConnectedOrNotify("DTC Snapshot", err)) { Logger::instance().error(err); return; }
                         UDSClient uds(transport_, (uint16_t)testerAddr_);
                         std::vector<uint8_t> raw;
                         if (uds.readDTCSnapshot(target, code, 0xFF, raw, err)) {
@@ -4716,8 +4802,13 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
                                 ecus_[idx].statusMsg = "snapshot " +
                                     byteHex((code>>16)&0xFF) + byteHex((code>>8)&0xFF) + byteHex(code&0xFF) +
                                     ": " + toHex(raw.data(), raw.size());
-                        } else { std::lock_guard<std::mutex> g(mutex_);
-                            if (idx < (int)ecus_.size()) ecus_[idx].statusMsg = "snapshot failed: " + err; }
+                        } else {
+                            std::lock_guard<std::mutex> g(mutex_);
+                            if (idx < (int)ecus_.size()) ecus_[idx].statusMsg = "snapshot failed: " + err;
+                            if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                                showDisconnectPopup("DTC Snapshot", QString::fromStdString(err));
+                            }
+                        }
                     });
                 });
                 dtcTable->setCellWidget((int)di, 4, snap);
@@ -4733,7 +4824,7 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
         uint16_t target = targetOf();
         startWorker([this, idx, target] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("Read DTCs", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<Dtc> dtcs;
             if (uds.readDTCByStatusMask(target, (uint8_t)statusMask_, dtcs, err)) {
@@ -4742,9 +4833,14 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
                     ecus_[idx].dtcs = std::move(dtcs);
                     ecus_[idx].statusMsg = "read OK (" + std::to_string(ecus_[idx].dtcs.size()) + " DTC)";
                 }
-            } else { std::lock_guard<std::mutex> g(mutex_);
+            } else {
+                std::lock_guard<std::mutex> g(mutex_);
                 if (idx < (int)ecus_.size()) ecus_[idx].statusMsg = "read failed: " + err;
-                Logger::instance().error(err); }
+                Logger::instance().error(err);
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Read DTCs", QString::fromStdString(err));
+                }
+            }
         });
     });
     connect(bClear, &QPushButton::clicked, this, [this, idx, dlg, targetOf] {
@@ -4756,7 +4852,7 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
         bool autoExt = autoExtendedOnClear_;
         startWorker([this, idx, target, autoExt] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("Clear DTCs", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             if (autoExt) { std::string se;
                 if (uds.diagnosticSessionControl(target, UdsSession::Extended, se))
@@ -4766,6 +4862,9 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
                     if (idx < (int)ecus_.size())
                         ecus_[idx].statusMsg = "clear skipped: extended session failed: " + se;
                     Logger::instance().warn("Extended session refused: " + se);
+                    if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                        showDisconnectPopup("Clear DTCs", QString::fromStdString(se));
+                    }
                     return;
                 }
             }
@@ -4773,53 +4872,72 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
             std::lock_guard<std::mutex> g(mutex_);
             if (idx >= (int)ecus_.size()) return;
             if (ok) { ecus_[idx].dtcs.clear(); ecus_[idx].statusMsg = "DTCs cleared"; }
-            else { ecus_[idx].statusMsg = "clear failed: " + err; Logger::instance().error(err); }
+            else {
+                ecus_[idx].statusMsg = "clear failed: " + err;
+                Logger::instance().error(err);
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Clear DTCs", QString::fromStdString(err));
+                }
+            }
         });
     });
     connect(bVin, &QPushButton::clicked, this, [this, idx, targetOf] {
         uint16_t target = targetOf();
         startWorker([this, idx, target] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("Read VIN (F190)", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             auto data = uds.readDataByIdentifier(target, 0xF190, err);
             std::lock_guard<std::mutex> g(mutex_);
             if (idx >= (int)ecus_.size()) return;
             if (data) { std::string v(data->begin(), data->end()); ecus_[idx].idInfo = "VIN/F190: " + v; }
-            else ecus_[idx].idInfo = "F190 failed: " + err;
+            else {
+                ecus_[idx].idInfo = "F190 failed: " + err;
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Read VIN (F190)", QString::fromStdString(err));
+                }
+            }
         });
     });
     connect(bFull, &QPushButton::clicked, this, [this, idx, targetOf] {
         uint16_t target = targetOf();
         startWorker([this, idx, target] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("Read ECU Identification", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             bool ok = false; std::string info = uds.readEcuIdentification(target, ok);
             std::lock_guard<std::mutex> g(mutex_);
             if (idx >= (int)ecus_.size()) return;
             ecus_[idx].idInfo = info; if (ok) ecus_[idx].reachable = 1;
+            else if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                showDisconnectPopup("Read ECU Identification", "Device disconnected or went to sleep.");
+            }
         });
     });
     connect(bCount, &QPushButton::clicked, this, [this, idx, targetOf] {
         uint16_t target = targetOf(); uint8_t mask = (uint8_t)statusMask_;
         startWorker([this, idx, target, mask] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("DTC Count", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             uint16_t cnt = 0; uint8_t fmt = 0;
             std::lock_guard<std::mutex> g(mutex_);
             if (idx >= (int)ecus_.size()) return;
             if (uds.readNumberOfDTCByStatusMask(target, mask, cnt, fmt, err))
                 ecus_[idx].statusMsg = std::to_string(cnt) + " DTC(s) for mask 0x" + byteHex(mask);
-            else ecus_[idx].statusMsg = "count failed: " + err;
+            else {
+                ecus_[idx].statusMsg = "count failed: " + err;
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("DTC Count", QString::fromStdString(err));
+                }
+            }
         });
     });
     connect(bSupp, &QPushButton::clicked, this, [this, idx, targetOf] {
         uint16_t target = targetOf();
         startWorker([this, idx, target] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("Supported DTCs", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::vector<Dtc> dtcs;
             if (uds.readSupportedDTC(target, dtcs, err)) {
@@ -4827,26 +4945,41 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
                 if (idx >= (int)ecus_.size()) return;
                 ecus_[idx].dtcs = std::move(dtcs);
                 ecus_[idx].statusMsg = "supported list (" + std::to_string(ecus_[idx].dtcs.size()) + " DTC)";
-            } else { std::lock_guard<std::mutex> g(mutex_);
-                if (idx < (int)ecus_.size()) ecus_[idx].statusMsg = "supported-DTC failed: " + err; }
+            } else {
+                std::lock_guard<std::mutex> g(mutex_);
+                if (idx < (int)ecus_.size()) ecus_[idx].statusMsg = "supported-DTC failed: " + err;
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Supported DTCs", QString::fromStdString(err));
+                }
+            }
         });
     });
     connect(bLogOn, &QPushButton::clicked, this, [this, targetOf] {
         uint16_t target = targetOf();
         startWorker([this, target] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("Control DTC Setting (ON)", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
-            if (!uds.controlDTCSetting(target, true, err)) Logger::instance().error(err);
+            if (!uds.controlDTCSetting(target, true, err)) {
+                Logger::instance().error(err);
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Control DTC Setting", QString::fromStdString(err));
+                }
+            }
         });
     });
     connect(bLogOff, &QPushButton::clicked, this, [this, targetOf] {
         uint16_t target = targetOf();
         startWorker([this, target] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("Control DTC Setting (OFF)", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
-            if (!uds.controlDTCSetting(target, false, err)) Logger::instance().error(err);
+            if (!uds.controlDTCSetting(target, false, err)) {
+                Logger::instance().error(err);
+                if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                    showDisconnectPopup("Control DTC Setting", QString::fromStdString(err));
+                }
+            }
         });
     });
     connect(bReset, &QPushButton::clicked, this, [this, idx, dlg, targetOf] {
@@ -4869,12 +5002,15 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
         uint16_t target = targetOf();
         startWorker([this, idx, target, rt] {
             std::string err;
-            if (!ensureConnected(err)) { Logger::instance().error(err); return; }
+            if (!ensureConnectedOrNotify("ECU Reset", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             bool ok = uds.ecuReset(target, rt, err);
             std::lock_guard<std::mutex> g(mutex_);
             if (idx < (int)ecus_.size())
                 ecus_[idx].statusMsg = ok ? "ECU reset issued" : ("reset failed: " + err);
+            if (!ok && !transport_.isConnected() && !canBackup_.isConnected()) {
+                showDisconnectPopup("ECU Reset", QString::fromStdString(err));
+            }
         });
     });
 
@@ -5165,4 +5301,35 @@ bool Gui::ensureConnected(std::string& err) {
     }
     if (keepAlive_) startKeepAlive();
     return true;
+}
+
+void Gui::showDisconnectPopup(const QString& operationName, const QString& details) {
+    static std::atomic<bool> popupActive{false};
+    if (popupActive.exchange(true)) return;
+
+    QMetaObject::invokeMethod(this, [this, operationName, details] {
+        QMessageBox box(this);
+        box.setIcon(QMessageBox::Warning);
+        QString op = operationName.isEmpty() ? "Diagnostic Operation" : operationName;
+        box.setWindowTitle(op + " Interrupted");
+        box.setText(QString("<b>%1 Interrupted</b>").arg(op));
+        box.setInformativeText(QString(
+            "The operation was stopped because the OpenXC device disconnected or went to sleep:\n\n"
+            "%1\n\n"
+            "Possible causes:\n"
+            "• Vehicle ignition is OFF or CAN traffic stopped (the VI firmware sleeps without CAN traffic).\n"
+            "• USB or Bluetooth communication dropped.\n"
+            "• The OBD-II port lost power.\n\n"
+            "Please turn the vehicle ignition ON, reconnect the device, and try again."
+        ).arg(details.isEmpty() ? "Device communication lost." : details));
+        box.addButton("OK", QMessageBox::AcceptRole);
+        box.exec();
+        popupActive = false;
+    }, Qt::QueuedConnection);
+}
+
+bool Gui::ensureConnectedOrNotify(const QString& opName, std::string& err) {
+    if (ensureConnected(err)) return true;
+    showDisconnectPopup(opName, QString::fromStdString(err));
+    return false;
 }
