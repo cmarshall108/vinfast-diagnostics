@@ -99,6 +99,25 @@ if(NOT uds_c_POPULATED)
     FetchContent_Populate(uds_c)
 endif()
 
+# isotp-c uses GCC's deprecated `field: value` initializer extension. MSVC
+# requires the standard C99 spelling instead.
+if(MSVC)
+  foreach(_isotp_source IN ITEMS
+      "${isotp_c_SOURCE_DIR}/src/isotp/isotp.c"
+      "${isotp_c_SOURCE_DIR}/src/isotp/receive.c"
+      "${isotp_c_SOURCE_DIR}/src/isotp/send.c")
+    file(READ "${_isotp_source}" _isotp_contents)
+    foreach(_isotp_field IN ITEMS
+        log send_can_message set_timer frame_padding success completed
+        arbitration_id size message_received_callback multi_frame payload)
+      string(REGEX REPLACE
+        "${_isotp_field}[ \t]*:" ".${_isotp_field} ="
+        _isotp_contents "${_isotp_contents}")
+    endforeach()
+    file(WRITE "${_isotp_source}" "${_isotp_contents}")
+  endforeach()
+endif()
+
 # bitfield-c: bitfield + CAN-signal utilities
 file(GLOB BITFIELD_C_SOURCES
     "${bitfield_c_SOURCE_DIR}/src/bitfield/*.c"
