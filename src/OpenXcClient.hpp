@@ -134,8 +134,8 @@ private:
     bool readLine(std::string& line, int timeoutMs, std::string& err);
 
     // Native raw-USB (libusb) backend for VIs that expose a vendor-specific
-    // bulk interface instead of a serial port. `token` is "usb" or
-    // "usb:VID:PID". No-op returning false when built without libusb.
+    // control/streaming interface instead of a serial port. `token` is "usb"
+    // or "usb:VID:PID". No-op returning false when built without libusb.
     bool connectUsb(const std::string& token, std::string& err);
     // Read one NUL/newline-delimited message from the buffered USB bulk stream.
     bool readLineUsb(std::string& line, int timeoutMs, std::string& err);

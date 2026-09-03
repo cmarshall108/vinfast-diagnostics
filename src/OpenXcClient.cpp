@@ -359,12 +359,9 @@ void Client::disconnect() {
 // Native raw-USB (libusb) backend
 //
 // The stock Ford OpenXC VI (VID 0x1BC4, PID 0x0001) presents a vendor-specific
-// interface (class 0xFF) with bulk endpoints rather than a USB-CDC serial port,
-// so macOS creates no /dev/cu.* node. We talk to it directly: the VI streams
-// NUL-delimited OpenXC JSON on the bulk IN endpoint and accepts NUL-terminated
-// JSON commands / diagnostic_request messages on the bulk OUT endpoint - the
-// exact same wire format the serial backend uses, so the whole protocol layer
-// above is unchanged.
+// interface (class 0xFF) rather than a USB-CDC serial port, so macOS creates no
+// /dev/cu.* node. The VI streams NUL-delimited OpenXC JSON on bulk IN and has a
+// vendor control request (0x83) for atomic host-to-device JSON commands.
 // ---------------------------------------------------------------------------
 
 // RAII helper to ensure USB resources are cleaned up on scope exit.
@@ -699,65 +696,30 @@ bool Client::writeAll(const char* data, size_t n, std::string& err) {
             err = "USB device handle is null";
             return false;
         }
-        size_t written = 0;
-        for (int attempt = 0; attempt < 3; ++attempt) {
-            while (written < n) {
-                int transferred = 0;
-                int r = libusb_bulk_transfer(h, usbEpOut_,
-                        reinterpret_cast<unsigned char*>(const_cast<char*>(data + written)),
-                        static_cast<int>(std::min<size_t>(n - written, 64)),
-                        &transferred, 2000);
-                if (transferred > 0) {
-                    written += static_cast<size_t>(transferred);
-                }
-                if (r == 0 && transferred > 0) {
-                    continue;
-                }
-                if (r == 0) {
-                    err = "OpenXC USB bulk write completed without transferring data";
-                    return false;
-                }
-                if (r == LIBUSB_ERROR_NO_DEVICE) {
-                    disconnectUnlocked();
-                    err = "OpenXC VI disconnected from USB; wait for it to re-enumerate, then reconnect.";
-                    return false;
-                }
-                if ((r == LIBUSB_ERROR_TIMEOUT || r == LIBUSB_ERROR_PIPE) && attempt < 2) {
-                    if (r == LIBUSB_ERROR_PIPE) {
-                        int clearResult = libusb_clear_halt(h, usbEpOut_);
-                        if (clearResult != 0) {
-                            usbInterfaceClaimed_ = false;
-                            libusb_release_interface(h, usbIface_);
-                            int resetResult = libusb_reset_device(h);
-                            if (resetResult != 0) {
-                                disconnectUnlocked();
-                                err = std::string("OpenXC USB reset failed after bulk OUT stall: ") +
-                                        libusb_error_name(resetResult) + "; reconnect the VI";
-                                return false;
-                            }
-                            int claimResult = libusb_claim_interface(h, usbIface_);
-                            if (claimResult != 0) {
-                                disconnectUnlocked();
-                                err = std::string("OpenXC USB interface reclaim failed after reset: ") +
-                                        libusb_error_name(claimResult) + "; reconnect the VI";
-                                return false;
-                            }
-                            usbInterfaceClaimed_ = true;
-                            usbRxBuf_.clear();
-                            written = 0;
-                        }
-                    }
-                    std::this_thread::sleep_for(std::chrono::milliseconds(250));
-                    break;
-                }
-                err = r == LIBUSB_ERROR_TIMEOUT ? "OpenXC USB bulk write timed out" :
-                        r == LIBUSB_ERROR_PIPE ? "OpenXC USB bulk OUT endpoint stalled" :
-                        std::string("OpenXC USB bulk write failed: ") + libusb_error_name(r);
-                return false;
-            }
-            if (written == n) return true;
+        if (n > UINT16_MAX) {
+            err = "OpenXC USB command exceeds control-transfer limit";
+            return false;
         }
-        err = "OpenXC USB bulk write recovery exhausted";
+
+        constexpr uint8_t kControlCommandRequest = 0x83;
+        int transferred = libusb_control_transfer(h,
+                LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_VENDOR |
+                    LIBUSB_RECIPIENT_DEVICE,
+                kControlCommandRequest, 0, 0,
+                reinterpret_cast<unsigned char*>(const_cast<char*>(data)),
+                static_cast<uint16_t>(n), 2000);
+        if (transferred == static_cast<int>(n)) return true;
+        if (transferred == LIBUSB_ERROR_NO_DEVICE) {
+            disconnectUnlocked();
+            err = "OpenXC VI disconnected from USB; wait for it to re-enumerate, then reconnect.";
+            return false;
+        }
+        if (transferred >= 0) {
+            err = "OpenXC USB control write was incomplete; command outcome is unknown (not retried)";
+        } else {
+            err = std::string("OpenXC USB control write failed; command outcome is unknown (not retried): ") +
+                    libusb_error_name(transferred);
+        }
         return false;
     }
 #endif
