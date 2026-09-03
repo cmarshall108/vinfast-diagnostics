@@ -125,6 +125,11 @@ UDSClient::readDataByIdentifier(uint16_t target, uint16_t did, std::string& err)
     if (!request(target, req, resp, err)) return std::nullopt;
     // Positive: 0x62 DID_hi DID_lo <data...>
     if (resp.size() < 3) { err = "RDBI response too short"; return std::nullopt; }
+    if (resp[1] != req[1] || resp[2] != req[2]) {
+        err = "RDBI response echoed DID 0x" + byteHex(resp[1]) + byteHex(resp[2]) +
+              ", expected 0x" + byteHex(req[1]) + byteHex(req[2]);
+        return std::nullopt;
+    }
     return std::vector<uint8_t>(resp.begin() + 3, resp.end());
 }
 
@@ -148,7 +153,7 @@ std::string UDSClient::readEcuIdentification(uint16_t target, bool& anyOk) {
     for (auto& it : ids) {
         std::string err;
         std::vector<uint8_t> response;
-        if (probeDID(target, it.did, response, err, 150) != 1 || response.size() < 3)
+        if (probeDID(target, it.did, response, err, 1250) != 1 || response.size() < 3)
             continue;
         std::vector<uint8_t> data(response.begin() + 3, response.end());
         anyOk = true;
@@ -423,10 +428,9 @@ bool UDSClient::enumerateEcus(uint16_t functionalAddr, std::vector<uint16_t>& fo
 // Safe service-discovery primitives
 // -----------------------------------------------------------------------
 
-// True when a negative-response code means "the ID is recognized but the
-// request is currently not allowed" (so the identifier EXISTS). Codes that
-// mean the ID is simply not implemented return false.
-static bool nrcMeansExists(uint8_t nrc) {
+// True when a negative response is compatible with conditional support, but
+// does not prove that a particular identifier exists.
+static bool nrcMeansConditionalSupport(uint8_t nrc) {
     switch (nrc) {
         case 0x13: // incorrectMessageLengthOrInvalidFormat
         case 0x21: // busyRepeatRequest
@@ -474,7 +478,7 @@ int UDSClient::rawRequest(uint16_t target, const std::vector<uint8_t>& req,
 // 0 exists+negative, -1 absent / no response).
 static int classify(int raw, uint8_t nrc) {
     if (raw == 1) return 1;
-    if (raw == 0) return nrcMeansExists(nrc) ? 0 : -1;
+    if (raw == 0) return nrcMeansConditionalSupport(nrc) ? 0 : -1;
     return -1;
 }
 
@@ -482,7 +486,12 @@ int UDSClient::probeDID(uint16_t target, uint16_t did,
                         std::vector<uint8_t>& resp, std::string& err, int timeoutMs) {
     std::vector<uint8_t> req = {0x22, (uint8_t)((did >> 8) & 0xFF), (uint8_t)(did & 0xFF)};
     uint8_t nrc = 0;
-    return classify(rawRequest(target, req, resp, nrc, err, timeoutMs), nrc);
+    int result = classify(rawRequest(target, req, resp, nrc, err, timeoutMs), nrc);
+    if (result == 1 && (resp.size() < 3 || resp[1] != req[1] || resp[2] != req[2])) {
+        err = "Positive RDBI response did not echo requested DID";
+        return -1;
+    }
+    return result;
 }
 
 int UDSClient::probeRoutine(uint16_t target, uint16_t rid,
@@ -491,7 +500,13 @@ int UDSClient::probeRoutine(uint16_t target, uint16_t rid,
     std::vector<uint8_t> req = {0x31, 0x03,
                                 (uint8_t)((rid >> 8) & 0xFF), (uint8_t)(rid & 0xFF)};
     uint8_t nrc = 0;
-    return classify(rawRequest(target, req, resp, nrc, err, timeoutMs), nrc);
+    int result = classify(rawRequest(target, req, resp, nrc, err, timeoutMs), nrc);
+    if (result == 1 && (resp.size() < 4 || resp[1] != req[1] ||
+                        resp[2] != req[2] || resp[3] != req[3])) {
+        err = "Positive RoutineControl response did not echo requested routine";
+        return -1;
+    }
+    return result;
 }
 
 int UDSClient::probeIOControl(uint16_t target, uint16_t did,
@@ -500,7 +515,12 @@ int UDSClient::probeIOControl(uint16_t target, uint16_t did,
     std::vector<uint8_t> req = {0x2F, (uint8_t)((did >> 8) & 0xFF),
                                 (uint8_t)(did & 0xFF), 0x00};
     uint8_t nrc = 0;
-    return classify(rawRequest(target, req, resp, nrc, err, timeoutMs), nrc);
+    int result = classify(rawRequest(target, req, resp, nrc, err, timeoutMs), nrc);
+    if (result == 1 && (resp.size() < 3 || resp[1] != req[1] || resp[2] != req[2])) {
+        err = "Positive IOControl response did not echo requested DID";
+        return -1;
+    }
+    return result;
 }
 
 bool UDSClient::ioReturnControlToECU(uint16_t target, uint16_t did, std::string& err) {

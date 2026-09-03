@@ -27,6 +27,12 @@ struct DiagnosticFrame {
     std::vector<uint8_t> uds;
 };
 
+struct RawCanFrame {
+    uint32_t             arbitrationId = 0;
+    int                  bus = 0;
+    std::vector<uint8_t> data;
+};
+
 class Client {
 public:
     Client();
@@ -91,6 +97,11 @@ public:
                              int                         bus,
                              std::string&                err);
 
+    // Wait for the next raw OpenXC CAN passthrough message. Non-CAN messages
+    // are skipped until timeout; diagnostic exchanges remain serialized by
+    // the same I/O mutex.
+    bool receiveCanFrame(RawCanFrame& frame, int timeoutMs, std::string& err);
+
     // Send an arbitrary OpenXC command (JSON, without trailing delimiter) and
     // read the first response message within timeoutMs.  Returns true when a
     // message was read; false on timeout/error.  Useful for VI setup commands such as
@@ -134,11 +145,12 @@ private:
     bool readLine(std::string& line, int timeoutMs, std::string& err);
 
     // Native raw-USB (libusb) backend for VIs that expose a vendor-specific
-    // control/streaming interface instead of a serial port. `token` is "usb"
-    // or "usb:VID:PID". No-op returning false when built without libusb.
+    // bulk interface instead of a serial port. `token` is "usb" or
+    // "usb:VID:PID". No-op returning false when built without libusb.
     bool connectUsb(const std::string& token, std::string& err);
     // Read one NUL/newline-delimited message from the buffered USB bulk stream.
     bool readLineUsb(std::string& line, int timeoutMs, std::string& err);
+    void drainUsbInput();
     // True when `token` names the native USB backend ("usb" / "usb:VID:PID").
     static bool isUsbToken(const std::string& token);
 
@@ -154,7 +166,7 @@ private:
     // expectedId is the OpenXC-published id (request arb for physical), not
     // necessarily the raw CAN response arbitration id.
     static bool parseResponse(const std::string& jsonLine,
-                              uint8_t requestMode,
+                              const std::vector<uint8_t>& udsReq,
                               uint32_t expectedId,
                               int expectedBus,
                               DiagnosticFrame& frame,

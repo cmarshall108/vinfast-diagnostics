@@ -1648,6 +1648,14 @@ QWidget* Gui::buildEcuPage() {
                             return true;
                         if (readErr.rfind("UDS negative response", 0) == 0)
                             return false; // The ECU answered; retrying will not change its NRC.
+                        if (!transport_.isConnected() && !canBackup_.isConnected()) {
+                            std::string reconnectErr;
+                            Logger::instance().warn(name + " lost the VI; reconnecting before retry");
+                            if (!ensureConnected(reconnectErr)) {
+                                readErr += " | reconnect failed: " + reconnectErr;
+                                return false;
+                            }
+                        }
                         if (attempt < 3) {
                             Logger::instance().info(
                                 name + " DTC read attempt " + std::to_string(attempt) +
@@ -1789,12 +1797,92 @@ QWidget* Gui::buildLivePage() {
     lay->setContentsMargins(18, 18, 18, 18);
     lay->setSpacing(12);
 
+    auto loadCanCatalog = [this] {
+        std::lock_guard<std::mutex> g(mutex_);
+        auto addUds = [this](uint16_t target, uint16_t did, const char* name,
+                     int interp, bool pollOnce) {
+            for (const auto& current : liveSignals_) {
+                if (!current.passiveCan && current.target == target && current.did == did)
+                    return;
+            }
+            LiveSignal row;
+            row.target = target;
+            row.did = did;
+            row.name = name;
+            row.interp = interp;
+            row.pollOnce = pollOnce;
+            row.value = "(waiting for UDS)";
+            liveSignals_.push_back(std::move(row));
+        };
+        // Verified against the 2024 VF8 BMS at diagnostic request ID 0x693.
+        // D06B is deliberately left unmapped until captures establish meaning.
+        addUds(0x0693, 0xD06B, "BMS OEM data D06B (unmapped)", 0, false);
+        addUds(0x0693, 0xF110, "BMS module identifier", 3, true);
+        addUds(0x0693, 0xF190, "BMS VIN", 3, true);
+
+        // Confirmed positive on VCU 0x6AC in the default session. Meanings
+        // remain deliberately unmapped until differential captures establish
+        // physical units and scaling.
+        addUds(0x06AC, 0xF123, "VCU OEM data F123 (unmapped)", 1, true);
+        addUds(0x06AC, 0xDD09, "VCU OEM data DD09 (unmapped)", 1, false);
+        addUds(0x06AC, 0x0156, "VCU OEM data 0156 (unmapped)", 1, false);
+        addUds(0x06AC, 0x0157, "VCU OEM data 0157 (unmapped)", 1, false);
+        addUds(0x06AC, 0x0160, "VCU OEM data 0160 (unmapped)", 1, false);
+        addUds(0x06AC, 0x0161, "VCU OEM data 0161 (unmapped)", 1, false);
+        addUds(0x06AC, 0x0162, "VCU OEM data 0162 (unmapped)", 1, false);
+        addUds(0x06AC, 0x0167, "VCU OEM data 0167 (unmapped)", 1, false);
+        addUds(0x06AC, 0x0182, "VCU OEM data 0182 (unmapped)", 1, false);
+        addUds(0x06AC, 0x0184, "VCU OEM data 0184 (unmapped)", 1, false);
+
+        auto addMessage = [this](const VF8CanMessage& message) {
+            for (const auto& signal : message.sigs) {
+                bool exists = false;
+                for (const auto& current : liveSignals_) {
+                    if (current.passiveCan && current.canId == message.canId &&
+                            current.canSignal == signal.name) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (exists) continue;
+
+                LiveSignal row;
+                row.passiveCan = true;
+                row.canId = message.canId;
+                row.canMessage = message.name;
+                row.canSignal = signal.name;
+                row.name = signal.name;
+                row.unit = signal.unit ? signal.unit : "";
+                row.value = "(waiting for CAN)";
+                liveSignals_.push_back(std::move(row));
+            }
+        };
+        // Battery data is the primary workflow, so keep BMS/BAS rows together
+        // at the top while still loading every signal in the catalog.
+        for (const auto& message : kVF8InfoCanBus) {
+            if (std::strncmp(message.name, "BMS_", 4) == 0 ||
+                    std::strncmp(message.name, "BAS_", 4) == 0)
+                addMessage(message);
+        }
+        for (const auto& message : kVF8InfoCanBus) {
+            if (std::strncmp(message.name, "BMS_", 4) != 0 &&
+                    std::strncmp(message.name, "BAS_", 4) != 0)
+                addMessage(message);
+        }
+    };
+    loadCanCatalog();
+
     auto* bar = new QHBoxLayout;
     livePollBtn_ = new QPushButton("Start polling"); livePollBtn_->setObjectName("primary");
-    auto* interval = new QSpinBox; interval->setRange(50, 10000); interval->setSingleStep(50);
+    auto* interval = new QSpinBox; interval->setRange(500, 10000); interval->setSingleStep(250);
     interval->setValue(livePollMs_); interval->setSuffix(" ms");
     auto* addSig = new QPushButton("Add signal");
     auto* rmSig  = new QPushButton("Remove selected");
+    auto* restoreCan = new QPushButton("Restore live catalog");
+    liveFilter_ = new QLineEdit;
+    liveFilter_->setPlaceholderText("Filter signals (BMS, SOC, charging...)");
+    liveFilter_->setClearButtonEnabled(true);
+    liveFilter_->setMaximumWidth(260);
     cbLiveBundle_ = new QCheckBox("Bundle (0x2C)");
     cbLiveBundle_->setToolTip(
         "Define one dynamic DID (0x2C) covering every signal on each ECU and "
@@ -1802,21 +1890,23 @@ QWidget* Gui::buildLivePage() {
         "request per signal. Falls back to per-signal reads if unsupported.");
     cbLiveBundle_->setChecked(liveBundle_);
     bar->addWidget(livePollBtn_);
-    bar->addWidget(new QLabel("Interval"));
+    bar->addWidget(new QLabel("UDS interval"));
     bar->addWidget(interval);
     bar->addWidget(cbLiveBundle_);
+    bar->addWidget(liveFilter_);
     bar->addStretch(1);
+    bar->addWidget(restoreCan);
     bar->addWidget(addSig);
     bar->addWidget(rmSig);
     lay->addLayout(bar);
 
     liveTable_ = new QTableWidget(0, 5);
-    liveTable_->setHorizontalHeaderLabels({"", "Name", "Tgt/DID", "Value", "Raw"});
+    liveTable_->setHorizontalHeaderLabels({"", "Name", "Source", "Value", "Raw"});
     liveTable_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     liveTable_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
     liveTable_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
     liveTable_->setColumnWidth(0, 26);
-    liveTable_->setColumnWidth(2, 100);
+    liveTable_->setColumnWidth(2, 220);
     liveTable_->verticalHeader()->setVisible(false);
     liveTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     liveTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -1825,6 +1915,11 @@ QWidget* Gui::buildLivePage() {
     connect(interval, qOverload<int>(&QSpinBox::valueChanged), this,
             [this](int v) { livePollMs_ = v; });
     connect(cbLiveBundle_, &QCheckBox::toggled, this, [this](bool on) { liveBundle_ = on; });
+    connect(liveFilter_, &QLineEdit::textChanged, this, [this] { refreshLive(); });
+    connect(restoreCan, &QPushButton::clicked, this, [this, loadCanCatalog] {
+        loadCanCatalog();
+        refreshLive();
+    });
     connect(livePollBtn_, &QPushButton::clicked, this, [this] {
         if (liveRun_.load()) { stopLivePoll(); return; }
         syncSettingsFromUi();
@@ -1841,6 +1936,10 @@ QWidget* Gui::buildLivePage() {
         if (row >= 0 && row < (int)liveSignals_.size())
             liveSignals_.erase(liveSignals_.begin() + row);
     });
+
+    liveCanStatus_ = new QLabel("Info-CAN monitor stopped");
+    liveCanStatus_->setWordWrap(true);
+    lay->insertWidget(1, liveCanStatus_);
 
     return page;
 }
@@ -1871,13 +1970,13 @@ QWidget* Gui::buildServicePage() {
     tr->addStretch(1);
     f->addRow(tr);
     cbSvcDIDs_ = new QCheckBox("DIDs (0x22)"); cbSvcDIDs_->setChecked(true);
-    cbSvcRoutines_ = new QCheckBox("Routines (0x31)"); cbSvcRoutines_->setChecked(true);
+    cbSvcRoutines_ = new QCheckBox("Routines (0x31)");
     cbSvcIO_ = new QCheckBox("I/O (0x2F)");
     auto* cr = new QHBoxLayout;
     cr->addWidget(cbSvcDIDs_); cr->addWidget(cbSvcRoutines_); cr->addWidget(cbSvcIO_); cr->addStretch(1);
     f->addRow("Categories", cr);
-    cbSvcExt_ = new QCheckBox("Enter Extended session"); cbSvcExt_->setChecked(true);
-    cbSvcSuspend_ = new QCheckBox("Suspend DTC logging during scan (0x85)"); cbSvcSuspend_->setChecked(true);
+    cbSvcExt_ = new QCheckBox("Enter Extended session");
+    cbSvcSuspend_ = new QCheckBox("Suspend DTC logging during scan (0x85)");
     cbSvcRestore_ = new QCheckBox("Restore safe state when finished"); cbSvcRestore_->setChecked(true);
     f->addRow("Fail-safes", cbSvcExt_);
     f->addRow("", cbSvcSuspend_);
@@ -1924,6 +2023,10 @@ QWidget* Gui::buildServicePage() {
         startWorker([this, tgt, start, end, dids, routines, io, ext, susp, restore] {
             std::string err;
             if (!ensureConnectedOrNotify("Service Discovery", err)) { Logger::instance().error(err); return; }
+            {
+                std::lock_guard<std::mutex> g(mutex_);
+                svcResults_.clear();
+            }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
             std::string e;
             if (ext)  uds.diagnosticSessionControl(tgt, UdsSession::Extended, e);
@@ -1934,6 +2037,7 @@ QWidget* Gui::buildServicePage() {
                 svcResults_.push_back({svc, id, ex, note});
             };
             int found = 0;
+            int conditional = 0;
             for (int id = start; id <= end && (transport_.isConnected() || canBackup_.isConnected()); ++id) {
                 if (!transport_.isConnected() && !canBackup_.isConnected()) {
                     showDisconnectPopup("Service Discovery", "The OpenXC device disconnected or went to sleep.");
@@ -1941,31 +2045,37 @@ QWidget* Gui::buildServicePage() {
                 }
                 std::vector<uint8_t> resp; std::string le;
                 if (dids) { int r = uds.probeDID(tgt, (uint16_t)id, resp, le);
-                    if (r >= 0) { record(0x22, (uint16_t)id, r,
-                        r==1?toHex(resp.data(),resp.size()):("exists ("+le+")"));
+                    if (r == 1) {
+                        record(0x22, (uint16_t)id, r, toHex(resp.data(), resp.size()));
                         found++;
-                    }
+                    } else if (r == 0) ++conditional;
                 }
                 if (routines) { int r = uds.probeRoutine(tgt, (uint16_t)id, resp, le);
-                    if (r >= 0) { record(0x31, (uint16_t)id, r,
-                        r==1?toHex(resp.data(),resp.size()):("exists ("+le+")"));
+                    if (r == 1) {
+                        record(0x31, (uint16_t)id, r, toHex(resp.data(), resp.size()));
                         found++;
-                    }
+                    } else if (r == 0) ++conditional;
                 }
                 if (io) { int r = uds.probeIOControl(tgt, (uint16_t)id, resp, le);
-                    if (r >= 0) { record(0x2F, (uint16_t)id, r,
-                        r==1?toHex(resp.data(),resp.size()):("exists ("+le+")"));
-                        touchedIo.push_back((uint16_t)id); found++;
-                    }
+                    if (r == 1) {
+                        record(0x2F, (uint16_t)id, r, toHex(resp.data(), resp.size()));
+                        touchedIo.push_back((uint16_t)id);
+                        found++;
+                    } else if (r == 0) ++conditional;
                 }
             }
             if (!transport_.isConnected() && !canBackup_.isConnected()) {
                 showDisconnectPopup("Service Discovery", "The OpenXC device disconnected or went to sleep.");
             }
-            if (restore) { std::string summary; uds.restoreSafeState(tgt, touchedIo, summary); }
+            if (restore && (ext || susp || !touchedIo.empty())) {
+                std::string summary;
+                uds.restoreSafeState(tgt, touchedIo, summary);
+            }
             else if (susp) { uds.controlDTCSetting(tgt, true, e); }
             Logger::instance().info("Service discovery complete: " + std::to_string(found) +
-                " identifier(s) on 0x" + byteHex((tgt>>8)&0xFF) + byteHex(tgt&0xFF));
+                " confirmed positive identifier(s), " + std::to_string(conditional) +
+                " conditional NRC response(s) ignored on 0x" +
+                byteHex((tgt>>8)&0xFF) + byteHex(tgt&0xFF));
         });
     });
     connect(restoreBtn, &QPushButton::clicked, this, [this] {
@@ -3685,6 +3795,19 @@ QWidget* Gui::buildReferencePage() {
         }
     }
 
+    auto* vcuTop = new QTreeWidgetItem(refTree_);
+    vcuTop->setText(0, "VCU 0x6AC UDS capability profile");
+    vcuTop->setText(1, QString("%1 services").arg((int)kVF8VcuCapabilities.size()));
+    vcuTop->setText(2, "Read-only default-session probes; no address, reset type, "
+                       "routine, actuator, key, or write data was supplied.");
+    for (const auto& capability : kVF8VcuCapabilities) {
+        auto* it = new QTreeWidgetItem(vcuTop);
+        it->setText(0, QString("0x%1  %2")
+            .arg(capability.sid, 2, 16, QChar('0')).toUpper().arg(capability.service));
+        it->setText(1, capability.state);
+        it->setText(2, capability.evidence);
+    }
+
     // ---- Protocol standards (manufacturer-independent, valid on the VF8) ----
     auto* stdTop = new QTreeWidgetItem(refTree_);
     stdTop->setText(0, "Protocol standards (ISO 14229 / SAE J1979 / ISO 13400)");
@@ -4144,9 +4267,21 @@ void Gui::refreshLive() {
         const QColor* dotc = s.ok==1 ? &green : s.ok==0 ? &red : &grey;
         set(0, s.ok==1?"●":s.ok==0?"○":"·", dotc);
         set(1, QString::fromStdString(s.name));
-        set(2, QString("%1/%2").arg(s.target,4,16,QChar('0')).arg(s.did,4,16,QChar('0')));
+        if (s.passiveCan) {
+            set(2, QString("CAN 0x%1 · %2")
+                    .arg(s.canId, 3, 16, QChar('0')).toUpper()
+                    .arg(QString::fromStdString(s.canMessage)));
+        } else {
+            set(2, QString("UDS %1/%2")
+                    .arg(s.target,4,16,QChar('0')).arg(s.did,4,16,QChar('0')).toUpper());
+        }
         set(3, QString::fromStdString(s.value));
         set(4, QString::fromStdString(s.rawHex), &grey);
+
+        QString filter = liveFilter_ ? liveFilter_->text().trimmed() : QString();
+        QString searchable = QString::fromStdString(s.name + " " + s.canMessage + " " + s.unit);
+        liveTable_->setRowHidden((int)i,
+            !filter.isEmpty() && !searchable.contains(filter, Qt::CaseInsensitive));
     }
     livePollBtn_->setText(liveRun_.load() ? "Stop polling" : "Start polling");
 }
@@ -5164,9 +5299,28 @@ void Gui::stopKeepAlive() {
 
 void Gui::startLivePoll() {
     if (liveRun_) return;
+    bool passthroughEnabled = false;
+    {
+        std::lock_guard<std::mutex> n(netMutex_);
+        std::string err;
+        passthroughEnabled = transport_.setPassthrough(true, err);
+        if (!passthroughEnabled)
+            Logger::instance().warn("Live Data CAN passthrough unavailable; using UDS only: " + err);
+    }
     liveRun_ = true;
+    if (liveCanStatus_) {
+        liveCanStatus_->setText(passthroughEnabled
+            ? "Monitoring VF8 Info-CAN catalog on OBD bus 1..."
+            : "Info-CAN unavailable; polling verified BMS UDS data.");
+    }
     bool bundle = liveBundle_;
-    liveThread_ = std::thread([this, bundle] {
+    liveThread_ = std::thread([this, bundle, passthroughEnabled] {
+        using Clock = std::chrono::steady_clock;
+        auto nextUdsPoll = Clock::now();
+        const auto passiveStart = Clock::now();
+        bool catalogFrameSeen = false;
+        bool unavailableReported = false;
+        bool passiveMonitorEnabled = passthroughEnabled;
         // Each live signal maps to a slice [off, off+len) of its target's
         // dynamic-DID response when bundling is active.
         struct SigRef { size_t idx; uint16_t target; uint16_t did; size_t off; size_t len; };
@@ -5179,8 +5333,10 @@ void Gui::startLivePoll() {
             std::vector<std::tuple<size_t, uint16_t, uint16_t>> snap;
             {
                 std::lock_guard<std::mutex> g(mutex_);
-                for (size_t i = 0; i < liveSignals_.size(); ++i)
-                    snap.emplace_back(i, liveSignals_[i].target, liveSignals_[i].did);
+                for (size_t i = 0; i < liveSignals_.size(); ++i) {
+                    if (!liveSignals_[i].passiveCan && !liveSignals_[i].pollOnce)
+                        snap.emplace_back(i, liveSignals_[i].target, liveSignals_[i].did);
+                }
             }
             std::lock_guard<std::mutex> n(netMutex_);
             UDSClient uds(transport_, (uint16_t)testerAddr_);
@@ -5225,7 +5381,97 @@ void Gui::startLivePoll() {
                 continue;
             }
 
-            // 1) Active bundles: one 0x22 reads the whole bundle, then split.
+            bool hasPassiveCan = false;
+            {
+                std::lock_guard<std::mutex> g(mutex_);
+                for (const auto& signal : liveSignals_) {
+                    if (passiveMonitorEnabled && signal.passiveCan) {
+                        hasPassiveCan = true;
+                        break;
+                    }
+                }
+            }
+
+            // 1) Passive Info-CAN: decode the next broadcast frame into every
+            // catalog signal carried by that message.
+            openxc::RawCanFrame canFrame;
+            bool receivedCan = false;
+            if (hasPassiveCan) {
+                std::lock_guard<std::mutex> n(netMutex_);
+                if (liveRun_ && transport_.isConnected() && !busy_) {
+                    std::string err;
+                    receivedCan = transport_.receiveCanFrame(canFrame, 50, err);
+                }
+            }
+            if (receivedCan) {
+                auto values = vf8DecodeCanFrame(canFrame.arbitrationId,
+                                                canFrame.data.data(), canFrame.data.size());
+                if (!values.empty()) {
+                    if (!catalogFrameSeen) {
+                        catalogFrameSeen = true;
+                        QMetaObject::invokeMethod(this, [this, canFrame] {
+                            if (liveCanStatus_) {
+                                liveCanStatus_->setText(QString("Receiving VF8 Info-CAN on bus %1")
+                                                        .arg(canFrame.bus));
+                            }
+                        }, Qt::QueuedConnection);
+                    }
+                    std::string raw = toHex(canFrame.data.data(), canFrame.data.size());
+                    std::lock_guard<std::mutex> g(mutex_);
+                    for (const auto& decoded : values) {
+                        for (auto& signal : liveSignals_) {
+                            if (signal.passiveCan && signal.canId == canFrame.arbitrationId &&
+                                    signal.canSignal == decoded.signal) {
+                                signal.value = decoded.display;
+                                signal.rawHex = raw;
+                                signal.ok = 1;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!catalogFrameSeen && !unavailableReported &&
+                    Clock::now() - passiveStart >= std::chrono::seconds(3)) {
+                unavailableReported = true;
+                {
+                    std::lock_guard<std::mutex> g(mutex_);
+                    for (auto& signal : liveSignals_) {
+                        if (signal.passiveCan && signal.ok < 0) {
+                            signal.value = "Internal Info-CAN not exposed at OBD DLC";
+                            signal.ok = 0;
+                        }
+                    }
+                }
+                Logger::instance().warn(
+                    "Live Data: no VF8 Info-CAN catalog frames on OBD bus 1; "
+                    "the gateway exposes UDS diagnostics but not its internal broadcast bus");
+                QMetaObject::invokeMethod(this, [this] {
+                    if (liveCanStatus_) {
+                        liveCanStatus_->setText(
+                            "No catalog frames on OBD bus 1. The VF8 gateway exposes UDS "
+                            "diagnostics here, but not the internal Info-CAN broadcast bus. "
+                            "Continuing with verified BMS UDS data.");
+                    }
+                }, Qt::QueuedConnection);
+                {
+                    std::lock_guard<std::mutex> n(netMutex_);
+                    std::string err;
+                    if (!transport_.setPassthrough(false, err))
+                        Logger::instance().warn("Live Data passthrough fallback: " + err);
+                }
+                passiveMonitorEnabled = false;
+            }
+
+            // Passive CAN is drained continuously; the interval control only
+            // schedules active UDS reads, which should not flood an ECU.
+            if (Clock::now() < nextUdsPoll) {
+                if (!hasPassiveCan)
+                    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                continue;
+            }
+
+            // 2) Active bundles: one 0x22 reads the whole bundle, then split.
             std::set<size_t> covered;
             for (auto& b : bundles) {
                 if (!b.active || !liveRun_) continue;
@@ -5252,28 +5498,39 @@ void Gui::startLivePoll() {
                 }
             }
 
-            // 2) Remaining (unbundled) signals: per-signal 0x22.
-            std::vector<std::pair<uint16_t, uint16_t>> items;
+            // 3) Remaining (unbundled) UDS signals: per-signal 0x22.
+            struct UdsItem { size_t idx; uint16_t target; uint16_t did; };
+            std::vector<UdsItem> items;
             {
                 std::lock_guard<std::mutex> g(mutex_);
                 items.reserve(liveSignals_.size());
-                for (const auto& s : liveSignals_) items.emplace_back(s.target, s.did);
+                for (size_t i = 0; i < liveSignals_.size(); ++i) {
+                    const auto& s = liveSignals_[i];
+                    if (!s.passiveCan && !(s.pollOnce && s.ok == 1))
+                        items.push_back({i, s.target, s.did});
+                }
             }
-            for (size_t i = 0; i < items.size() && liveRun_; ++i) {
-                if (covered.count(i)) continue;
+            for (const auto& item : items) {
+                if (!liveRun_) break;
+                if (covered.count(item.idx)) continue;
                 if (!transport_.isConnected() || busy_) break;
                 std::vector<uint8_t> data; bool ok = false;
                 {
                     std::lock_guard<std::mutex> n(netMutex_);
+                    if (!liveRun_ || !transport_.isConnected() || busy_) break;
                     UDSClient uds(transport_, (uint16_t)testerAddr_);
                     std::string err;
-                    auto r = uds.readDataByIdentifier(items[i].first, items[i].second, err);
-                    if (r) { data = std::move(*r); ok = true; }
+                    std::vector<uint8_t> response;
+                    if (uds.probeDID(item.target, item.did, response, err, 1500) == 1 &&
+                            response.size() >= 3) {
+                        data.assign(response.begin() + 3, response.end());
+                        ok = true;
+                    }
                 }
                 std::lock_guard<std::mutex> g(mutex_);
-                if (i >= liveSignals_.size()) break;
-                LiveSignal& s = liveSignals_[i];
-                if (s.target != items[i].first || s.did != items[i].second) continue;
+                if (item.idx >= liveSignals_.size()) break;
+                LiveSignal& s = liveSignals_[item.idx];
+                if (s.passiveCan || s.target != item.target || s.did != item.did) continue;
                 if (ok) {
                     s.rawHex = toHex(data.data(), data.size());
                     s.value  = decodeLiveValue(data, s.interp, s.scale, s.offset, s.unit);
@@ -5281,7 +5538,8 @@ void Gui::startLivePoll() {
                 } else s.ok = 0;
             }
 
-            for (int i = 0; i < livePollMs_ / 20 + 1 && liveRun_; ++i)
+            nextUdsPoll = Clock::now() + std::chrono::milliseconds(livePollMs_);
+            if (!hasPassiveCan)
                 std::this_thread::sleep_for(std::chrono::milliseconds(20));
         }
 
@@ -5301,6 +5559,13 @@ void Gui::startLivePoll() {
 void Gui::stopLivePoll() {
     liveRun_ = false;
     if (liveThread_.joinable()) liveThread_.join();
+    if (transport_.isConnected()) {
+        std::lock_guard<std::mutex> n(netMutex_);
+        std::string err;
+        if (!transport_.setPassthrough(false, err))
+            Logger::instance().warn("Unable to disable CAN passthrough: " + err);
+    }
+    if (liveCanStatus_) liveCanStatus_->setText("Info-CAN monitor stopped");
 }
 
 void Gui::startWorker(std::function<void()> fn) {
@@ -5308,8 +5573,11 @@ void Gui::startWorker(std::function<void()> fn) {
     if (worker_.joinable()) worker_.detach();
     busy_ = true;
     worker_ = std::thread([this, fn] {
+        bool resumeLive = liveRun_.load();
+        if (resumeLive) stopLivePoll();
         fn();
         busy_ = false;
+        if (resumeLive && transport_.isConnected()) startLivePoll();
     });
 }
 

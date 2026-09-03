@@ -560,6 +560,33 @@ const std::vector<UdsAddrRange> kUdsAddrRanges = {
     {0xF000, 0xFFFF, "Reserved by ISO 13400"},
 };
 
+const std::vector<VF8UdsCapability> kVF8VcuCapabilities = {
+    {0x10, "DiagnosticSessionControl",           "Supported",          "Default session confirmed; malformed request NRC 0x12/0x13"},
+    {0x11, "ECUReset",                           "Supported",          "Malformed request NRC 0x13; no reset type sent"},
+    {0x14, "ClearDiagnosticInformation",          "Supported",          "Malformed request NRC 0x13; no DTC group sent"},
+    {0x19, "ReadDTCInformation",                  "Supported",          "Malformed request NRC 0x13; 740 supported DTC entries read"},
+    {0x22, "ReadDataByIdentifier",                "Supported",          "Malformed request NRC 0x13; multiple positive DIDs"},
+    {0x23, "ReadMemoryByAddress",                 "Security required",  "Extended session NRC 0x33; no address supplied"},
+    {0x24, "ReadScalingDataByIdentifier",         "Unsupported",        "NRC 0x11"},
+    {0x27, "SecurityAccess",                      "Supported",          "Fresh 16-byte seeds: Extended level 0x03; Programming levels 0x01/0x07"},
+    {0x28, "CommunicationControl",                "Other session",      "NRC 0x7F in default session"},
+    {0x2A, "ReadDataByPeriodicIdentifier",        "Other session",      "NRC 0x7F in default session"},
+    {0x2C, "DynamicallyDefineDataIdentifier",     "Other session",      "NRC 0x7F in default session"},
+    {0x2E, "WriteDataByIdentifier",               "Other session",      "NRC 0x7F in default session; no DID/data supplied"},
+    {0x2F, "InputOutputControlByIdentifier",      "Other session",      "NRC 0x7F in default session; no DID/control sent"},
+    {0x31, "RoutineControl",                      "Other session",      "NRC 0x7F in default session; no routine supplied"},
+    {0x34, "RequestDownload",                     "Programming only",   "Programming-session malformed request NRC 0x13"},
+    {0x35, "RequestUpload",                       "Unsupported",        "NRC 0x11 in Extended and Programming sessions"},
+    {0x36, "TransferData",                        "Unsupported",        "NRC 0x11"},
+    {0x3D, "WriteMemoryByAddress",                "Other session",      "NRC 0x7F in default session; no address/data supplied"},
+    {0x3E, "TesterPresent",                       "Supported",          "Malformed request NRC 0x13"},
+    {0x83, "AccessTimingParameter",               "Unsupported",        "NRC 0x11"},
+    {0x84, "SecuredDataTransmission",             "Unsupported",        "NRC 0x11"},
+    {0x85, "ControlDTCSetting",                   "Other session",      "NRC 0x7F in default session"},
+    {0x86, "ResponseOnEvent",                     "Security required",  "NRC 0x33"},
+    {0x87, "LinkControl",                         "Unsupported",        "NRC 0x11"},
+};
+
 // ===========================================================================
 // 2024 VF8 (US) vehicle specification
 // ===========================================================================

@@ -359,9 +359,9 @@ void Client::disconnect() {
 // Native raw-USB (libusb) backend
 //
 // The stock Ford OpenXC VI (VID 0x1BC4, PID 0x0001) presents a vendor-specific
-// interface (class 0xFF) rather than a USB-CDC serial port, so macOS creates no
-// /dev/cu.* node. The VI streams NUL-delimited OpenXC JSON on bulk IN and has a
-// vendor control request (0x83) for atomic host-to-device JSON commands.
+// interface (class 0xFF) with bulk endpoints rather than a USB-CDC serial port,
+// so macOS creates no /dev/cu.* node. The VI streams NUL-delimited OpenXC JSON
+// on bulk IN and accepts NUL-terminated JSON commands on bulk OUT.
 // ---------------------------------------------------------------------------
 
 // RAII helper to ensure USB resources are cleaned up on scope exit.
@@ -696,31 +696,55 @@ bool Client::writeAll(const char* data, size_t n, std::string& err) {
             err = "USB device handle is null";
             return false;
         }
-        if (n > UINT16_MAX) {
-            err = "OpenXC USB command exceeds control-transfer limit";
-            return false;
-        }
+        size_t written = 0;
+        int recoveries = 0;
+        while (written < n) {
+            int transferred = 0;
+            int r = libusb_bulk_transfer(h, usbEpOut_,
+                    reinterpret_cast<unsigned char*>(const_cast<char*>(data + written)),
+                    static_cast<int>(n - written), &transferred, 2000);
+            if (transferred > 0) written += static_cast<size_t>(transferred);
+            if (r == 0 && written == n) return true;
+            if (r == 0 && transferred > 0) continue;
+            if (r == LIBUSB_ERROR_NO_DEVICE) {
+                disconnectUnlocked();
+                err = "OpenXC VI disconnected from USB; wait for it to re-enumerate, then reconnect.";
+                return false;
+            }
+            if (written == n) {
+                err = "OpenXC USB write completion is unknown; command was not replayed";
+                return false;
+            }
+            if ((r != LIBUSB_ERROR_TIMEOUT && r != LIBUSB_ERROR_PIPE) || recoveries++ >= 2) {
+                err = r == LIBUSB_ERROR_TIMEOUT ? "OpenXC USB bulk write timed out" :
+                        r == LIBUSB_ERROR_PIPE ? "OpenXC USB bulk OUT endpoint stalled" :
+                        std::string("OpenXC USB bulk write failed: ") + libusb_error_name(r);
+                return false;
+            }
 
-        constexpr uint8_t kControlCommandRequest = 0x83;
-        int transferred = libusb_control_transfer(h,
-                LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_VENDOR |
-                    LIBUSB_RECIPIENT_DEVICE,
-                kControlCommandRequest, 0, 0,
-                reinterpret_cast<unsigned char*>(const_cast<char*>(data)),
-                static_cast<uint16_t>(n), 2000);
-        if (transferred == static_cast<int>(n)) return true;
-        if (transferred == LIBUSB_ERROR_NO_DEVICE) {
-            disconnectUnlocked();
-            err = "OpenXC VI disconnected from USB; wait for it to re-enumerate, then reconnect.";
-            return false;
+            if (r == LIBUSB_ERROR_PIPE) {
+                int clearResult = libusb_clear_halt(h, usbEpOut_);
+                if (clearResult != 0) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    clearResult = libusb_clear_halt(h, usbEpOut_);
+                }
+                if (clearResult != 0) {
+                    usbInterfaceClaimed_ = false;
+                    libusb_release_interface(h, usbIface_);
+                    int resetResult = libusb_reset_device(h);
+                    if (resetResult != 0 || libusb_claim_interface(h, usbIface_) != 0) {
+                        disconnectUnlocked();
+                        err = "OpenXC USB recovery requires reconnecting the VI";
+                        return false;
+                    }
+                    usbInterfaceClaimed_ = true;
+                    usbRxBuf_.clear();
+                    written = 0; // Device reconfiguration cleared the unterminated prefix.
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
-        if (transferred >= 0) {
-            err = "OpenXC USB control write was incomplete; command outcome is unknown (not retried)";
-        } else {
-            err = std::string("OpenXC USB control write failed; command outcome is unknown (not retried): ") +
-                    libusb_error_name(transferred);
-        }
-        return false;
+        return true;
     }
 #endif
     if (btConnection_) return bt::writeRfcomm(btConnection_, data, n, err);
@@ -915,6 +939,24 @@ bool Client::readLineUsb(std::string& line, int timeoutMs, std::string& err) {
 #endif
 }
 
+void Client::drainUsbInput() {
+#ifdef OPENXC_HAVE_LIBUSB
+    if (!usbMode_ || !usbHandle_) return;
+    usbRxBuf_.clear();
+    auto* handle = static_cast<libusb_device_handle*>(usbHandle_);
+    unsigned char buffer[512];
+    // timeout=0 means infinite in libusb, so use 1 ms and keep the drain
+    // bounded even if unsolicited traffic is active.
+    for (int packet = 0; packet < 64; ++packet) {
+        int transferred = 0;
+        int result = libusb_bulk_transfer(handle, usbEpIn_, buffer,
+                                          sizeof buffer, &transferred, 1);
+        if (result == LIBUSB_ERROR_TIMEOUT && transferred == 0) break;
+        if (result != 0 && result != LIBUSB_ERROR_TIMEOUT) break;
+    }
+#endif
+}
+
 // ---------------------------------------------------------------------------
 // OpenXC JSON protocol
 // ---------------------------------------------------------------------------
@@ -928,6 +970,16 @@ bool Client::readLineUsb(std::string& line, int timeoutMs, std::string& err) {
 // library's 7-byte request-payload struct, so truncating to that struct would
 // send malformed UDS requests to the ECU.
 //
+static size_t diagnosticPidLength(const std::vector<uint8_t>& udsReq) {
+    if (udsReq.empty()) return 0;
+    if ((udsReq[0] == 0x22 || udsReq[0] == 0x24 ||
+         udsReq[0] == 0x2E || udsReq[0] == 0x2F) && udsReq.size() >= 3)
+        return 2;
+    if ((udsReq[0] == 0x10 || udsReq[0] == 0x3E) && udsReq.size() >= 2)
+        return 1;
+    return 0;
+}
+
 std::string Client::buildRequest(uint32_t                    arbId,
                                  const std::vector<uint8_t>& udsReq,
                                  int                         bus) {
@@ -936,8 +988,10 @@ std::string Client::buildRequest(uint32_t                    arbId,
     DiagnosticRequest dr{};
     dr.arbitration_id = arbId;
     dr.mode           = udsReq[0];
-    std::string payloadStr = udsReq.size() > 1
-        ? bytesToHexStr(udsReq.data() + 1, udsReq.size() - 1)
+    const size_t pidLength = diagnosticPidLength(udsReq);
+    const size_t payloadOffset = 1 + pidLength;
+    std::string payloadStr = udsReq.size() > payloadOffset
+        ? bytesToHexStr(udsReq.data() + payloadOffset, udsReq.size() - payloadOffset)
         : "";
 
     std::ostringstream json;
@@ -945,15 +999,12 @@ std::string Client::buildRequest(uint32_t                    arbId,
          << "\"id\":"    << dr.arbitration_id
          << ",\"mode\":" << static_cast<int>(dr.mode)
          << ",\"bus\":"  << bus;
-        // The legacy OpenXC diagnostics bridge represents the subfunction for
-        // session control and tester-present as a one-byte PID. This produces the
-        // same ISO-TP UDS PDU while following the proven 10 01 / 3E 80 command
-        // path used by the firmware CLI.
-        if ((dr.mode == 0x10 || dr.mode == 0x3e) && udsReq.size() == 2) {
-            json << ",\"pid\":" << static_cast<int>(udsReq[1]);
-        } else if (!payloadStr.empty()) {
-        json << ",\"payload\":\"" << payloadStr << "\"";
-        }
+    if (pidLength > 0) {
+        uint16_t pid = udsReq[1];
+        if (pidLength == 2) pid = static_cast<uint16_t>((pid << 8) | udsReq[2]);
+        json << ",\"pid\":" << pid;
+    }
+    if (!payloadStr.empty()) json << ",\"payload\":\"" << payloadStr << "\"";
     json << "},\"action\":\"add\"}";
     return json.str();
 }
@@ -981,12 +1032,14 @@ std::string Client::buildRequest(uint32_t                    arbId,
 // rather than a diagnostic response — caller should skip and try next line.
 //
 bool Client::parseResponse(const std::string& jsonLine,
-                           uint8_t requestMode,
+                           const std::vector<uint8_t>& udsReq,
                            uint32_t expectedId,
                            int expectedBus,
                            DiagnosticFrame& frame,
                            std::string& err) {
     frame = {};
+    if (udsReq.empty()) return false;
+    const uint8_t requestMode = udsReq[0];
 
     // Diagnostic responses include id, bus, mode and success. Vehicle data
     // messages may contain overlapping field names, so require the full set.
@@ -1034,8 +1087,11 @@ bool Client::parseResponse(const std::string& jsonLine,
 
     if (!success) {
         // Negative response: 0x7F + requestMode + NRC
-        uint8_t nrc = static_cast<uint8_t>(NRC_CONDITIONS_NOT_CORRECT);
-        if (jsonGetString(jsonLine, "payload", payload) && !payload.empty()) {
+        int nrcValue = NRC_CONDITIONS_NOT_CORRECT;
+        uint8_t nrc = static_cast<uint8_t>(nrcValue);
+        if (jsonGetInt(jsonLine, "negative_response_code", nrcValue)) {
+            nrc = static_cast<uint8_t>(nrcValue & 0xFF);
+        } else if (jsonGetString(jsonLine, "payload", payload) && !payload.empty()) {
             auto bytes = hexStrToBytes(payload);
             if (!bytes.empty()) nrc = bytes[0];
         }
@@ -1043,10 +1099,32 @@ bool Client::parseResponse(const std::string& jsonLine,
         return true;
     }
 
-    // Positive response: [mode+0x40] + payload bytes
+    // Positive response: [mode+0x40] + echoed PID/DID + payload bytes.
     frame.uds.push_back(modeByte == positiveSid ? modeByte : positiveSid);
+    const size_t pidLength = diagnosticPidLength(udsReq);
+    uint16_t expectedPid = 0;
+    if (pidLength > 0) {
+        expectedPid = udsReq[1];
+        if (pidLength == 2)
+            expectedPid = static_cast<uint16_t>((expectedPid << 8) | udsReq[2]);
+    }
+    int responsePid = 0;
+    if (pidLength > 0 && (!isMultiFrameFragment || fragmentIndex < 0)) {
+        if (!jsonGetInt(jsonLine, "pid", responsePid)) return false;
+        if (static_cast<uint16_t>(responsePid) != expectedPid) return false;
+    }
+    if (pidLength > 0 && !isMultiFrameFragment) {
+        if (pidLength == 2) frame.uds.push_back(static_cast<uint8_t>(responsePid >> 8));
+        frame.uds.push_back(static_cast<uint8_t>(responsePid));
+    }
     if (jsonGetString(jsonLine, "payload", payload) && !payload.empty()) {
         auto payloadBytes = hexStrToBytes(payload);
+        if (isMultiFrameFragment && fragmentIndex == 0 && pidLength > 0) {
+            if (payloadBytes.size() < 1 + pidLength || payloadBytes[0] != positiveSid)
+                return false;
+            for (size_t i = 0; i < pidLength; ++i)
+                if (payloadBytes[1 + i] != udsReq[1 + i]) return false;
+        }
         frame.uds.insert(frame.uds.end(), payloadBytes.begin(), payloadBytes.end());
     }
 
@@ -1081,10 +1159,33 @@ bool Client::sendCommand(const std::string& command, std::string& response,
                          int timeoutMs, std::string& err) {
     std::lock_guard<std::mutex> lock(ioMutex_);
     if (!isConnectedUnlocked()) { err = "OpenXC VI not connected"; return false; }
+    std::string expectedResponse;
+    jsonGetString(command, "command", expectedResponse);
+    drainUsbInput();
     std::string json = command;
     json.push_back('\0');
     if (!writeAll(json.c_str(), json.size(), err)) return false;
-    return readLine(response, timeoutMs, err);
+
+    using Clock = std::chrono::steady_clock;
+    auto deadline = Clock::now() + std::chrono::milliseconds(timeoutMs);
+    while (Clock::now() < deadline) {
+        int remaining = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - Clock::now()).count());
+        std::string line;
+        if (!readLine(line, std::max(1, remaining), err)) return false;
+        if (line.find("\"command_response\"") != std::string::npos) {
+            std::string responseType;
+            if (expectedResponse.empty() ||
+                    (jsonGetString(line, "command_response", responseType) &&
+                     responseType == expectedResponse)) {
+                response = std::move(line);
+                return true;
+            }
+        }
+        // Raw CAN may already be streaming; keep reading for the command ack.
+    }
+    err = "Timeout waiting for OpenXC command response";
+    return false;
 }
 
 bool Client::requestBootloader(std::string& err) {
@@ -1115,9 +1216,7 @@ bool Client::sendDiagnostic(uint32_t                    arbId,
     // Discard any bytes buffered from a previous exchange (late responses or
     // unsolicited vehicle-data frames) so this request's response can't be
     // confused with stale data - important for rapid per-address probe scans.
-#ifdef OPENXC_HAVE_LIBUSB
-    if (usbMode_) usbRxBuf_.clear();
-#endif
+    drainUsbInput();
 
     // Send the JSON request terminated with OpenXC's stock NUL delimiter.
     std::string json = buildRequest(arbId, udsReq, bus);
@@ -1166,7 +1265,7 @@ bool Client::sendDiagnostic(uint32_t                    arbId,
         DiagnosticFrame frame;
         // expectedId: OpenXC physical responses publish the *request* arb id
         // (not request+8). Pass arbId for physical; 0 to accept any id.
-        if (parseResponse(line, requestMode, expectedId, bus, frame, parseErr)) {
+        if (parseResponse(line, udsReq, expectedId, bus, frame, parseErr)) {
             int fragmentIndex = 0;
             if (jsonGetInt(line, "frame", fragmentIndex)) {
                 std::string fragmentPayload;
@@ -1223,6 +1322,7 @@ bool Client::sendDiagnosticMulti(uint32_t                    arbId,
     if (udsReq.empty()) { err = "Empty UDS request"; return false; }
 
     const uint8_t requestMode = udsReq[0];
+    drainUsbInput();
     std::string json = buildRequest(arbId, udsReq, bus);
     json.push_back('\0');
     if (!writeAll(json.c_str(), json.size(), err)) return false;
@@ -1251,7 +1351,7 @@ bool Client::sendDiagnosticMulti(uint32_t                    arbId,
 
         DiagnosticFrame frame;
         std::string parseErr;
-        if (!parseResponse(line, requestMode, 0, bus, frame, parseErr))
+        if (!parseResponse(line, udsReq, 0, bus, frame, parseErr))
             continue;
 
         bool pending = frame.uds.size() >= 3 && frame.uds[0] == 0x7Fu &&
@@ -1273,6 +1373,42 @@ bool Client::sendDiagnosticMulti(uint32_t                    arbId,
 
     if (!responses.empty()) return true;
     err = "Timeout waiting for OpenXC diagnostic responses";
+    return false;
+}
+
+bool Client::receiveCanFrame(RawCanFrame& frame, int timeoutMs, std::string& err) {
+    std::lock_guard<std::mutex> lock(ioMutex_);
+    frame = {};
+    if (!isConnectedUnlocked()) { err = "OpenXC VI not connected"; return false; }
+
+    using Clock = std::chrono::steady_clock;
+    auto deadline = Clock::now() + std::chrono::milliseconds(timeoutMs > 0 ? timeoutMs : 100);
+    while (Clock::now() < deadline) {
+        int remaining = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - Clock::now()).count());
+        std::string line;
+        std::string readErr;
+        if (!readLine(line, std::max(1, remaining), readErr)) {
+            if (readErr == "Response timeout") break;
+            err = readErr;
+            return false;
+        }
+
+        int id = 0;
+        int bus = 0;
+        std::string data;
+        if (!jsonGetInt(line, "id", id) || !jsonGetInt(line, "bus", bus) ||
+                !jsonGetString(line, "data", data)) {
+            continue;
+        }
+        auto bytes = hexStrToBytes(data);
+        if (bytes.empty()) continue;
+        frame.arbitrationId = static_cast<uint32_t>(id);
+        frame.bus = bus;
+        frame.data = std::move(bytes);
+        return true;
+    }
+    err = "CAN receive timeout";
     return false;
 }
 

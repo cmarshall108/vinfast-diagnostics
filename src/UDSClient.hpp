@@ -249,10 +249,9 @@ public:
     //   - IO:      0x2F <DID> 0x00 returnControlToECU (hands control BACK to
     //              the ECU - never seizes an actuator)
     //
-    // Return code: 1 = positive response (exists), 0 = negative response but
-    // the ID is recognized (exists, e.g. NRC 0x22/0x33), -1 = not present
-    // (NRC 0x31 requestOutOfRange / 0x11 / 0x12) or no response. `resp` holds
-    // the raw reply for logging. `timeoutMs` keeps absent-ID scans responsive.
+    // Return code: 1 = positive response with matching echoed ID, 0 = an
+    // ambiguous conditional NRC (not proof the ID exists), -1 = unsupported,
+    // mismatched, or no response. `timeoutMs` keeps scans responsive.
     // -------------------------------------------------------------------
     int probeDID(uint16_t target, uint16_t did,
                  std::vector<uint8_t>& resp, std::string& err, int timeoutMs = 1500);

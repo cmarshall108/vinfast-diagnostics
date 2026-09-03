@@ -256,6 +256,15 @@ bool Transport::initializeLink(std::string& err) {
         }
     }
 
+    // Raw CAN output is high-volume and can fill the VI's bulk-IN queue when
+    // no consumer is reading it. Live Data enables it explicitly while active.
+    if (!setPassthrough(false, err)) {
+        Logger::instance().warn("OpenXC passthrough disable failed: " + err);
+        err.clear();
+    } else {
+        Logger::instance().info("OpenXC raw CAN passthrough disabled until Live Data starts");
+    }
+
     return true;
 }
 
@@ -444,6 +453,21 @@ bool Transport::sendDiagnosticMulti(uint16_t source, uint16_t target,
         err += "CAN backup also failed: " + canErr;
     }
     return false;
+}
+
+bool Transport::setPassthrough(bool enabled, std::string& err) {
+    std::ostringstream cmd;
+    cmd << R"({"command":"passthrough","bus":)" << bus_
+        << R"(,"enabled":)" << (enabled ? "true" : "false") << "}";
+    std::string response;
+    if (!openxcClient_.sendCommand(cmd.str(), response, 1500, err)) return false;
+
+    if (response.find("\"command_response\":\"passthrough\"") == std::string::npos ||
+            response.find("\"status\":true") == std::string::npos) {
+        err = "OpenXC VI rejected passthrough command: " + response;
+        return false;
+    }
+    return true;
 }
 
 // ---------------------------------------------------------------------------

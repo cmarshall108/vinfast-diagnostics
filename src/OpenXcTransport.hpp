@@ -67,6 +67,13 @@ public:
                              std::vector<DiagResponse>& responses,
                              int collectMs, std::string& err);
 
+    bool receiveCanFrame(RawCanFrame& frame, int timeoutMs, std::string& err) {
+        return openxcClient_.receiveCanFrame(frame, timeoutMs, err);
+    }
+
+    // Enable raw CAN streaming only while the Live Data consumer is running.
+    bool setPassthrough(bool enabled, std::string& err);
+
     // Request the custom Fordboard USB bootloader. A successful request is
     // followed by the expected USB disconnect as the device resets.
     bool requestBootloader(std::string& err);

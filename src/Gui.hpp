@@ -67,8 +67,13 @@ private:
         int         reachable = -1;   // -1 unknown, 0 no, 1 yes (from probe)
     };
 
-    // A live-data watch item: a DID polled repeatedly from one ECU.
+    // A live-data watch item: either an active UDS DID or passive CAN signal.
     struct LiveSignal {
+        bool        passiveCan = false;
+        uint32_t    canId = 0;
+        std::string canMessage;
+        std::string canSignal;
+        bool        pollOnce = false;
         uint16_t    target = 0;   // ECU logical address
         uint16_t    did = 0;      // data identifier (0x22 argument)
         std::string name;
@@ -187,7 +192,7 @@ private:
     int  sweepEnd_   = 0x07EF;
     bool sweepAddDiscovered_ = true;
 
-    int  livePollMs_ = 500;
+    int  livePollMs_ = 1000;
     bool liveBundle_ = false;   // bundle all live signals into one dynamic DID (0x2C) per cycle
 
     // OpenXC VI bus selection (1 or 2 on most VI hardware).
@@ -306,6 +311,8 @@ private:
     QLineEdit*    edLiveInterval_ = nullptr;
     QPushButton*  livePollBtn_    = nullptr;
     QTableWidget* liveTable_      = nullptr;
+    QLineEdit*    liveFilter_     = nullptr;
+    QLabel*       liveCanStatus_  = nullptr;
     QCheckBox*    cbLiveBundle_   = nullptr;
 
     // service page

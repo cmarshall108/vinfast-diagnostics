@@ -181,6 +181,18 @@ struct UdsAddrRange {
 
 extern const std::vector<UdsAddrRange> kUdsAddrRanges;
 
+// Read-only service-dispatch profile measured on VCU 0x6AC in default session.
+// Evidence is based on correctly correlated NRCs from deliberately incomplete
+// requests; no reset type, address, data, routine, or actuator was supplied.
+struct VF8UdsCapability {
+    uint8_t     sid;
+    const char* service;
+    const char* state;
+    const char* evidence;
+};
+
+extern const std::vector<VF8UdsCapability> kVF8VcuCapabilities;
+
 // ---- VinFast VF8 Info-CAN bus signal reference -----------------------------
 //
 // Curated from the factory CAN matrix logs (VF8)
