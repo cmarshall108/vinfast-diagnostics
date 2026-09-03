@@ -1108,7 +1108,7 @@ QWidget* Gui::buildConnectionPage() {
     cbAutoExt_ = new QCheckBox("Auto-enter Extended before Clear"); cbAutoExt_->setChecked(true);
     sf->addRow(cbAutoExt_);
     cbKeepAlive_ = new QCheckBox("Keep session alive (background TesterPresent)");
-    cbKeepAlive_->setChecked(true);
+    cbKeepAlive_->setChecked(false);
     edKeepAliveTarget_ = hexEdit("0682", 4);
     auto* kaRow = new QHBoxLayout;
     kaRow->addWidget(cbKeepAlive_);
@@ -1561,7 +1561,7 @@ QWidget* Gui::buildEcuPage() {
 
     auto* legendNote = new QLabel(
         "Fault count appears on each node after scanning. Scan all now probes "
-        "addresses and runs DID identification automatically.");
+        "each configured address with paced DTC-read retries and alternate-address fallback.");
     legendNote->setWordWrap(true);
     legendNote->setObjectName("ecuLegendNote");
     legendLay->addSpacing(4);
@@ -1576,6 +1576,18 @@ QWidget* Gui::buildEcuPage() {
         uint8_t mask = (uint8_t)statusMask_;
         topologyScanCancel_ = false;
         startWorker([this, mask] {
+            struct ScanCleanup {
+                Gui* self;
+                ~ScanCleanup() {
+                    std::lock_guard<std::mutex> g(self->mutex_);
+                    for (auto& ecu : self->ecus_) {
+                        if (ecu.statusMsg.rfind("scanning module ", 0) == 0) {
+                            ecu.statusMsg = (ecu.reachable == 1) ? "idle" : (ecu.reachable == 0 ? "no response" : "idle");
+                        }
+                    }
+                }
+            } cleanup{this};
+
             std::string err;
             if (!ensureConnectedOrNotify("Scan All (Topology)", err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
@@ -1584,7 +1596,7 @@ QWidget* Gui::buildEcuPage() {
             int reachable = 0;
             int identified = 0;
             for (size_t i = 0; i < count; ++i) {
-                if (topologyScanCancel_.load()) break;
+                if (topologyScanCancel_) break;
                 if (!transport_.isConnected() && !canBackup_.isConnected()) {
                     showDisconnectPopup("Scan All (Topology)", "The OpenXC device disconnected or went to sleep during module scan.");
                     break;
@@ -1601,106 +1613,98 @@ QWidget* Gui::buildEcuPage() {
                                          "/" + std::to_string(count) + "...";
                 }
 
+                // 0x10xx entries mark ECUs whose physical CAN request ID has
+                // not been recovered; mapping their low byte would probe an
+                // unrelated 0x7xx address.
+                if (addr > 0x07FF && (alt == 0 || alt > 0x07FF)) {
+                    std::lock_guard<std::mutex> g(mutex_);
+                    if (i < ecus_.size()) {
+                        ecus_[i].reachable = -1;
+                        ecus_[i].statusMsg = "address not configured";
+                    }
+                    continue;
+                }
+                if (addr > 0x07FF) {
+                    std::swap(addr, alt);
+                }
+
                 // Keep the animation pacing interruptible.
-                for (int delay = 0; delay < 480 && !topologyScanCancel_.load(); delay += 40)
+                for (int delay = 0; delay < 480 && !topologyScanCancel_; delay += 40)
                     std::this_thread::sleep_for(std::chrono::milliseconds(40));
-                if (topologyScanCancel_.load()) break;
+                if (topologyScanCancel_) break;
                 if (!transport_.isConnected() && !canBackup_.isConnected()) {
                     showDisconnectPopup("Scan All (Topology)", "The OpenXC device disconnected or went to sleep during module scan.");
                     break;
                 }
 
                 uint16_t target = addr;
+                std::vector<Dtc> dtcs;
+                std::string readErr;
+                auto readWithRetry = [&](uint16_t candidate) {
+                    for (int attempt = 1; attempt <= 3 && !topologyScanCancel_; ++attempt) {
+                        dtcs.clear();
+                        readErr.clear();
+                        if (uds.readDTCByStatusMask(candidate, mask, dtcs, readErr))
+                            return true;
+                        if (readErr.rfind("UDS negative response", 0) == 0)
+                            return false; // The ECU answered; retrying will not change its NRC.
+                        if (attempt < 3) {
+                            Logger::instance().info(
+                                name + " DTC read attempt " + std::to_string(attempt) +
+                                " failed; retrying after 750ms: " + readErr);
+                            for (int delay = 0; delay < 750 && !topologyScanCancel_; delay += 50)
+                                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                        }
+                    }
+                    return false;
+                };
 
-                // 1) Probe primary DiagReq / OBD id, then alt (e.g. XGW 0x682 → 0x7E0).
-                bool probed = false;
-                std::string probeErr;
-                if (uds.probe(target, probeErr)) {
-                    probed = true;
-                } else if (alt != 0 && alt != addr) {
-                    std::string e2;
-                    if (uds.probe(alt, e2)) {
+                bool readOk = readWithRetry(target);
+                std::string primaryErr = readErr;
+                if (!readOk && readErr.rfind("UDS negative response", 0) != 0 &&
+                        alt != 0 && alt != addr && !topologyScanCancel_) {
+                    target = alt;
+                    readOk = readWithRetry(target);
+                    if (readOk) {
                         std::lock_guard<std::mutex> g(mutex_);
                         if (i < ecus_.size()) {
                             ecus_[i].logicalAddr = alt;
-                            // Keep the failed primary as the next alt candidate.
                             ecus_[i].altAddr = addr;
                         }
-                        target = alt;
-                        probed = true;
                         char a1[8], a2[8];
                         std::snprintf(a1, sizeof a1, "%04X", alt);
                         std::snprintf(a2, sizeof a2, "%04X", addr);
-                        Logger::instance().info(
-                            name + " answered on alt 0x" + a1 +
-                            " (primary 0x" + a2 + " silent)");
+                        Logger::instance().info(name + " answered on alt 0x" + a1 +
+                                                " (primary 0x" + a2 + " silent)");
                     } else {
-                        char a1[8];
-                        std::snprintf(a1, sizeof a1, "%04X", alt);
-                        probeErr += " | alt 0x" + std::string(a1) + ": " + e2;
+                        readErr = primaryErr + " | alternate: " + readErr;
                     }
                 }
 
-                if (topologyScanCancel_.load()) break;
-                if (!transport_.isConnected() && !canBackup_.isConnected()) {
-                    showDisconnectPopup("Scan All (Topology)", "The OpenXC device disconnected or went to sleep during module scan.");
-                    break;
-                }
-
-                if (!probed) {
-                    std::lock_guard<std::mutex> g(mutex_);
-                    if (i < ecus_.size()) {
-                        ecus_[i].reachable = 0;
-                        ecus_[i].statusMsg = "no response: " + probeErr;
-                    }
-                    continue;
-                }
-
-                ++reachable;
-
-                // 2) Identify module via DID sweep.
-                int answered = 0;
-                auto fields = uds.sweepIdentificationDids(target, answered, 200, 75);
-                if (topologyScanCancel_.load()) break;
-                if (!transport_.isConnected() && !canBackup_.isConnected()) {
-                    showDisconnectPopup("Scan All (Topology)", "The OpenXC device disconnected or went to sleep during module scan.");
-                    break;
-                }
-                std::string idInfo;
-                if (answered > 0) {
-                    for (const auto& f : fields) {
-                        char did[8]; std::snprintf(did, sizeof did, "%04X", f.did);
-                        idInfo += f.label + " (" + did + "): " + f.value + "\n";
-                    }
-                    ++identified;
-                }
-
-                // 3) Read DTCs for the requested status mask.
-                std::vector<Dtc> dtcs; std::string e;
-                if (uds.readDTCByStatusMask(target, mask, dtcs, e)) {
+                if (topologyScanCancel_) break;
+                if (readOk) {
+                    ++reachable;
                     std::lock_guard<std::mutex> g(mutex_);
                     if (i < ecus_.size()) {
                         ecus_[i].reachable = 1;
-                        if (!idInfo.empty()) ecus_[i].idInfo = idInfo;
                         ecus_[i].dtcs = std::move(dtcs);
-                        ecus_[i].statusMsg = "scan OK (" + std::to_string(answered) + " DID, " +
+                        if (!ecus_[i].idInfo.empty()) ++identified;
+                        ecus_[i].statusMsg = "scan OK (" +
                                              std::to_string(ecus_[i].dtcs.size()) + " DTC)";
                     }
                 } else {
                     std::lock_guard<std::mutex> g(mutex_);
                     if (i < ecus_.size()) {
-                        ecus_[i].reachable = 1;
-                        if (!idInfo.empty()) ecus_[i].idInfo = idInfo;
-                        ecus_[i].statusMsg = "read failed: " + e;
-                    }
-                    if (!transport_.isConnected() && !canBackup_.isConnected()) {
-                        showDisconnectPopup("Scan All (Topology)", "The OpenXC device disconnected or went to sleep during module scan.");
-                        break;
+                        bool answered = readErr.rfind("UDS negative response", 0) == 0;
+                        ecus_[i].reachable = answered ? 1 : 0;
+                        if (answered) ++reachable;
+                        ecus_[i].statusMsg = answered ? "DTC read rejected: " + readErr
+                                                     : "no response: " + readErr;
                     }
                 }
 
             }
-            Logger::instance().info(std::string(topologyScanCancel_.load()
+            Logger::instance().info(std::string(topologyScanCancel_
                                     ? "Scan All stopped: " : "Scan All complete: ") +
                                     std::to_string(reachable) +
                                     "/" + std::to_string(count) + " reachable, " +
@@ -1710,6 +1714,15 @@ QWidget* Gui::buildEcuPage() {
     connect(stopScanBtn_, &QPushButton::clicked, this, [this] {
         topologyScanCancel_ = true;
         stopScanBtn_->setEnabled(false);
+        {
+            std::lock_guard<std::mutex> g(mutex_);
+            for (auto& ecu : ecus_) {
+                if (ecu.statusMsg.rfind("scanning module ", 0) == 0) {
+                    ecu.statusMsg = (ecu.reachable == 1) ? "idle" : (ecu.reachable == 0 ? "no response" : "idle");
+                }
+            }
+        }
+        refreshEcuTiles();
     });
     connect(clearAllBtn_, &QPushButton::clicked, this, [this] {
         if (!confirmPopup(clearAllBtn_, "Clear DTCs on ALL ECUs",
@@ -3651,6 +3664,27 @@ QWidget* Gui::buildReferencePage() {
         }
     }
 
+    // ---- 2024 VF8 vehicle specification --------------------------------------
+    auto* specTop = new QTreeWidgetItem(refTree_);
+    specTop->setText(0, "2024 VinFast VF8 (US) - vehicle specification");
+    specTop->setText(1, QString("%1 items").arg((int)kVF8Specs.size()));
+    specTop->setText(2, "Manufacturer-published 2024 MY figures plus the diagnostic-access "
+                        "facts this tool relies on (DLC, bus, protocol, addressing).");
+    {
+        QTreeWidgetItem* group = nullptr;
+        QString groupName;
+        for (const auto& s : kVF8Specs) {
+            if (!group || groupName != s.group) {
+                groupName = s.group;
+                group = new QTreeWidgetItem(specTop);
+                group->setText(0, groupName);
+            }
+            auto* it = new QTreeWidgetItem(group);
+            it->setText(0, s.item);
+            it->setText(2, s.value);
+        }
+    }
+
     // ---- Protocol standards (manufacturer-independent, valid on the VF8) ----
     auto* stdTop = new QTreeWidgetItem(refTree_);
     stdTop->setText(0, "Protocol standards (ISO 14229 / SAE J1979 / ISO 13400)");
@@ -3878,7 +3912,7 @@ void Gui::refreshActionState() {
     const bool busy = busy_.load();
     const bool connected = transport_.isConnected() || canBackup_.isConnected();
     if (scanAllBtn_) scanAllBtn_->setEnabled(!busy);
-    if (stopScanBtn_) stopScanBtn_->setEnabled(busy && !topologyScanCancel_.load());
+    if (stopScanBtn_) stopScanBtn_->setEnabled(busy && !topologyScanCancel_);
     if (clearAllBtn_) clearAllBtn_->setEnabled(!busy && connected);
     if (addEcuBtn_) addEcuBtn_->setEnabled(!busy);
     if (usbScanBtn_) usbScanBtn_->setEnabled(!busy && !connected);
@@ -3929,21 +3963,24 @@ void Gui::refreshHeader() {
 
     if (hdrSubtitle_) {
         std::string vin = vf8::kVin;
+        int reachable = 0;
         int identified = 0;
         int total = 0;
         {
             std::lock_guard<std::mutex> g(mutex_);
             total = (int)ecus_.size();
             for (const auto& r : ecus_) {
+                if (r.reachable == 1) ++reachable;
                 if (!r.idInfo.empty()) ++identified;
                 std::string cand = extractScannedVin(r.idInfo);
                 if (isFullVin(cand)) vin = cand;
             }
         }
-        hdrSubtitle_->setText(QString("VIN %1   ·   Modules %2/%3 identified")
+        hdrSubtitle_->setText(QString("VIN %1   ·   Modules %2/%3 reachable   ·   %4 identified")
                                   .arg(QString::fromStdString(vin))
-                                  .arg(identified)
-                                  .arg(total));
+                                  .arg(reachable)
+                                  .arg(total)
+                                  .arg(identified));
     }
 
     // re-polish so objectName-based colors update
@@ -4005,7 +4042,19 @@ void Gui::refreshDashboard() {
         dashModel_->setText(year.empty()
             ? QString(vf8::kModel)
             : QString("%1 (%2)").arg(vf8::kModel).arg(QString::fromStdString(year)));
-        dashVin_->setText(QString::fromStdString(vin));
+        VF8VinInfo vi = vf8DecodeVin(vin);
+        QString vinText = QString::fromStdString(vin);
+        if (vi.valid17) {
+            vinText += vi.checkDigitOk ? "   ·   check digit OK" : "   ·   CHECK DIGIT INVALID";
+            if (vi.wmi != "RLL") vinText += "   ·   non-VinFast WMI " + QString::fromStdString(vi.wmi);
+            if (!vi.plant.empty()) vinText += "   ·   plant " + QString::fromStdString(vi.plant);
+        }
+        dashVin_->setText(vinText);
+        if (vi.valid17 && !vi.checkDigitOk)
+            dashVin_->setToolTip("VIN fails the SAE J272 mod-11 check digit - the value read from "
+                                 "the module (DID F190) may be corrupted or mis-programmed.");
+        else
+            dashVin_->setToolTip(QString::fromStdString(vi.manufacturer));
         dashMarket_->setText(QString("%1   ·   %2").arg(vf8::kMarket).arg(vf8::kVariant));
         dashMhuSw_->setText(QString::fromStdString(mhuSw.empty() ? std::string(vf8::kMhuSoftware) : mhuSw));
         dashTbox_->setText(QString::fromStdString(tboxSw.empty() ? std::string(vf8::kTboxProject) : tboxSw));
@@ -4055,7 +4104,7 @@ void Gui::refreshEcuTiles() {
         n.ecuIndex = i;
         n.bus = bus; n.col = col; n.below = below; n.gateway = gw;
         n.faults = (int)r.dtcs.size();
-        if (r.statusMsg.rfind("scanning module ", 0) == 0) n.state = 4; // scanning
+        if (r.statusMsg.rfind("scanning module ", 0) == 0 && !topologyScanCancel_ && busy_.load()) n.state = 4; // scanning
         else if (r.reachable == 0)      n.state = 3;   // no response
         else if (!r.dtcs.empty())  n.state = 2;   // fault
         else if (r.reachable == 1) n.state = 1;   // pass
@@ -5093,10 +5142,14 @@ void Gui::startKeepAlive() {
         while (keepAliveRun_) {
             if (transport_.isConnected() && !busy_) {
                 std::lock_guard<std::mutex> n(netMutex_);
-                UDSClient uds(transport_, (uint16_t)testerAddr_);
-                std::string err;
-                uint16_t tgt = (uint16_t)(keepAliveTarget_ ? keepAliveTarget_ : gatewayAddr_);
-                uds.testerPresent(tgt, err, /*suppress=*/true);
+                // Foreground work may have started while this thread waited
+                // for netMutex_; never queue stale keep-alive traffic behind it.
+                if (keepAliveRun_ && transport_.isConnected() && !busy_) {
+                    UDSClient uds(transport_, (uint16_t)testerAddr_);
+                    std::string err;
+                    uint16_t tgt = (uint16_t)(keepAliveTarget_ ? keepAliveTarget_ : gatewayAddr_);
+                    uds.testerPresent(tgt, err, /*suppress=*/false);
+                }
             }
             for (int i = 0; i < 20 && keepAliveRun_; ++i)
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));

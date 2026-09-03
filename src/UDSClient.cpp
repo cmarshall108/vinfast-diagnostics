@@ -370,7 +370,7 @@ bool UDSClient::testerPresent(uint16_t target, std::string& err,
     if (suppressPositiveResponse) {
         // Fire-and-forget keep-alive: the ECU sends nothing back.
         std::vector<uint8_t> resp;
-        return transport_.sendDiagnostic(tester_, target, req, resp, 800, err) || true;
+        return transport_.sendDiagnostic(tester_, target, req, resp, 800, err);
     }
     std::vector<uint8_t> resp;
     return request(target, req, resp, err);
@@ -1158,13 +1158,41 @@ std::string nrcText(uint8_t nrc) {
         case 0x21: return "busyRepeatRequest";
         case 0x22: return "conditionsNotCorrect";
         case 0x24: return "requestSequenceError";
+        case 0x25: return "noResponseFromSubnetComponent";
+        case 0x26: return "failurePreventsExecutionOfRequestedAction";
         case 0x31: return "requestOutOfRange";
         case 0x33: return "securityAccessDenied";
+        case 0x34: return "authenticationRequired";
         case 0x35: return "invalidKey";
+        case 0x36: return "exceededNumberOfAttempts";
+        case 0x37: return "requiredTimeDelayNotExpired";
         case 0x70: return "uploadDownloadNotAccepted";
+        case 0x71: return "transferDataSuspended";
+        case 0x72: return "generalProgrammingFailure";
+        case 0x73: return "wrongBlockSequenceCounter";
         case 0x78: return "requestCorrectlyReceived-ResponsePending";
         case 0x7E: return "subFunctionNotSupportedInActiveSession";
         case 0x7F: return "serviceNotSupportedInActiveSession";
+        // Vehicle-condition NRCs (ISO 14229-1 Annex A.1) - typical reasons an
+        // EV refuses a clear/reset/routine while driving or with HV active.
+        case 0x81: return "rpmTooHigh";
+        case 0x82: return "rpmTooLow";
+        case 0x83: return "engineIsRunning (HV system active)";
+        case 0x84: return "engineIsNotRunning (HV system inactive)";
+        case 0x85: return "engineRunTimeTooLow";
+        case 0x86: return "temperatureTooHigh";
+        case 0x87: return "temperatureTooLow";
+        case 0x88: return "vehicleSpeedTooHigh";
+        case 0x89: return "vehicleSpeedTooLow";
+        case 0x8A: return "throttle/PedalTooHigh";
+        case 0x8B: return "throttle/PedalTooLow";
+        case 0x8C: return "transmissionRangeNotInNeutral";
+        case 0x8D: return "transmissionRangeNotInGear";
+        case 0x8F: return "brakeSwitch(es)NotClosed";
+        case 0x90: return "shifterLeverNotInPark";
+        case 0x91: return "torqueConverterClutchLocked";
+        case 0x92: return "voltageTooHigh";
+        case 0x93: return "voltageTooLow";
         default:   return "unknown";
     }
 }

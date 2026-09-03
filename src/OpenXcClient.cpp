@@ -427,13 +427,32 @@ bool Client::connectUsb(const std::string& token, std::string& err) {
     // firmware sleeps and the device electrically drops off the USB bus. Poll
     // for it to appear so the user can plug it in (or catch the wake window)
     // right after pressing Connect, instead of failing instantly.
-    constexpr int kUsbAppearMs = 12000;
+    constexpr int kUsbAppearMs = 15000;
     libusb_device_handle* h = nullptr;
     {
         using Clock = std::chrono::steady_clock;
         auto deadline = Clock::now() + std::chrono::milliseconds(kUsbAppearMs);
         for (;;) {
             h = libusb_open_device_with_vid_pid(ctx, vid, pid);
+            if (h) break;
+
+            // Also probe the low-level device list to detect and wake sleeping/unconfigured devices
+            libusb_device** list = nullptr;
+            ssize_t cnt = libusb_get_device_list(ctx, &list);
+            if (cnt > 0) {
+                for (ssize_t i = 0; i < cnt; ++i) {
+                    libusb_device_descriptor desc{};
+                    if (libusb_get_device_descriptor(list[i], &desc) == 0) {
+                        if (desc.idVendor == vid && desc.idProduct == pid) {
+                            if (libusb_open(list[i], &h) == 0 && h) {
+                                break;
+                            }
+                        }
+                    }
+                }
+                libusb_free_device_list(list, 1);
+            }
+
             if (h || Clock::now() >= deadline) break;
             std::this_thread::sleep_for(std::chrono::milliseconds(250));
         }
@@ -489,6 +508,10 @@ bool Client::connectUsb(const std::string& token, std::string& err) {
               "(another process may be using it)";
         return false;  // cleanup guard will handle cleanup
     }
+
+    // Clear halt on the active endpoints to wake the transport pipelines from any stall/sleep
+    libusb_clear_halt(h, epIn);
+    libusb_clear_halt(h, epOut);
 
     {
         std::lock_guard<std::mutex> lock(ioMutex_);
@@ -676,38 +699,65 @@ bool Client::writeAll(const char* data, size_t n, std::string& err) {
             err = "USB device handle is null";
             return false;
         }
-        constexpr uint8_t kOpenXcControlRequest = 0x83;
-        if (n > 0xFFFFu) {
-            err = "OpenXC control request is too large";
-            return false;
-        }
+        size_t written = 0;
         for (int attempt = 0; attempt < 3; ++attempt) {
-            int r = libusb_control_transfer(h, 0x40, kOpenXcControlRequest,
-                    0, 0, reinterpret_cast<unsigned char*>(const_cast<char*>(data)),
-                    static_cast<uint16_t>(n), 2000);
-            if (r >= 0) {
-                if (static_cast<size_t>(r) == n) {
-                    return true;
+            while (written < n) {
+                int transferred = 0;
+                int r = libusb_bulk_transfer(h, usbEpOut_,
+                        reinterpret_cast<unsigned char*>(const_cast<char*>(data + written)),
+                        static_cast<int>(std::min<size_t>(n - written, 64)),
+                        &transferred, 2000);
+                if (transferred > 0) {
+                    written += static_cast<size_t>(transferred);
                 }
-                err = "OpenXC USB control write was incomplete";
+                if (r == 0 && transferred > 0) {
+                    continue;
+                }
+                if (r == 0) {
+                    err = "OpenXC USB bulk write completed without transferring data";
+                    return false;
+                }
+                if (r == LIBUSB_ERROR_NO_DEVICE) {
+                    disconnectUnlocked();
+                    err = "OpenXC VI disconnected from USB; wait for it to re-enumerate, then reconnect.";
+                    return false;
+                }
+                if ((r == LIBUSB_ERROR_TIMEOUT || r == LIBUSB_ERROR_PIPE) && attempt < 2) {
+                    if (r == LIBUSB_ERROR_PIPE) {
+                        int clearResult = libusb_clear_halt(h, usbEpOut_);
+                        if (clearResult != 0) {
+                            usbInterfaceClaimed_ = false;
+                            libusb_release_interface(h, usbIface_);
+                            int resetResult = libusb_reset_device(h);
+                            if (resetResult != 0) {
+                                disconnectUnlocked();
+                                err = std::string("OpenXC USB reset failed after bulk OUT stall: ") +
+                                        libusb_error_name(resetResult) + "; reconnect the VI";
+                                return false;
+                            }
+                            int claimResult = libusb_claim_interface(h, usbIface_);
+                            if (claimResult != 0) {
+                                disconnectUnlocked();
+                                err = std::string("OpenXC USB interface reclaim failed after reset: ") +
+                                        libusb_error_name(claimResult) + "; reconnect the VI";
+                                return false;
+                            }
+                            usbInterfaceClaimed_ = true;
+                            usbRxBuf_.clear();
+                            written = 0;
+                        }
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+                    break;
+                }
+                err = r == LIBUSB_ERROR_TIMEOUT ? "OpenXC USB bulk write timed out" :
+                        r == LIBUSB_ERROR_PIPE ? "OpenXC USB bulk OUT endpoint stalled" :
+                        std::string("OpenXC USB bulk write failed: ") + libusb_error_name(r);
                 return false;
             }
-            if (r == LIBUSB_ERROR_PIPE)
-                libusb_clear_halt(h, usbEpOut_);
-            if (r == LIBUSB_ERROR_NO_DEVICE) {
-                disconnectUnlocked();
-                err = "OpenXC VI disconnected from USB; wait for it to re-enumerate, then reconnect.";
-                return false;
-            }
-            if (r != LIBUSB_ERROR_TIMEOUT && r != LIBUSB_ERROR_PIPE) {
-                err = std::string("OpenXC USB control write failed: ") +
-                        libusb_error_name(r);
-                return false;
-            }
-            if (attempt < 2)
-                std::this_thread::sleep_for(std::chrono::milliseconds(150));
+            if (written == n) return true;
         }
-        err = "OpenXC USB control write timed out";
+        err = "OpenXC USB bulk write recovery exhausted";
         return false;
     }
 #endif
@@ -843,6 +893,7 @@ bool Client::readLineUsb(std::string& line, int timeoutMs, std::string& err) {
     
     // Safety limit: prevent unbounded buffer growth if VI sends malformed data
     constexpr size_t kMaxBufferSize = 1048576;  // 1 MB safety limit
+    int pipeRecoveries = 0;
 
     for (;;) {
         // Consume any complete message already buffered.
@@ -884,6 +935,16 @@ bool Client::readLineUsb(std::string& line, int timeoutMs, std::string& err) {
         if (r == LIBUSB_ERROR_NO_DEVICE) {
             disconnectUnlocked();
             err = "OpenXC VI disconnected from USB";
+            return false;
+        }
+        if (r == LIBUSB_ERROR_PIPE && pipeRecoveries++ < 2) {
+            // A stalled IN endpoint can leave a partial NUL-delimited JSON
+            // message in the host buffer. Discard it before resuming reads.
+            usbRxBuf_.clear();
+            int clearResult = libusb_clear_halt(h, usbEpIn_);
+            if (clearResult == 0) continue;
+            err = std::string("OpenXC USB bulk IN recovery failed: ") +
+                    libusb_error_name(clearResult);
             return false;
         }
         err = std::string("USB bulk read failed: ") + libusb_error_name(r);
@@ -1001,7 +1062,10 @@ bool Client::parseResponse(const std::string& jsonLine,
 
     const uint8_t positiveSid = static_cast<uint8_t>(requestMode + 0x40u);
     const uint8_t modeByte = static_cast<uint8_t>(mode & 0xFF);
-    if (modeByte != requestMode && modeByte != positiveSid && modeByte != 0x7Fu) return false;
+        int fragmentIndex = 0;
+        const bool isMultiFrameFragment = jsonGetInt(jsonLine, "frame", fragmentIndex);
+        if (modeByte != requestMode && modeByte != positiveSid && modeByte != 0x7Fu &&
+            !isMultiFrameFragment) return false;
 
     frame.arbitrationId = static_cast<uint32_t>(id);
     frame.bus = bus;
@@ -1032,6 +1096,25 @@ bool Client::parseResponse(const std::string& jsonLine,
 // Public send/receive
 // ---------------------------------------------------------------------------
 
+// The VI acknowledges every diagnostic_request with
+//   {"command_response":"diagnostic_request","status":true|false[,"message":..]}
+// status=false means the request was never queued on the VI (no free request
+// slot / acceptance filter, bus not writable, malformed) - waiting for an ECU
+// response afterwards is pointless. Returns true if `line` is a rejection.
+static bool isRejectedDiagnosticCommand(const std::string& line, std::string& err) {
+    if (line.find("\"command_response\"") == std::string::npos) return false;
+    std::string type;
+    if (jsonGetString(line, "command_response", type) && type != "diagnostic_request")
+        return false;
+    bool ok = true;
+    if (!jsonGetBool(line, "status", ok) || ok) return false;
+    std::string msg;
+    err = "VI rejected diagnostic_request";
+    if (jsonGetString(line, "message", msg) && !msg.empty()) err += ": " + msg;
+    else err += " (no free request slot/filter, or bus not writable)";
+    return true;
+}
+
 bool Client::sendCommand(const std::string& command, std::string& response,
                          int timeoutMs, std::string& err) {
     std::lock_guard<std::mutex> lock(ioMutex_);
@@ -1040,6 +1123,18 @@ bool Client::sendCommand(const std::string& command, std::string& response,
     json.push_back('\0');
     if (!writeAll(json.c_str(), json.size(), err)) return false;
     return readLine(response, timeoutMs, err);
+}
+
+bool Client::requestBootloader(std::string& err) {
+    std::lock_guard<std::mutex> lock(ioMutex_);
+    if (!isConnectedUnlocked()) {
+        err = "OpenXC VI not connected";
+        return false;
+    }
+
+    static const char command[] =
+            "{\"name\":\"enter_bootloader\",\"value\":true}";
+    return writeAll(command, sizeof(command), err);
 }
 
 bool Client::sendDiagnostic(uint32_t                    arbId,
@@ -1078,6 +1173,7 @@ bool Client::sendDiagnostic(uint32_t                    arbId,
     int responsePendingReplies = 0;
     lastRxCount_ = 0;
     lastRxSample_.clear();
+    std::vector<uint8_t> multiFrameResponse;
 
     while (Clock::now() < deadline && Clock::now() < absoluteDeadline) {
         auto msLeft = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1094,8 +1190,10 @@ bool Client::sendDiagnostic(uint32_t                    arbId,
 
         // The VI acknowledges each diagnostic_request command before the ECU
         // response. It proves host-to-VI transport, not CAN bus activity.
-        if (line.find("\"command_response\"") != std::string::npos)
+        if (line.find("\"command_response\"") != std::string::npos) {
+            if (isRejectedDiagnosticCommand(line, err)) return false;
             continue;
+        }
 
         // Track what the VI returned so a "no matching response" outcome can be
         // told apart from "no data at all" by the caller.
@@ -1107,6 +1205,29 @@ bool Client::sendDiagnostic(uint32_t                    arbId,
         // expectedId: OpenXC physical responses publish the *request* arb id
         // (not request+8). Pass arbId for physical; 0 to accept any id.
         if (parseResponse(line, requestMode, expectedId, bus, frame, parseErr)) {
+            int fragmentIndex = 0;
+            if (jsonGetInt(line, "frame", fragmentIndex)) {
+                std::string fragmentPayload;
+                if (!jsonGetString(line, "payload", fragmentPayload)) {
+                    err = "Multi-frame diagnostic response is missing payload";
+                    return false;
+                }
+
+                auto fragment = hexStrToBytes(fragmentPayload);
+                if (fragmentIndex < 0 && multiFrameResponse.size() >= 3 &&
+                        fragment.size() >= 2 &&
+                        fragment[0] == multiFrameResponse[1] &&
+                        fragment[1] == multiFrameResponse[2]) {
+                    fragment.erase(fragment.begin(), fragment.begin() + 2);
+                }
+                multiFrameResponse.insert(multiFrameResponse.end(),
+                                          fragment.begin(), fragment.end());
+                if (fragmentIndex >= 0) continue;
+
+                udsResp = std::move(multiFrameResponse);
+                return !udsResp.empty();
+            }
+
             bool pending = frame.uds.size() >= 3 && frame.uds[0] == 0x7Fu &&
                            frame.uds[1] == requestMode && frame.uds[2] == 0x78u;
             if (pending) {
@@ -1160,6 +1281,11 @@ bool Client::sendDiagnosticMulti(uint32_t                    arbId,
             return false;
         }
         if (line.empty()) continue;
+
+        if (line.find("\"command_response\"") != std::string::npos) {
+            if (isRejectedDiagnosticCommand(line, err)) return false;
+            continue;
+        }
 
         DiagnosticFrame frame;
         std::string parseErr;

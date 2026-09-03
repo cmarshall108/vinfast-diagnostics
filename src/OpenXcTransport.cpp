@@ -159,6 +159,14 @@ void Transport::disconnect() {
     openxcClient_.disconnect();
 }
 
+bool Transport::requestBootloader(std::string& err) {
+    if (!isConnected()) {
+        err = "OpenXC transport not connected";
+        return false;
+    }
+    return openxcClient_.requestBootloader(err);
+}
+
 bool Transport::isConnected() const {
     return connected_.load(std::memory_order_acquire) && openxcClient_.isConnected();
 }
@@ -270,11 +278,6 @@ bool Transport::isBroadcastRequestId(uint32_t requestId) {
     return requestId == static_cast<uint32_t>(OBD2_FUNCTIONAL_BROADCAST_ID) ||
            requestId == 0x6EFu ||  // DIAG_Req_All_CAN (Info DBC)
            requestId == 0x6FFu;    // DIAG_Req_All_Ecu (Info DBC)
-}
-
-static bool isVf8DiagnosticRequestId(uint32_t requestId) {
-    return (requestId >= 0x680u && requestId <= 0x6FFu) ||
-            requestId == 0x7E0u || requestId == 0x7DFu;
 }
 
 uint32_t Transport::mapLogicalToCanId(uint16_t logicalAddr, bool functional) const {
@@ -462,15 +465,6 @@ bool Transport::sendDiagnosticOpenXc(uint16_t source, uint16_t target,
 
     testerAddr_ = source;
     uint32_t arbId = mapLogicalToCanId(target, functional);
-    if (!isVf8DiagnosticRequestId(arbId)) {
-        std::ostringstream message;
-        message << "Invalid VF8 diagnostic request ID 0x" << std::hex
-                << std::uppercase << arbId
-                << "; use a physical Info-CAN ID from 0x680-0x6FF"
-                << " or OBD 0x7E0/0x7DF";
-        err = message.str();
-        return false;
-    }
     // Stock OpenXC publishes physical diagnostic_response.id == request arb
     // (not the CAN response arb). Match that; functional leaves id open.
     uint32_t matchId = openXcMatchIdForRequest(arbId, functional);
@@ -506,9 +500,10 @@ bool Transport::sendDiagnosticOpenXc(uint16_t source, uint16_t target,
                 "matched (wrong target/bus/mode). Sample: " +
                 openxcClient_.lastRxSample());
         } else {
-            Logger::instance().warn(
-                "VI returned no data - no CAN activity on bus " + std::to_string(bus_) +
-                " (vehicle asleep / ignition off / VI not on the diagnostic bus).");
+            // Silence these repetitive messages for now:
+            //Logger::instance().info(
+            //    "VI returned no data - no CAN activity on bus " + std::to_string(bus_) +
+            //    " (vehicle asleep / ignition off / VI not on the diagnostic bus).");
         }
         return false;
     }

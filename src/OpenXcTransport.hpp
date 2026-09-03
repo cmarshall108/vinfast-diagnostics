@@ -67,6 +67,10 @@ public:
                              std::vector<DiagResponse>& responses,
                              int collectMs, std::string& err);
 
+    // Request the custom Fordboard USB bootloader. A successful request is
+    // followed by the expected USB disconnect as the device resets.
+    bool requestBootloader(std::string& err);
+
     // Registers an optional CAN backup transport.  When set, a failed OpenXC
     // diagnostic exchange automatically falls back to it.  The pointer is
     // borrowed; the caller retains ownership.

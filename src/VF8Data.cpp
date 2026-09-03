@@ -1,7 +1,9 @@
 #include "VF8Data.hpp"
 
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <unordered_map>
 
 // ===========================================================================
@@ -500,6 +502,7 @@ const std::vector<StdDid> kStandardDids = {
     {0xF182, "Application Data Identification",         true},
     {0xF183, "Boot Software Fingerprint",              false},
     {0xF184, "Application Software Fingerprint",       false},
+    {0xF185, "Application Data Fingerprint",           false},
     {0xF186, "Active Diagnostic Session",             false},
     {0xF187, "Vehicle Manufacturer Spare Part Number", true},
     {0xF188, "Vehicle Manufacturer ECU SW Number",     true},
@@ -507,19 +510,29 @@ const std::vector<StdDid> kStandardDids = {
     {0xF18A, "System Supplier Identifier",             true},
     {0xF18B, "ECU Manufacturing Date",                false},
     {0xF18C, "ECU Serial Number",                      true},
+    {0xF18D, "Supported Functional Units",            false},
+    {0xF18E, "Vehicle Manufacturer Kit Assembly Part Number", true},
+    {0xF18F, "Regulation X Software Identification Numbers (RxSWIN)", true},
     {0xF190, "VIN (Vehicle Identification Number)",    true},
     {0xF191, "Vehicle Manufacturer ECU HW Number",     true},
     {0xF192, "System Supplier ECU HW Number",          true},
     {0xF193, "System Supplier ECU HW Version",         true},
     {0xF194, "System Supplier ECU SW Number",          true},
     {0xF195, "System Supplier ECU SW Version",         true},
+    {0xF196, "Exhaust Regulation / Type Approval Number", true},
     {0xF197, "System Name / Engine Type",              true},
     {0xF198, "Repair Shop Code / Tester Serial",       true},
     {0xF199, "Programming Date",                      false},
+    {0xF19A, "Calibration Repair Shop Code / Equipment Serial", true},
+    {0xF19B, "Calibration Date",                      false},
+    {0xF19C, "Calibration Equipment Software Number",  true},
     {0xF19D, "ECU Installation Date",                 false},
+    {0xF19E, "ODX File Identifier",                    true},
+    {0xF19F, "Entity (ISO 14229-1:2020)",              true},
     {0xF1A0, "Vehicle Manufacturer Specific (F1A0)",  false},
     {0xF40C, "OBD Engine Speed (live)",               false},
     {0xF40D, "OBD Vehicle Speed (live)",              false},
+    {0xF702, "OBD InfoType 02 - VIN (via 0x22)",        true},
 };
 
 const std::vector<ObdService> kObdServices = {
@@ -527,7 +540,9 @@ const std::vector<ObdService> kObdServices = {
     {0x02, "Show freeze-frame data"},
     {0x03, "Show stored DTCs"},
     {0x04, "Clear DTCs and stored values"},
+    {0x06, "On-board monitoring test results"},
     {0x07, "Show pending DTCs"},
+    {0x08, "Control operation of on-board system / component"},
     {0x09, "Request vehicle information (VIN, CALID)"},
     {0x0A, "Show permanent DTCs"},
 };
@@ -544,6 +559,114 @@ const std::vector<UdsAddrRange> kUdsAddrRanges = {
     {0xE800, 0xEFFF, "Reserved by ISO 13400"},
     {0xF000, 0xFFFF, "Reserved by ISO 13400"},
 };
+
+// ===========================================================================
+// 2024 VF8 (US) vehicle specification
+// ===========================================================================
+const std::vector<VF8Spec> kVF8Specs = {
+    {"Vehicle", "Model",            "VinFast VF8, mid-size 5-seat battery-electric SUV (D-segment), Pininfarina design"},
+    {"Vehicle", "Model year",       "2024 (VIN position 10 = 'R')"},
+    {"Vehicle", "Assembly",         "VinFast Hai Phong (Cat Hai) plant, Vietnam - WMI 'RLL'"},
+    {"Vehicle", "US trims",         "Eco, Plus"},
+    {"Vehicle", "Dimensions",       "L 4,750 mm / W 1,934 mm / H 1,667 mm, wheelbase 2,950 mm"},
+    {"Vehicle", "Warranty (US)",    "Vehicle 10 yr / 125,000 mi; HV battery 10 yr / unlimited mi (70 % capacity)"},
+
+    {"Powertrain", "Layout",        "Dual permanent-magnet synchronous motors (front EDS_F + rear EDS_R), AWD"},
+    {"Powertrain", "Eco output",    "260 kW (349 hp) / 500 N-m"},
+    {"Powertrain", "Plus output",   "300 kW (402 hp) / 620 N-m"},
+    {"Powertrain", "Drive modes",   "Normal / ECO / Sport (VCU_ACT_DriveMode on Info-CAN 0x0D9)"},
+    {"Powertrain", "EPA range",     "Eco 264 mi, Plus 243 mi (2024 MY)"},
+
+    {"High-voltage", "Battery",     "87.7 kWh gross lithium-ion (NMC), liquid-cooled, 400 V class pack"},
+    {"High-voltage", "BMS telemetry", "Pack/link voltage 0x176, SOC/SOH/SOE 0x214-0x215, cell temps 0x245, HVIL status 0x215"},
+    {"High-voltage", "DC charging", "CCS Combo 1 inlet; 10-70 % in ~31 min (manufacturer figure)"},
+    {"High-voltage", "AC charging", "11 kW on-board charger (SAE J1772 Level 2)"},
+    {"High-voltage", "DC-DC",       "HV to 12 V converter (DCDC / DDC module, Info-CAN 0x10A LV battery data)"},
+    {"High-voltage", "Safety",      "HVIL loop monitored by BMS (BMS_HVIL_STS); de-energize and verify before HV work"},
+
+    {"Diagnostics", "Connector",    "SAE J1962 16-pin DLC under the driver-side dash"},
+    {"Diagnostics", "Physical layer", "ISO 11898 classic CAN, 500 kbit/s, 11-bit IDs on DLC pins 6 (CAN-H) / 14 (CAN-L)"},
+    {"Diagnostics", "Protocol",     "ISO 14229 UDS over ISO 15765-2 (ISO-TP); legislated OBD-II per ISO 15765-4"},
+    {"Diagnostics", "Addressing",   "OBD functional 0x7DF, physical 0x7E0-0x7E7 (resp +8); OEM DiagReq 0x680-0x6FF (resp -0x80)"},
+    {"Diagnostics", "DTC format",   "3-byte ISO 14229 DTC = SAE J2012-DA 5-char base + failure-type byte (e.g. U110887)"},
+    {"Diagnostics", "Gateway",      "XGW routes Drive / Comfort / Info-ADAS domains; MHU + TBOX provide OTA & telematics"},
+    {"Diagnostics", "Security",     "SecurityAccess 0x27 = HMAC-SHA1(ecuKey, seed) truncated to seed length (TBOX vf_crypto_service)"},
+};
+
+// ===========================================================================
+// VIN decoding
+// ===========================================================================
+bool vf8VinCheckDigitOk(const std::string& vin) {
+    if (vin.size() != 17) return false;
+    static const int kWeights[17] = {8,7,6,5,4,3,2,10,0,9,8,7,6,5,4,3,2};
+    auto value = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        switch (c) {
+            case 'A': case 'J':           return 1;
+            case 'B': case 'K': case 'S': return 2;
+            case 'C': case 'L': case 'T': return 3;
+            case 'D': case 'M': case 'U': return 4;
+            case 'E': case 'N': case 'V': return 5;
+            case 'F':           case 'W': return 6;
+            case 'G': case 'P': case 'X': return 7;
+            case 'H':           case 'Y': return 8;
+            case 'R':           case 'Z': return 9;
+            default: return -1;   // I, O, Q are never valid
+        }
+    };
+    int sum = 0;
+    for (int i = 0; i < 17; ++i) {
+        int v = value((char)std::toupper((unsigned char)vin[i]));
+        if (v < 0) return false;
+        sum += v * kWeights[i];
+    }
+    int rem = sum % 11;
+    char expected = rem == 10 ? 'X' : (char)('0' + rem);
+    return (char)std::toupper((unsigned char)vin[8]) == expected;
+}
+
+VF8VinInfo vf8DecodeVin(const std::string& raw) {
+    VF8VinInfo info;
+    std::string vin;
+    for (unsigned char c : raw) vin.push_back((char)std::toupper(c));
+
+    info.valid17 = vin.size() == 17;
+    for (unsigned char c : vin) {
+        if (!(std::isdigit(c) || (c >= 'A' && c <= 'Z')) || c == 'I' || c == 'O' || c == 'Q')
+            info.valid17 = false;
+    }
+    if (vin.size() >= 3) info.wmi = vin.substr(0, 3);
+    if (vin.size() >= 8) info.vds = vin.substr(3, 5);
+    if (vin.size() == 17) info.serial = vin.substr(11);
+    if (!info.valid17) return info;
+
+    info.checkDigitOk = vf8VinCheckDigitOk(vin);
+
+    if (info.wmi == "RLL")
+        info.manufacturer = "VinFast Trading & Production JSC, Vietnam";
+    else if (info.wmi[0] == 'R' && info.wmi[1] == 'L')
+        info.manufacturer = "Vietnam (RL_) - not a VinFast WMI";
+    else
+        info.manufacturer = "Unknown manufacturer (not VinFast)";
+
+    // Model year: digits 1-9 and letters A-Y (no I/O/Q/U/Z) repeat every 30
+    // years; a letter in position 7 selects the 2010-2039 cycle.
+    static const char* kYearCodes = "ABCDEFGHJKLMNPRSTVWXY123456789";
+    const char* p = std::strchr(kYearCodes, vin[9]);
+    if (p) {
+        int idx = (int)(p - kYearCodes);                  // A=0 ... 9=29
+        bool newCycle = std::isalpha((unsigned char)vin[6]) != 0;
+        int year = (newCycle ? 2010 : 1980) + idx;
+        char buf[8];
+        std::snprintf(buf, sizeof buf, "%d", year);
+        info.modelYear = buf;
+    }
+
+    info.plant = std::string(1, vin[10]);
+    if (info.wmi == "RLL" && vin[10] == 'H')
+        info.plant += " (Hai Phong, Vietnam)";
+    return info;
+}
 
 
 // ===========================================================================

@@ -98,6 +98,10 @@ public:
     bool sendCommand(const std::string& command, std::string& response,
                      int timeoutMs, std::string& err);
 
+    // Requests the custom Fordboard bootloader on the next reset. The device
+    // intentionally disconnects before it can acknowledge this command.
+    bool requestBootloader(std::string& err);
+
     // Return a list of candidate USB/serial device paths for the OpenXC VI.
     // The list is platform-specific:
     //   • macOS: /dev/cu.usbmodem*, /dev/cu.usbserial*, /dev/tty.usbmodem*, ...

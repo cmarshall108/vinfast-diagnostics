@@ -26,6 +26,37 @@ constexpr const char* kBluetoothMac = "04:C4:61:C3:69:D0";
 
 } // namespace vf8
 
+// ---- 2024 VF8 (US market) vehicle specification ----------------------------
+// Manufacturer-published figures for the 2024 model year plus the standardized
+// diagnostic-access facts (DLC, physical layer). Grouped for display in the
+// reference tree; `group` repeats for every row of the same section.
+struct VF8Spec {
+    const char* group;
+    const char* item;
+    const char* value;
+};
+
+extern const std::vector<VF8Spec> kVF8Specs;
+
+// ---- VIN decoding (ISO 3779 / SAE J272 North-American 17-char VIN) ---------
+// VinFast VINs carry the WMI "RLL" (region R = Asia, RL = Vietnam). Position 9
+// is the mod-11 check digit used on all North-American-market VINs, position 10
+// the model year (R = 2024), position 11 the assembly plant and 12-17 the
+// production serial.
+struct VF8VinInfo {
+    bool        valid17 = false;      // 17 chars, no I/O/Q
+    bool        checkDigitOk = false; // SAE J272 mod-11 check passed
+    std::string wmi;                  // positions 1-3
+    std::string manufacturer;         // decoded from the WMI
+    std::string vds;                  // positions 4-8 (manufacturer-defined)
+    std::string modelYear;            // decoded from position 10 ("" if unknown)
+    std::string plant;                // position 11 (with meaning when known)
+    std::string serial;               // positions 12-17
+};
+
+VF8VinInfo vf8DecodeVin(const std::string& vin);
+bool       vf8VinCheckDigitOk(const std::string& vin);
+
 // ---- ECU definition --------------------------------------------------------
 //
 // `canReqId` is the preferred 11-bit diagnostic request arbitration ID used by
