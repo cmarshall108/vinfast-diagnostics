@@ -197,6 +197,8 @@ private:
 
     // OpenXC VI bus selection (1 or 2 on most VI hardware).
     int openxcBus_ = 1;
+    int transportBackend_ = 0;  // 0 OpenXC, 1 ELM327
+    int elmCanProfile_ = 0;     // 0 HS 500k, 1 MS 125k, 2 MS 250k
 
     // Fallback map for logical aliases outside 0x600-0x7FF:
     //   requestId  = canIdBase_ + (logicalAddr & 0xFF)
@@ -266,6 +268,8 @@ private:
     QLabel*         dashModules_ = nullptr;
 
     // connection page
+    QComboBox*  cbTransport_ = nullptr;
+    QComboBox*  cbElmCanProfile_ = nullptr;
     QLineEdit*   edGateway_   = nullptr;
     QPushButton* usbScanBtn_  = nullptr;  // discovers USB/serial OpenXC VI devices
     QPushButton* btScanBtn_   = nullptr;  // discovers paired Bluetooth OpenXC VI devices

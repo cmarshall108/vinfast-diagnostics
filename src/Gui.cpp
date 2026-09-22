@@ -864,7 +864,10 @@ QWidget* Gui::buildHeader() {
                 std::lock_guard<std::mutex> g(mutex_);
                 std::string path = transport_.connectedPath();
                 if (path.empty()) path = gatewayIp_;
-                connStatus_ = "Connected to OpenXC " + (path.empty() ? "device" : path);
+                const char* name = transport_.backend() == openxc::Backend::Elm327
+                    ? "ELM327 " : "OpenXC ";
+                connStatus_ = std::string("Connected to ") + name +
+                              (path.empty() ? "device" : path);
             } else {
                 Logger::instance().error(err);
                 std::lock_guard<std::mutex> g(mutex_);
@@ -925,12 +928,12 @@ QWidget* Gui::buildDashboardPage() {
         connect(b, &QToolButton::clicked, this, fn);
         grid->addWidget(b, r, c);
     };
-    addTile(0, 0, "OpenXC link\nstatus check", [this] {
+    addTile(0, 0, "Diagnostic link\nstatus check", [this] {
         syncSettingsFromUi();
         startWorker([this] {
             std::string err;
-            if (ensureConnected(err)) Logger::instance().info("OpenXC serial link ready");
-            else Logger::instance().warn("OpenXC link: " + err);
+            if (ensureConnected(err)) Logger::instance().info("Diagnostic serial link ready");
+            else Logger::instance().warn("Diagnostic link: " + err);
         });
     });
     addTile(0, 1, "Scan all ECUs\n(read DTCs)", [this] { nav_->setCurrentRow(2); });
@@ -961,10 +964,14 @@ QWidget* Gui::buildConnectionPage() {
     lay->setSpacing(14);
 
     // --- transport ---
-    auto* net = card("OpenXC USB/Bluetooth Transport");
+    auto* net = card("Diagnostic Interface");
     auto* nf = new QFormLayout(net);
+    cbTransport_ = new QComboBox;
+    cbTransport_->addItems({"OpenXC Vehicle Interface", "ELM327 v1.5 HS/MS-CAN"});
+    cbTransport_->setCurrentIndex(transportBackend_);
+    nf->addRow("Adapter", cbTransport_);
     edGateway_   = new QLineEdit(QString::fromStdString(gatewayIp_));
-    edGateway_->setPlaceholderText("auto, usb, /dev/cu.usbmodem*, COM3, or Bluetooth MAC");
+    edGateway_->setPlaceholderText("auto/usb for OpenXC; serial path or COM port for ELM327");
     usbScanBtn_  = new QPushButton("Scan USB");
     usbScanBtn_->setToolTip(
         "List OpenXC VIs reachable over USB (native raw-USB 'usb' token or a\n"
@@ -1073,13 +1080,35 @@ QWidget* Gui::buildConnectionPage() {
         });
     });
 
-    nf->addRow("OpenXC device", devRow);
+    nf->addRow("Device", devRow);
     edTester_    = hexEdit("0E80", 4);
     edGwAddr_    = hexEdit("0682", 4);  // Info XGW_DiagReq; scan also tries 0x7E0
     nf->addRow("Tester source addr", edTester_);
     nf->addRow("Default target addr", edGwAddr_);
     sbOpenxcBus_ = new QSpinBox; sbOpenxcBus_->setRange(1, 2); sbOpenxcBus_->setValue(openxcBus_);
     nf->addRow("OpenXC CAN bus", sbOpenxcBus_);
+    cbElmCanProfile_ = new QComboBox;
+    cbElmCanProfile_->addItems({"HS-CAN 500 kbit/s", "MS-CAN 125 kbit/s", "MS-CAN 250 kbit/s"});
+    cbElmCanProfile_->setCurrentIndex(elmCanProfile_);
+    cbElmCanProfile_->setToolTip(
+        "For switchable HS/MS ELM327 cables, move the physical switch to the matching bus.\n"
+        "125 kbit/s requires genuine ELM327 protocol-B support; unsupported clones fail clearly.");
+    nf->addRow("ELM CAN profile", cbElmCanProfile_);
+    auto* elmNote = new QLabel(
+        "<i>ELM327 uses its built-in ISO-TP engine. HS/MS switch cables must be "
+        "physically switched to the selected bus before connecting. Raw CAN live "
+        "streaming and OpenXC bootloader controls are unavailable in ELM mode.</i>");
+    elmNote->setWordWrap(true);
+    nf->addRow(elmNote);
+    auto updateTransportControls = [this](int index) {
+        const bool elm = index == 1;
+        sbOpenxcBus_->setEnabled(!elm);
+        cbElmCanProfile_->setEnabled(elm);
+        btScanBtn_->setEnabled(!elm);
+    };
+    connect(cbTransport_, qOverload<int>(&QComboBox::currentIndexChanged),
+            this, updateTransportControls);
+    updateTransportControls(cbTransport_->currentIndex());
     edCanIdBase_ = new QLineEdit(QString::asprintf("0x%X", canIdBase_));
     edCanIdBase_->setPlaceholderText("0x700 (aliases only)");
     edCanRespOffset_ = new QLineEdit(QString::asprintf("0x%X", canRespOffset_));
@@ -5206,6 +5235,8 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
 // Settings sync + network helpers
 // ==========================================================================
 void Gui::syncSettingsFromUi() {
+    if (cbTransport_) transportBackend_ = cbTransport_->currentIndex();
+    if (cbElmCanProfile_) elmCanProfile_ = cbElmCanProfile_->currentIndex();
     if (edGateway_)    gatewayIp_   = edGateway_->text().toStdString();
     if (edTester_)     testerAddr_  = parseHex16(edTester_->text(), 0x0E80);
     if (edGwAddr_)     gatewayAddr_ = parseHex16(edGwAddr_->text(), 0x0682);
@@ -5604,7 +5635,14 @@ bool Gui::ensureConnected(std::string& err) {
         }
     }
 
-    // Apply the latest OpenXC settings before opening the link.
+    transport_.setBackend(transportBackend_ == 1
+        ? openxc::Backend::Elm327 : openxc::Backend::OpenXc);
+    elm327::CanProfile elmProfile = elm327::CanProfile::HighSpeed500;
+    if (elmCanProfile_ == 1) elmProfile = elm327::CanProfile::MediumSpeed125;
+    if (elmCanProfile_ == 2) elmProfile = elm327::CanProfile::MediumSpeed250;
+    transport_.setElmCanProfile(elmProfile);
+
+    // Apply the latest transport settings before opening the link.
     transport_.setBus(openxcBus_);
     transport_.setCanIdMapping((uint32_t)canIdBase_, (int32_t)canRespOffset_);
 
@@ -5635,7 +5673,7 @@ void Gui::showDisconnectPopup(const QString& operationName, const QString& detai
         box.setWindowTitle(op + " Interrupted");
         box.setText(QString("<b>%1 Interrupted</b>").arg(op));
         box.setInformativeText(QString(
-            "The operation was stopped because the OpenXC device disconnected or went to sleep:\n\n"
+            "The operation was stopped because the diagnostic interface disconnected or went to sleep:\n\n"
             "%1\n\n"
             "Possible causes:\n"
             "• Vehicle ignition is OFF or CAN traffic stopped (the VI firmware sleeps without CAN traffic).\n"

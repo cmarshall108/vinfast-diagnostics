@@ -20,6 +20,7 @@
 //
 #include "OpenXcClient.hpp"
 #include "CanClient.hpp"
+#include "Elm327Client.hpp"
 
 #include <cstdint>
 #include <mutex>
@@ -27,6 +28,11 @@
 #include <vector>
 
 namespace openxc {
+
+enum class Backend {
+    OpenXc,
+    Elm327,
+};
 
 // One ECU reply collected during a functional (broadcast) request.
 struct DiagResponse {
@@ -46,8 +52,12 @@ public:
     // path ("/dev/ttyUSB0", "/dev/cu.usbmodem*", "COM3") or a Bluetooth MAC.
     bool connect(const std::string& deviceOrMac, std::string& err);
     bool isConnected() const;
-    const std::string& connectedPath() const { return openxcClient_.connectedPath(); }
+    const std::string& connectedPath() const;
     void disconnect();
+
+    void setBackend(Backend backend);
+    Backend backend() const { return backend_; }
+    void setElmCanProfile(elm327::CanProfile profile) { elmCanProfile_ = profile; }
 
     // Sends a UDS request to `target` and returns the raw UDS response bytes.
     // `target` is mapped to a CAN arbitration ID before being handed to the
@@ -67,9 +77,7 @@ public:
                              std::vector<DiagResponse>& responses,
                              int collectMs, std::string& err);
 
-    bool receiveCanFrame(RawCanFrame& frame, int timeoutMs, std::string& err) {
-        return openxcClient_.receiveCanFrame(frame, timeoutMs, err);
-    }
+    bool receiveCanFrame(RawCanFrame& frame, int timeoutMs, std::string& err);
 
     // Enable raw CAN streaming only while the Live Data consumer is running.
     bool setPassthrough(bool enabled, std::string& err);
@@ -135,10 +143,13 @@ private:
     bool retargetCanBackup(uint16_t target, bool functional, std::string& err);
 
     openxc::Client openxcClient_;
+    elm327::Client elm327Client_;
     std::atomic<bool> connected_{false};
     uint16_t testerAddr_     = 0x0E80;
     can::Client* canBackup_  = nullptr;
     std::atomic<bool> lastUsedCanBackup_{false};
+    Backend  backend_         = Backend::OpenXc;
+    elm327::CanProfile elmCanProfile_ = elm327::CanProfile::HighSpeed500;
     int      bus_            = 1;
     uint32_t canIdBase_      = 0x700u;  // default OEM / OBD base
     int32_t  canRespOffset_  = 0x08;    // response = request + offset (OBD +8)

@@ -85,6 +85,15 @@ Transport::~Transport() { disconnect(); }
 bool Transport::connect(const std::string& deviceOrMac, std::string& err) {
     disconnect();
 
+    if (backend_ == Backend::Elm327) {
+        if (!elm327Client_.connect(trimCopy(deviceOrMac), elmCanProfile_, err))
+            return false;
+        connected_.store(true, std::memory_order_release);
+        Logger::instance().info("ELM327 transport connected: " +
+                                elm327Client_.connectedPath());
+        return true;
+    }
+
     const std::string requested = trimCopy(deviceOrMac);
     const bool autoRequested = isAutoDeviceToken(requested);
     const bool explicitSerial = looksLikeSerialPath(requested);
@@ -157,9 +166,26 @@ bool Transport::connect(const std::string& deviceOrMac, std::string& err) {
 void Transport::disconnect() {
     connected_.store(false, std::memory_order_release);
     openxcClient_.disconnect();
+    elm327Client_.disconnect();
+}
+
+const std::string& Transport::connectedPath() const {
+    return backend_ == Backend::Elm327
+        ? elm327Client_.connectedPath()
+        : openxcClient_.connectedPath();
+}
+
+void Transport::setBackend(Backend backend) {
+    if (backend_ == backend) return;
+    disconnect();
+    backend_ = backend;
 }
 
 bool Transport::requestBootloader(std::string& err) {
+    if (backend_ == Backend::Elm327) {
+        err = "Bootloader control is only available for OpenXC interfaces";
+        return false;
+    }
     if (!isConnected()) {
         err = "OpenXC transport not connected";
         return false;
@@ -168,7 +194,20 @@ bool Transport::requestBootloader(std::string& err) {
 }
 
 bool Transport::isConnected() const {
-    return connected_.load(std::memory_order_acquire) && openxcClient_.isConnected();
+    if (!connected_.load(std::memory_order_acquire)) return false;
+    return backend_ == Backend::Elm327
+        ? elm327Client_.isConnected()
+        : openxcClient_.isConnected();
+}
+
+bool Transport::receiveCanFrame(RawCanFrame& frame, int timeoutMs, std::string& err) {
+    if (backend_ == Backend::Elm327) {
+        (void)frame;
+        (void)timeoutMs;
+        err = "Raw CAN streaming is not available through the ELM327 command interface";
+        return false;
+    }
+    return openxcClient_.receiveCanFrame(frame, timeoutMs, err);
 }
 
 // ---------------------------------------------------------------------------
@@ -394,8 +433,16 @@ bool Transport::sendDiagnostic(uint16_t source, uint16_t target,
                                std::string& err, bool functional) {
     lastUsedCanBackup_.store(false, std::memory_order_relaxed);
 
-    if (sendDiagnosticOpenXc(source, target, uds, response, timeoutMs, err, functional))
-        return true;
+    if (backend_ == Backend::Elm327) {
+        const uint32_t requestId = mapLogicalToCanId(target, functional);
+        const uint32_t responseId = canResponseIdForRequest(requestId, functional);
+        if (elm327Client_.sendDiagnostic(requestId, responseId, uds, response,
+                                         timeoutMs, err))
+            return true;
+    } else {
+        if (sendDiagnosticOpenXc(source, target, uds, response, timeoutMs, err, functional))
+            return true;
+    }
 
     if (canBackup_ && canBackup_->isConnected()) {
         std::string canErr;
@@ -423,14 +470,27 @@ bool Transport::sendDiagnosticMulti(uint16_t source, uint16_t target,
     responses.clear();
 
     uint32_t arbId = mapLogicalToCanId(target, true);
-    std::vector<DiagnosticFrame> frames;
-    if (openxcClient_.sendDiagnosticMulti(arbId, uds, frames,
-                                          collectMs > 0 ? collectMs : 2000,
-                                          bus_, err)) {
-        responses.reserve(frames.size());
-        for (auto& f : frames)
-            responses.push_back({mapCanResponseToLogical(f.arbitrationId), std::move(f.uds)});
-        return true;
+    if (backend_ == Backend::Elm327) {
+        std::vector<elm327::Response> frames;
+        if (elm327Client_.sendDiagnosticMulti(
+            arbId, uds, frames, collectMs > 0 ? collectMs : 2000, err)) {
+            responses.reserve(frames.size());
+            for (auto& frame : frames)
+                responses.push_back({mapCanResponseToLogical(frame.arbitrationId),
+                                     std::move(frame.uds)});
+            return true;
+        }
+    } else {
+        std::vector<DiagnosticFrame> frames;
+        if (openxcClient_.sendDiagnosticMulti(arbId, uds, frames,
+                                              collectMs > 0 ? collectMs : 2000,
+                                              bus_, err)) {
+            responses.reserve(frames.size());
+            for (auto& frame : frames)
+                responses.push_back({mapCanResponseToLogical(frame.arbitrationId),
+                                     std::move(frame.uds)});
+            return true;
+        }
     }
 
     if (canBackup_ && canBackup_->isConnected()) {
@@ -456,6 +516,11 @@ bool Transport::sendDiagnosticMulti(uint16_t source, uint16_t target,
 }
 
 bool Transport::setPassthrough(bool enabled, std::string& err) {
+    if (backend_ == Backend::Elm327) {
+        if (!enabled) return true;
+        err = "Raw CAN streaming is not available through ELM327";
+        return false;
+    }
     std::ostringstream cmd;
     cmd << R"({"command":"passthrough","bus":)" << bus_
         << R"(,"enabled":)" << (enabled ? "true" : "false") << "}";

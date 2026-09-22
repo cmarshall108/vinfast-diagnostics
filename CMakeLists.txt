@@ -171,6 +171,7 @@ set(_app_sources
   src/Logger.cpp
   src/OpenXcClient.cpp
   src/OpenXcTransport.cpp
+  src/Elm327Client.cpp
   src/CanClient.cpp
   src/UDSClient.cpp
   src/VF8Data.cpp
@@ -248,5 +249,17 @@ if(APPLE)
     MACOSX_BUNDLE_GUI_IDENTIFIER "com.vinfast.diagnostics.scanner"
     MACOSX_BUNDLE_BUNDLE_VERSION "1.0.1"
     MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0.1")
+endif()
+
+include(CTest)
+if(BUILD_TESTING AND (APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux"))
+  add_executable(test_elm327
+    tests/test_elm327.cpp
+    src/Elm327Client.cpp)
+  target_include_directories(test_elm327 PRIVATE src)
+  if(NOT APPLE)
+    target_link_libraries(test_elm327 PRIVATE util)
+  endif()
+  add_test(NAME elm327_serial_exchange COMMAND test_elm327)
 endif()
 

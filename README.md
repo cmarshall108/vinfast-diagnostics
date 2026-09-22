@@ -1,7 +1,7 @@
-# VinFast VF8 and VF9 OpenXC USB/Bluetooth UDS Scanner
+# VinFast VF8 and VF9 OpenXC / ELM327 UDS Scanner
 
 A modular **C++20 / Qt6** diagnostic application that connects to a vehicle over
-an **OpenXC USB or Bluetooth** vehicle interface, reads/clears Diagnostic
+an **OpenXC USB/Bluetooth** or **ELM327 v1.5 HS/MS-CAN** interface, reads/clears Diagnostic
 Trouble Codes via **UDS (ISO 14229)**. It also includes an optional
 community-reverse-engineered **connected-car cloud client** for remote
 telemetry and commands.
@@ -16,6 +16,9 @@ telemetry and commands.
 
 - **Connection settings** — OpenXC USB or Bluetooth MAC, tester source address,
   functional/physical addressing toggle, and fallback CAN parameters.
+- **ELM327 v1.5** — USB or Bluetooth serial adapters, with HS-CAN 500 kbit/s,
+  MS-CAN 125 kbit/s protocol-B, and MS-CAN 250 kbit/s profiles. Switchable
+  cables must be physically set to the selected HS/MS bus.
 - **Address probing** — sends TesterPresent to every configured ECU and marks
   which addresses actually respond (a negative response still proves the
   address is routable), so you can find the real addresses by trial.
@@ -75,6 +78,7 @@ vehicle diagnostic path.
 |------|----------------|
 | `src/OpenXcClient.*` | OpenXC VI RFCOMM serial client; JSON diagnostic request/response framing. |
 | `src/OpenXcTransport.*` | Transport wrapper that maps logical UDS addresses to CAN arbitration IDs and drives the OpenXC VI. |
+| `src/Elm327Client.*` | ELM327 serial command transport using the adapter's ISO-TP engine. |
 | `src/UDSClient.*`  | UDS services 0x22 / 0x19 / 0x14 / 0x3E and DTC / NRC decoding. |
 | `src/CloudData.*`  | VinFast connected-car cloud reference data (regions, telemetry map, command list) from public community sources. |
 | `src/CloudClient.*`| REST/IoT client (libcurl) for the connected-car cloud back-end. |
@@ -99,6 +103,20 @@ vehicle diagnostic path.
    `diagnostic_request` messages; the VI wraps them in CAN frames using the
    configured request/response arbitration IDs and returns the ECU reply as a
    `diagnostic_response`.
+
+### ELM327 flow
+
+1. Select **ELM327 v1.5 HS/MS-CAN** and choose its serial port (`COM3`,
+  `/dev/ttyUSB0`, `/dev/cu.usbserial-*`, or a Bluetooth serial port).
+2. Select the matching CAN profile. For adapters with a physical HS/MS switch,
+  move the switch before connecting.
+3. The app configures ELM automatic CAN formatting and ISO-TP, then sets the
+  request header and response filter for each ECU exchange.
+
+MS-CAN 125 kbit/s uses ELM protocol B and is not implemented by every clone.
+Unsupported adapters fail during connection instead of silently using the wrong
+bit rate. Passive raw-CAN live monitoring and OpenXC firmware bootloader control
+remain OpenXC-only; active UDS live polling works through ELM327.
 
 ## Building from source
 
