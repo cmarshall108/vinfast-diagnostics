@@ -12,6 +12,7 @@
 // The public sendDiagnostic() API accepts/returns raw UDS PDU byte vectors so
 // UDSClient does not need changes.
 //
+#include <atomic>
 #include <cstdint>
 #include <mutex>
 #include <string>

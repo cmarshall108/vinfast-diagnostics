@@ -140,7 +140,7 @@ std::vector<Device> pairedSppDevices() {
         results.push_back({
             device.name ? [device.name UTF8String] : "",
             normaliseAddress(device.addressString),
-            device.isConnected,
+            device.isConnected != NO,
         });
     }
     std::stable_sort(results.begin(), results.end(), [](const Device& a, const Device& b) {

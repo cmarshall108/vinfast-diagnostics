@@ -76,13 +76,13 @@ endif()
 
 FetchContent_Declare(bitfield_c
     GIT_REPOSITORY https://github.com/openxc/bitfield-c.git
-    GIT_TAG        master)
+    GIT_TAG        e5692e7fda0e55aa271ead33fc23f17a642f2ba5)
 FetchContent_Declare(isotp_c
     GIT_REPOSITORY https://github.com/openxc/isotp-c.git
-    GIT_TAG        master)
+    GIT_TAG        5a5d19245f65189202719321facd49ce6f5d46ac)
 FetchContent_Declare(uds_c
     GIT_REPOSITORY https://github.com/openxc/uds-c.git
-    GIT_TAG        master)
+    GIT_TAG        e56aeb9c884ccbdbe73e1630942f8c0d17e27498)
 
 FetchContent_GetProperties(bitfield_c)
 if(NOT bitfield_c_POPULATED)
@@ -97,6 +97,25 @@ endif()
 FetchContent_GetProperties(uds_c)
 if(NOT uds_c_POPULATED)
     FetchContent_Populate(uds_c)
+endif()
+
+# isotp-c uses GCC's deprecated `field: value` initializer extension. Rewrite
+# those initializers to standard C99 syntax for MSVC's C compiler.
+if(MSVC)
+  foreach(_isotp_source IN ITEMS
+      "${isotp_c_SOURCE_DIR}/src/isotp/isotp.c"
+      "${isotp_c_SOURCE_DIR}/src/isotp/receive.c"
+      "${isotp_c_SOURCE_DIR}/src/isotp/send.c")
+    file(READ "${_isotp_source}" _isotp_contents)
+    foreach(_isotp_field IN ITEMS
+        log send_can_message set_timer frame_padding success completed
+        arbitration_id size message_received_callback multi_frame payload)
+      string(REGEX REPLACE
+        "${_isotp_field}[ \t]*:" ".${_isotp_field} ="
+        _isotp_contents "${_isotp_contents}")
+    endforeach()
+    file(WRITE "${_isotp_source}" "${_isotp_contents}")
+  endforeach()
 endif()
 
 # bitfield-c: bitfield + CAN-signal utilities
