@@ -684,7 +684,7 @@ VF8VinInfo vf8DecodeVin(const std::string& raw) {
         int idx = (int)(p - kYearCodes);                  // A=0 ... 9=29
         bool newCycle = std::isalpha((unsigned char)vin[6]) != 0;
         int year = (newCycle ? 2010 : 1980) + idx;
-        char buf[8];
+        char buf[16];
         std::snprintf(buf, sizeof buf, "%d", year);
         info.modelYear = buf;
     }

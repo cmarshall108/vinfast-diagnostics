@@ -25,7 +25,7 @@ jobs:
             artifact: vinfast_scanner-linux-x86_64
             qt_version: "6.7.*"
           - name: macOS (universal)
-            os: macos-latest
+            os: macos-15
             artifact: vinfast_scanner-macos
             qt_version: "6.7.*"
             osx_archs: "arm64;x86_64"

@@ -99,23 +99,41 @@ if(NOT uds_c_POPULATED)
     FetchContent_Populate(uds_c)
 endif()
 
-# isotp-c uses GCC's deprecated `field: value` initializer extension. Rewrite
-# those initializers to standard C99 syntax for MSVC's C compiler.
+# isotp-c uses GCC's deprecated `field: value` initializer extension. MSVC's C
+# compiler supports neither that extension nor C99 designated initializers, so
+# replace the pinned source's initializers with portable positional forms.
 if(MSVC)
-  foreach(_isotp_source IN ITEMS
-      "${isotp_c_SOURCE_DIR}/src/isotp/isotp.c"
-      "${isotp_c_SOURCE_DIR}/src/isotp/receive.c"
-      "${isotp_c_SOURCE_DIR}/src/isotp/send.c")
-    file(READ "${_isotp_source}" _isotp_contents)
-    foreach(_isotp_field IN ITEMS
-        log send_can_message set_timer frame_padding success completed
-        arbitration_id size message_received_callback multi_frame payload)
-      string(REGEX REPLACE
-        "${_isotp_field}[ \t]*:" ".${_isotp_field} ="
-        _isotp_contents "${_isotp_contents}")
-    endforeach()
-    file(WRITE "${_isotp_source}" "${_isotp_contents}")
-  endforeach()
+  set(_isotp_source "${isotp_c_SOURCE_DIR}/src/isotp/isotp.c")
+  file(READ "${_isotp_source}" _isotp_contents)
+  string(REGEX REPLACE
+    "IsoTpShims shims = \\{[^}]*\\};"
+    "IsoTpShims shims = { log, send_can_message, set_timer, ISO_TP_DEFAULT_FRAME_PADDING_STATUS };"
+    _isotp_contents "${_isotp_contents}")
+  file(WRITE "${_isotp_source}" "${_isotp_contents}")
+
+  set(_isotp_source "${isotp_c_SOURCE_DIR}/src/isotp/receive.c")
+  file(READ "${_isotp_source}" _isotp_contents)
+  string(REGEX REPLACE
+    "IsoTpReceiveHandle handle = \\{[^}]*\\};"
+    "IsoTpReceiveHandle handle = { false, false, arbitration_id, callback };"
+    _isotp_contents "${_isotp_contents}")
+  string(REGEX REPLACE
+    "IsoTpMessage message = \\{[^}]*\\{0\\}[^}]*\\};"
+    "IsoTpMessage message = { arbitration_id, {0}, 0, false, false };"
+    _isotp_contents "${_isotp_contents}")
+  file(WRITE "${_isotp_source}" "${_isotp_contents}")
+
+  set(_isotp_source "${isotp_c_SOURCE_DIR}/src/isotp/send.c")
+  file(READ "${_isotp_source}" _isotp_contents)
+  string(REGEX REPLACE
+    "IsoTpSendHandle handle = \\{[^}]*\\};"
+    "IsoTpSendHandle handle = { true, false };"
+    _isotp_contents "${_isotp_contents}")
+  string(REGEX REPLACE
+    "IsoTpMessage message = \\{[^}]*\\};"
+    "IsoTpMessage message = { arbitration_id, {0}, size, false, false };"
+    _isotp_contents "${_isotp_contents}")
+  file(WRITE "${_isotp_source}" "${_isotp_contents}")
 endif()
 
 # bitfield-c: bitfield + CAN-signal utilities

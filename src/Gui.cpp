@@ -185,7 +185,7 @@ static std::string decodeVinModelYear(const std::string& vin) {
     const char* p = std::strchr(code, c);
     if (!p) return "";
     int year = 2001 + (int)(p - code);
-    char out[8];
+    char out[16];
     std::snprintf(out, sizeof out, "%d", year);
     return out;
 }

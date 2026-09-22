@@ -9,6 +9,7 @@
 // macOS implementation: src/BtDiscovery.mm (IOBluetooth.framework)
 // Non-Apple platforms: stubs returning empty results.
 //
+#include <cstddef>
 #include <string>
 #include <vector>
 
