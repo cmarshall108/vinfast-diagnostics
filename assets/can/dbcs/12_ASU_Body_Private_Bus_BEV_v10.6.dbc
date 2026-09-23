@@ -1,0 +1,807 @@
+VERSION ""
+
+NS_ : 
+	NS_DESC_
+	CM_
+	BA_DEF_
+	BA_
+	VAL_
+	CAT_DEF_
+	CAT_
+	FILTER
+	BA_DEF_DEF_
+	EV_DATA_
+	ENVVAR_DATA_
+	SGTYPE_
+	SGTYPE_VAL_
+	BA_DEF_SGTYPE_
+	BA_SGTYPE_
+	SIG_TYPE_REF_
+	VAL_TABLE_
+	SIG_GROUP_
+	SIG_VALTYPE_
+	SIGTYPE_VALTYPE_
+	BO_TX_BU_
+	BA_DEF_REL_
+	BA_REL_
+	BA_DEF_DEF_REL_
+	BU_SG_REL_
+	BU_EV_REL_
+	BU_BO_REL_
+	SG_MUL_VAL_
+
+BS_:
+
+BU_: ASU ASU_Gateway DUMMY_ECU
+
+
+BO_ 303 KLEMMEN: 8 ASU_Gateway
+  SG_ CRC_KL : 0|8@1+ (1,0) [0|255] "" ASU
+  SG_ ALIV_COU_KL : 8|4@1+ (1,0) [0|14] "" ASU
+  SG_ ST_VEH_CON : 12|4@1+ (1,0) [0|15] "-" DUMMY_ECU
+  SG_ ST_KL : 16|4@1+ (1,0) [0|15] "-" ASU
+  SG_ ST_KL_DIV : 20|4@1+ (1,0) [0|0] "" DUMMY_ECU
+  SG_ ST_KL_30B : 24|4@1+ (1,0) [0|0] "" ASU
+  SG_ ST_KL_15N : 28|4@1+ (1,0) [0|0] "" DUMMY_ECU
+  SG_ ST_KL_KEY_VLD : 32|4@1+ (1,0) [0|15] "" DUMMY_ECU
+  SG_ ST_KL_15_FLLUPT : 36|4@1+ (1,0) [0|0] "" DUMMY_ECU
+  SG_ CTR_ENG_STOP : 40|2@1+ (1,0) [0|3] "Bit" DUMMY_ECU
+  SG_ ST_STCD_PENG : 42|2@1+ (1,0) [0|3] "" DUMMY_ECU
+  SG_ ST_OP_MSA : 44|2@1+ (1,0) [0|0] "" DUMMY_ECU
+  SG_ ST_SSP : 46|2@1+ (1,0) [0|0] "" DUMMY_ECU
+  SG_ RWDT_BLS : 48|4@1+ (1,0) [0|15] "-" DUMMY_ECU
+  SG_ ST_KL_50_MSA : 52|2@1+ (1,0) [0|0] "" DUMMY_ECU
+  SG_ ST_KL_DBG : 56|8@1+ (1,0) [0|0] "" DUMMY_ECU
+
+BO_ 409 ACLNX_MASSCNTR: 6 ASU_Gateway
+  SG_ CRC_ACLNX_COG : 0|8@1+ (1,0) [0|255] "" ASU
+  SG_ ALIV_ACLNX_COG : 8|4@1+ (1,0) [0|0] "" ASU
+  SG_ ST_ECU_ACLNX_COG : 12|4@1+ (1,0) [0|0] "" ASU
+  SG_ ACLNX_COG : 16|16@1+ (0.002,-65) [-65|65] "m/s²" ASU
+  SG_ ACLNX_COG_ERR_AMP : 32|12@1+ (0.005,0) [0|20] "m/s²" ASU
+  SG_ QU_ACLNX_COG : 44|4@1+ (1,0) [0|0] "" ASU
+
+BO_ 410 ACLNY_MASSCNTR: 6 ASU_Gateway
+  SG_ CRC_ACLNY_COG : 0|8@1+ (1,0) [0|255] "" ASU
+  SG_ ALIV_ACLNY_COG : 8|4@1+ (1,0) [0|14] "" ASU
+  SG_ ST_ECU_ACLNY_COG : 12|4@1+ (1,0) [0|0] "" ASU
+  SG_ ACLNY_COG : 16|16@1+ (0.002,-65) [-65|65] "m/s²" ASU
+  SG_ ACLNY_COG_ERR_AMP : 32|12@1+ (0.005,0) [0|20] "m/s²" ASU
+  SG_ QU_ACLNY_COG : 44|4@1+ (1,0) [0|0] "" ASU
+
+BO_ 417 V_VEH: 5 ASU_Gateway
+  SG_ CRC_V_VEH : 0|8@1+ (1,0) [0|255] "-" ASU
+  SG_ ALIV_V_VEH : 8|4@1+ (1,0) [0|14] "" ASU
+  SG_ ST_ECU_V_VEH : 12|4@1+ (1,0) [0|0] "" DUMMY_ECU
+  SG_ V_VEH_COG : 16|16@1+ (0.015625,0) [0|350] "km/h" ASU
+  SG_ QU_V_VEH_COG : 32|4@1+ (1,0) [0|15] "" ASU
+  SG_ DVCO_VEH : 36|3@1+ (1,0) [0|7] "" DUMMY_ECU
+
+BO_ 618 ST_LCS_VEH: 3 ASU
+  SG_ ALIV_ST_LCS_VEH : 0|4@1+ (1,0) [0|14] "" ASU_Gateway
+  SG_ ST_ECU_ST_LCS_VEH : 4|4@1+ (1,0) [0|15] "" ASU_Gateway
+  SG_ QU_FN_LCS_VEH : 8|12@1+ (1,0) [0|0] "" ASU_Gateway
+
+BO_ 714 A_TEMP: 2 ASU_Gateway
+  SG_ TEMP_EX : 0|8@1+ (0.5,-40) [-40|85] "°C" ASU
+  SG_ TEMP_EX_unfilt : 8|8@1+ (0.5,-40) [-40|85] "°C" DUMMY_ECU
+
+BO_ 764 STAT_ZV_KLAPPEN: 7 ASU_Gateway
+  SG_ ST_CLSY : 0|4@1+ (1,0) [0|0] "" ASU
+  SG_ CTR_CLSY : 4|4@1+ (1,0) [0|0] "" DUMMY_ECU
+  SG_ ST_DSW_DRD : 8|2@1+ (1,0) [0|0] "" ASU
+  SG_ ST_DSW_PSD : 10|2@1+ (1,0) [0|0] "" ASU
+  SG_ ST_DSW_DVDR : 12|2@1+ (1,0) [0|0] "" ASU
+  SG_ ST_DSW_PSDR : 14|2@1+ (1,0) [0|0] "" ASU
+  SG_ ST_CT_BTL : 16|2@1+ (1,0) [0|0] "" ASU
+  SG_ ST_CT_BON : 18|2@1+ (1,0) [0|0] "" DUMMY_ECU
+  SG_ ST_HOTM : 20|2@1+ (1,0) [0|0] "" DUMMY_ECU
+  SG_ ST_PUBU_CLSY : 22|2@1+ (1,0) [0|0] "" DUMMY_ECU
+  SG_ AUTH_CLSY : 24|32@1+ (1,0) [0|0] "" DUMMY_ECU
+
+BO_ 812 Hoehenstand_EHC: 8 ASU
+  SG_ CRC_HGLV_EHC : 0|8@1+ (1,0) [0|255] "" ASU_Gateway
+  SG_ ALIV_HGLV_EHC : 8|4@1+ (1,0) [0|14] "" ASU_Gateway
+  SG_ HGLV_RLH_EHC : 16|8@1+ (1,-127) [-127|127] "mm" ASU_Gateway
+  SG_ HGLV_RRH_EHC : 24|8@1+ (1,-127) [-127|127] "mm" ASU_Gateway
+  SG_ QU_HGLV_RLH_EHC : 32|4@1+ (1,0) [0|15] "" ASU_Gateway
+  SG_ QU_HGLV_RRH_EHC : 36|4@1+ (1,0) [0|15] "" ASU_Gateway
+
+BO_ 873 ST_TYR: 5 ASU_Gateway
+  SG_ CRC_ST_TYR : 0|8@1+ (1,0) [0|255] "" ASU
+  SG_ ALIV_ST_TYR : 8|4@1+ (1,0) [0|14] "" ASU
+  SG_ QU_FN_TYR_INFO : 16|8@1+ (1,0) [0|0] "" ASU
+  SG_ QU_TPL : 24|8@1+ (1,0) [0|0] "" ASU
+  SG_ QU_TFAI : 32|8@1+ (1,0) [0|0] "" ASU
+
+BO_ 896 FAHRGESTELLNUMMER: 7 ASU_Gateway
+  SG_ NO_VECH_1 : 0|8@1+ (1,0) [0|0] "" ASU
+  SG_ NO_VECH_2 : 8|8@1+ (1,0) [0|0] "" ASU
+  SG_ NO_VECH_3 : 16|8@1+ (1,0) [0|0] "" ASU
+  SG_ NO_VECH_4 : 24|8@1+ (1,0) [0|0] "" ASU
+  SG_ NO_VECH_5 : 32|8@1+ (1,0) [0|0] "" ASU
+  SG_ NO_VECH_6 : 40|8@1+ (1,0) [0|0] "" ASU
+  SG_ NO_VECH_7 : 48|8@1+ (1,0) [0|0] "" ASU
+
+BO_ 928 FZZSTD: 8 ASU_Gateway
+  SG_ ST_ENERG_FZM : 16|4@1+ (1,0) [0|0] "" ASU
+  SG_ ST_ILK_ERRM_FZM : 56|2@1+ (1,0) [0|0] "" ASU
+
+BO_ 947 POWERMGMT_CTR_COS: 7 ASU_Gateway
+  SG_ SLCTN_SPCOS : 4|4@1+ (1,0) [0|0] "" ASU
+  SG_ CTR_PWR_SPCOS : 8|8@1+ (0.5,0) [0|100] "%" ASU
+  SG_ CTR_PWR_COS : 16|16@1+ (1,0) [0|0] "" ASU
+  SG_ CTR_CBR : 32|8@1+ (1,0) [0|0] "" ASU
+  SG_ RQ_PCOS : 40|2@1+ (1,0) [0|0] "" ASU
+  SG_ CTR_PCOS : 42|2@1+ (1,0) [0|0] "" ASU
+  SG_ ST_ENERG_PWMG : 48|4@1+ (1,0) [0|0] "" ASU
+
+BO_ 958 FLLUPT_GPWSUP: 2 ASU_Gateway
+  SG_ FLLUPT_GPWSUP : 0|12@1+ (10,0) [0|40940] "s" ASU
+
+BO_ 1017 DT_PT_2: 8 ASU_Gateway
+  SG_ CRC_DT_PT_2 : 0|8@1+ (1,0) [0|255] "-" ASU
+  SG_ ST_MOD_DRV : 8|4@1+ (1,0) [0|15] "-" DUMMY_ECU
+  SG_ ALIV_DT_PT_2 : 12|4@1+ (1,0) [0|14] "" ASU
+  SG_ ST_DRV_VEH : 16|8@1+ (1,0) [0|254] "" ASU
+  SG_ ST_ENG_RUN_DRV : 24|2@1+ (1,0) [0|3] "" DUMMY_ECU
+  SG_ ST_SW_CLT_DRV : 26|2@1+ (1,0) [0|3] "-" DUMMY_ECU
+  SG_ ST_ILK_STRT_DRV : 28|2@1+ (1,0) [0|3] "-" DUMMY_ECU
+  SG_ ST_IDLG_ENG_DRV : 30|2@1+ (1,0) [0|3] "" DUMMY_ECU
+  SG_ TEMP_ENG_DRV : 32|8@1+ (1,-48) [-48|144] "Degree C" DUMMY_ECU
+  SG_ TEMP_EOI_DRV : 40|8@1+ (1,-48) [-48|170] "" DUMMY_ECU
+  SG_ ST_GRSEL_DRV : 48|4@1+ (1,0) [0|15] "" DUMMY_ECU
+  SG_ RLS_ENGSTA : 52|2@1+ (1,0) [0|3] "" DUMMY_ECU
+  SG_ RDUC_DOCTR_RPM_DRV_2 : 54|2@1+ (1,0) [0|3] "-" DUMMY_ECU
+  SG_ RPM_ENG_MAX_ALW : 56|8@1+ (50,0) [0|12700] "1/min" DUMMY_ECU
+
+BO_ 1296 NM2_Body_CAN_zGW: 8 ASU_Gateway
+  SG_ NM2_Body_CAN_zGW_srcNodeID : 7|8@0+ (1,0) [0|255] "" DUMMY_ECU
+  SG_ NM2_Body_CAN_zGW_CtrlBitVector : 15|8@0+ (1,0) [0|255] "" DUMMY_ECU
+  SG_ NM2_Body_CAN_zGW_usrData0 : 23|8@0+ (1,0) [0|255] "" DUMMY_ECU
+  SG_ NM2_Body_CAN_zGW_usrData1 : 31|8@0+ (1,0) [0|255] "" DUMMY_ECU
+  SG_ NM2_Body_CAN_zGW_usrData2 : 39|8@0+ (1,0) [0|255] "" DUMMY_ECU
+  SG_ NM2_Body_CAN_zGW_usrData3 : 47|8@0+ (1,0) [0|255] "" DUMMY_ECU
+  SG_ NM2_Body_CAN_zGW_usrData4 : 55|8@0+ (1,0) [0|255] "" DUMMY_ECU
+  SG_ NM2_Body_CAN_zGW_usrData5 : 63|8@0+ (1,0) [0|255] "" DUMMY_ECU
+
+BO_ 1464 SVC_EHC_EHC_2: 8 ASU
+  SG_ ID2 M : 0|8@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ ECU_ID_WUPREG m39 : 8|8@1+ (1,0) [0|127] "" ASU_Gateway
+  SG_ ID_FN_INQY m1 : 8|16@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ ID_FN_RQ_BUS m12 : 8|16@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ NO_CC_MESS_EXT m65 : 8|16@1+ (1,0) [0|65534] "" ASU_Gateway
+  SG_ NO_CC_MESS_STD m64 : 8|16@1+ (1,0) [0|65534] "" ASU_Gateway
+  SG_ WACA m39 : 16|8@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ ID_RQ_BUS m12 : 24|8@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ ST_CC_MESS_EXT m65 : 24|2@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ ST_CC_MESS_STD m64 : 24|2@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ TRANF_CC_MESS_EXT m65 : 26|4@1+ (1,0) [0|14] "" ASU_Gateway
+  SG_ TRANF_CC_MESS_STD m64 : 26|4@1+ (1,0) [0|14] "" ASU_Gateway
+  SG_ ST_IDC_CCLK_CC_MESS_EXT m65 : 30|2@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ ST_IDC_CCLK_CC_MESS_STD m64 : 30|2@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ NO_FRM_CC_MESS_EXT m65 : 32|4@1+ (1,0) [0|14] "" ASU_Gateway
+  SG_ ST_RQ_BUS m12 : 32|4@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ QUAN_FRM_CC_MESS_EXT m65 : 36|4@1+ (1,0) [0|14] "" ASU_Gateway
+  SG_ ST_LAW_RQ m12 : 36|4@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ DUR_FLLUPT m12 : 40|8@1+ (1,0) [0|254] "min" ASU_Gateway
+  SG_ UTDT_CC_MESS m65 : 40|24@1+ (1,0) [0|0] "" ASU_Gateway
+
+BO_ 1592 Diag_EHC_EHC_2: 8 ASU
+  SG_ TA : 0|8@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ TPCI : 8|8@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ Byte3 : 16|8@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ Byte4 : 24|8@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ Byte5 : 32|8@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ Byte6 : 40|8@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ Byte7 : 48|8@1+ (1,0) [0|0] "" ASU_Gateway
+  SG_ Byte8 : 56|8@1+ (1,0) [0|0] "" ASU_Gateway
+
+BO_ 1777 Diag_Tester1: 8 ASU_Gateway
+  SG_ TA : 0|8@1+ (1,0) [0|0] "" ASU
+  SG_ TPCI : 8|8@1+ (1,0) [0|0] "" ASU
+  SG_ Byte3 : 16|8@1+ (1,0) [0|0] "" ASU
+  SG_ Byte4 : 24|8@1+ (1,0) [0|0] "" ASU
+  SG_ Byte5 : 32|8@1+ (1,0) [0|0] "" ASU
+  SG_ Byte6 : 40|8@1+ (1,0) [0|0] "" ASU
+  SG_ Byte7 : 48|8@1+ (1,0) [0|0] "" ASU
+  SG_ Byte8 : 56|8@1+ (1,0) [0|0] "" ASU
+
+
+CM_ BU_ ASU "Aggregation von 2 ECU's: {Luftfedermodul, 2-Achs Luftfedermodul}"; 
+CM_ BU_ ASU_Gateway "ASU_Gateway node for ASU integration"; 
+CM_ BO_ 618 "ST_LCS_VEH
+"; 
+CM_ SG_ 303 CRC_KL "CRC_Klemme
+"; 
+CM_ SG_ 303 ALIV_COU_KL "ALIVE_Zähler_Klemme
+
+"; 
+CM_ SG_ 303 ST_VEH_CON "The signal is formed from the current klemme state, the engine running status and the vehicle movement. It also shows whether the vehicle is in washline mode. Attention: This signal only evaluates the condition of the internal combustion engine."; 
+CM_ SG_ 303 ST_KL "Clamp status"; 
+CM_ SG_ 303 ST_KL_KEY_VLD "Key valid"; 
+CM_ SG_ 303 CTR_ENG_STOP "This signal allows the engine to be switched off without removing the ignition (KL15). "; 
+CM_ SG_ 303 ST_STCD_PENG "Plausibility signal for starter release"; 
+CM_ SG_ 303 RWDT_BLS "Raw data Brake light switch"; 
+CM_ SG_ 409 CRC_ACLNX_COG "Standardabsicherung Applikations-CRC
+Dieses Signal verwendet die Applikations-CRC-ID = 29 (Dez)"; 
+CM_ SG_ 409 ST_ECU_ACLNX_COG "Ziel des ECU-Status ist zusätzliche Information über den Hardware-Status mitzuliefern. Die Auswertung des Qualifiers auf Empfängerseite ist optional.
+
+Diese Information darf nicht als alleiniger Auslöser für eine funktionale Degradation verwendet werden, sondern soll eine genauere Diagnose im Falle einer Degradation aufgrund der mitgesendeten Signal-Qualifier oder Funktions-Qualifiern ermöglichen. Nähere Informationen sind dem Lastenheft Diagnose zu entnehmen."; 
+CM_ SG_ 409 ACLNX_COG "Längsbeschleunigung im Fahrzeugschwerpunkt.
+
+Eine positive Längsbeschleunigung wirkt in Fahrzeug X-Richtung. Fahrzeugkoordinatensystem gemäß ISO  8855.
+
+Die Längsbeschleunigung des Fahrzeuges wird von einem Längsbeschleunigungsensor gemessen, der sich im ICM-Q/L-Steuergerät befinden. Im ICM-Q/L-Steuergerät erfolgt eine Plausibilisierung (durch Modellüberwachung) und ein Langzeitabgleich des Offset-Drifts. 
+Es ist zu beachten, dass dieses Signal die Anteile der Gravitation enthält, die bei einer Fahrba"; 
+CM_ SG_ 409 ACLNX_COG_ERR_AMP "Für den Fall, dass ein Sensorfehler nicht oder noch nicht erkannt wurde, interne Überwachungsmaßnahmen jedoch anzeigen, dass eine Abweichung des Sensorsignals vom tatsächlichen Wert vorliegen könnte, gibt dieser Wert an, wie groß diese Abweichung maximal sein kann. Es wird der Betrag der Fehleramplitude ausgegeben, die Abweichung des tatsächlichen Signals vom ausgegebenen Signal liegt in einem Band mit der doppelten Breite der Fehleramplitude (Signal plus oder minus Fehleramplitude).
+Der Qualifier des Nut"; 
+CM_ SG_ 409 QU_ACLNX_COG "Erweiterter Status Qualifier zum Signal Längsbeschleunigung_Schwerpunkt."; 
+CM_ SG_ 410 CRC_ACLNY_COG "Standardabsicherung Applikations-CRC
+Dieses Signal verwendet die Applikations-CRC-ID = 31 (Dez)"; 
+CM_ SG_ 410 ST_ECU_ACLNY_COG "Ziel des ECU-Status ist zusätzliche Information über den Hardware-Status mitzuliefern. Die Auswertung des Qualifiers auf Empfängerseite ist optional.
+
+Diese Information darf nicht als alleiniger Auslöser für eine funktionale Degradation verwendet werden, sondern soll eine genauere Diagnose im Falle einer Degradation aufgrund der mitgesendeten Signal-Qualifier oder Funktions-Qualifiern ermöglichen. Nähere Informationen sind dem Lastenheft Diagnose zu entnehmen."; 
+CM_ SG_ 410 ACLNY_COG "Querbeschleunigung im Fahrzeugschwerpunkt.
+
+Eine positive Querbeschleunigung wird durch eine vorwärts durchfahrene Linkskurve erzeugt. Fahrzeugkoordinatensystem gemäß ISO  8855.
+
+Die Querbeschleunigung des Fahrzeuges wird je nach Fahrzeugkonfiguration von einem oder zwei Querbeschleunigungs-sensoren gemessen, die sich im ICM-Q/L-Steuergerät befinden. Im ICM-Q/L-Steuergerät erfolgt eine Plausibilisierung (durch Modellüberwachung und Redundanzüberwachung bei zwei Sensoren) und ein Langzeitabgleich der Of"; 
+CM_ SG_ 410 ACLNY_COG_ERR_AMP "Für den Fall, dass ein Sensorfehler nicht oder noch nicht erkannt wurde, interne Überwachungsmaßnahmen jedoch anzeigen, dass eine Abweichung des Sensorsignals vom tatsächlichen Wert vorliegen könnte, gibt dieser Wert an, wie groß diese Abweichung maximal sein kann. Es wird der Betrag der Fehleramplitude ausgegeben, die Abweichung des tatsächlichen Signals vom ausgegebenen Signal liegt in einem Band mit der doppelten Breite der Fehleramplitude (Signal plus oder minus Fehleramplitude).
+Der Qualifier des Nut"; 
+CM_ SG_ 410 QU_ACLNY_COG "Erweiterter Status Qualifier zum Signal Querbeschleunigung_Schwerpunkt."; 
+CM_ SG_ 417 CRC_V_VEH "CRC_Geschwindigkeit_Fahrzeug"; 
+CM_ SG_ 417 ALIV_V_VEH "Alive counter"; 
+CM_ SG_ 417 V_VEH_COG "Vehicle speed for powertrain"; 
+CM_ SG_ 417 QU_V_VEH_COG "Vehicle speed valid"; 
+CM_ SG_ 417 DVCO_VEH "Driving condition"; 
+CM_ SG_ 618 ALIV_ST_LCS_VEH "Standardabsicherung Alivezähler laut Definition per Lastenheft Allgemeine Bordnetzkommunikation."; 
+CM_ SG_ 618 ST_ECU_ST_LCS_VEH "Ziel des ECU-Status ist zusätzliche Information über den Hardware-Status mitzuliefern. Die Auswertung des Qualifiers auf Empfängerseite ist optional.
+
+Diese Information darf nicht als alleiniger Auslöser für eine funktionale Degradation verwendet werden, sondern soll eine genauere Diagnose im Falle einer Degradation aufgrund der mitgesendeten Signal-Qualifier oder Funktions-Qualifiern ermöglichen. Nähere Informationen sind dem Lastenheft Diagnose zu entnehmen."; 
+CM_ SG_ 618 QU_FN_LCS_VEH "Qualifier
+
+"; 
+CM_ SG_ 714 TEMP_EX "n.a."; 
+CM_ SG_ 812 CRC_HGLV_EHC "Applications-CRC-ID = 227 (Dez)
+"; 
+CM_ SG_ 812 ALIV_HGLV_EHC "Standardabsicherung Alivezähler laut Definition per Lastenheft Allgemeine Bordnetzkommunikation."; 
+CM_ SG_ 812 HGLV_RLH_EHC "Das Signal gibt den vom Höhenstandsensor an der Hinterachse gemessenen Höhenstand in Millimeter (relativ zur Konstruktionslage) an.
+
+Vorzeichenkonvention: 	eingefedertes Rad == negativer Höhenstand
+  			ausgefedertes Rad == positiver Höhenstand"; 
+CM_ SG_ 812 HGLV_RRH_EHC "The signal indicates the height measured in millimeters (relative to the design position) by the height sensor on the rear axle.Sign convention: jammed wheel == negative ride heightSprung wheel == positive ride height
+
+"; 
+CM_ SG_ 812 QU_HGLV_RLH_EHC "Qualifier"; 
+CM_ SG_ 812 QU_HGLV_RRH_EHC "Qualifier to the Signal Height HR EHC.
+
+"; 
+CM_ SG_ 873 CRC_ST_TYR "Standardabsicherung Applikations-CRC
+Dieser Parameter/Signal verwendet die Applikations-CRC-ID = 124 (Dez)
+
+Die Checksumme hat keine Ungültigkeitskennung!
+
+ACHTUNG: Im Problemfall befüllen Gateways trotzdem immer mit \'ungültig\' (hier: 0xFF).
+
+Transp.MOST-GW-Migration, 01.09.2006: Zusammenführung des Parameters CRC [1] mit dem Signal CRC_Status_Reifen [1]."; 
+CM_ SG_ 873 ALIV_ST_TYR "Standardabsicherung Alivezähler laut Definition per Lastenheft \'Allgemeine Bordnetzkommunikation\'.
+
+Transp.MOST-GW-Migration, 01.09.2006: Zusammenführung des Parameters TyresStatusAlive [1] mit dem Signal Alive_Status_Reifen [1]."; 
+CM_ SG_ 873 QU_FN_TYR_INFO "Funktionsqualifier zur Reifeninformation entweder von RPA.
+
+Folgende Zustände des Basisqualifiers sind definiert:
+
+Basisqualifier
+Code Bedeutung
+1000 Initialisierung
+0010 Funktion verfügbar - Bereit
+1010 Funktion verfügbar - Aktiv
+0011 Funktion in Rückfallebene
+1011 Funktion in temporär Rückfallebene
+1110 Funktion nicht verfügbar: ausgeschaltet
+0110 Funktion nicht verfügbar: Fehler
+0111 Funktion nicht vorhanden
+1111 Signal ungültig
+
+Transp.MOST-GW-Migration, 01.09.2006: Zusammenführung des "; 
+CM_ SG_ 873 QU_TPL "Dieser Parameter/Signal gibt an, ob ein Reifendruckverlust vorliegt.
+
+Sender des Parameters/Signals ist RDC:
+Ein Druckverlust wird angezeigt, wenn der jeweilige Reifendruck um 25% (+0,1 bar Genauigkeitsvorhalt) vom rel. Reifensolldruck abgefallen ist bzw. wenn der Mindestsolldruck von 1.6 bar rel. (+0,1 bar Genauigkeitsvorhalt) unterschritten wurde.
+
+Sender des Parameters/Signals ist RPA:
+Das RPA führt keine direkte Druckmessung durch, sondern schließt aus einer Änderung des Abrollumfanges auf einen "; 
+CM_ SG_ 873 QU_TFAI "Sender des Parameters/Signals ist RDC:
+Die Plattenwarnung zeigt an, ob bei einem Reifen der relative Druck unter die Grenze von 0.5 bar gesunken ist. Mehrfachplatten werden auch positionsbezogen ausgegeben. Wurde eine Plattenwarnung durch Unterschreiten der 0.5 bar Grenze gesetzt, wo wird das entsprechende Bit erst wieder bei Überschreiten von 1.6 bar (+0,1 bar Genauigkeitsvorhalt) zurückgesetzt. Somit ergibt sich eine Hysterese von 1.2 bar.
+
+Sender des Parameters/Signals ist RPA:
+RPA unterstützt die P"; 
+CM_ SG_ 896 NO_VECH_1 "Dieses Signal enthält die siebtletzte Stelle der Fahrgestellnummer. (Die einzelnen Stellen sind in ASCII-Zeichen codiert.)
+Bit 0: LSB, Bit 7: MSB
+
+Transp.MOST-GW-Migration, 01.09.2006: Zusammenführung des Parameters ChassisNumber1 [1] mit dem Signal Nummer_Fahrgestell_1 [1]."; 
+CM_ SG_ 896 NO_VECH_2 "Dieses Signal enthält die sechstletzte Stelle der Fahrgestellnummer. (Die einzelnen Stellen sind in ASCII-Zeichen codiert.)
+Bit 0: LSB, Bit 7: MSB
+
+Transp.MOST-GW-Migration, 01.09.2006: Zusammenführung des Parameters ChassisNumber2 [1] mit dem Signal Nummer_Fahrgestell_2 [1]."; 
+CM_ SG_ 896 NO_VECH_3 "Dieses Signal enthält die fünftletzte Stelle der Fahrgestellnummer. (Die einzelnen Stellen sind in ASCII-Zeichen codiert.)
+Bit 0: LSB, Bit 7: MSB
+
+Transp.MOST-GW-Migration, 01.09.2006: Zusammenführung des Parameters ChassisNumber3 [1] mit dem Signal Nummer_Fahrgestell_3 [1]."; 
+CM_ SG_ 896 NO_VECH_4 "Dieses Signal enthält die viertletzte Stelle der Fahrgestellnummer. (Die einzelnen Stellen sind in ASCII-Zeichen codiert.)
+Bit 0: LSB, Bit 7: MSB
+
+Transp.MOST-GW-Migration, 01.09.2006: Zusammenführung des Parameters ChassisNumber4 [1] mit dem Signal Nummer_Fahrgestell_4 [1]."; 
+CM_ SG_ 896 NO_VECH_5 "Dieses Signal enthält die drittletzte Stelle der Fahrgestellnummer. (Die einzelnen Stellen sind in ASCII-Zeichen codiert.)
+Bit 0: LSB, Bit 7: MSB
+
+Transp.MOST-GW-Migration, 01.09.2006: Zusammenführung des Parameters ChassisNumber5 [1] mit dem Signal Nummer_Fahrgestell_5 [1]."; 
+CM_ SG_ 896 NO_VECH_6 "Dieses Signal enthält die vorletzte Stelle der Fahrgestellnummer. (Die einzelnen Stellen sind in ASCII-Zeichen codiert.)
+Bit 0: LSB, Bit 7: MSB
+
+Transp.MOST-GW-Migration, 01.09.2006: Zusammenführung des Parameters ChassisNumber6 [1] mit dem Signal Nummer_Fahrgestell_6 [1]."; 
+CM_ SG_ 896 NO_VECH_7 "Dieses Signal enthält die letzte Stelle der Fahrgestellnummer. (Die einzelnen Stellen sind in ASCII-Zeichen codiert.)
+Bit 0: LSB, Bit 7: MSB
+
+Transp.MOST-GW-Migration, 01.09.2006: Zusammenführung des Parameters ChassisNumber7 [1] mit dem Signal Nummer_Fahrgestell_7 [4]."; 
+CM_ SG_ 947 SLCTN_SPCOS "Auswahl, welcher Sonderverbraucher mit dem Signal \'Steuerung_Leistung_Sonderverbraucher\' individuell angesteuert werden soll."; 
+CM_ SG_ 947 CTR_PWR_SPCOS "Individuelle Ansteuerung für einen Sonderverbraucher (PTC)."; 
+CM_ SG_ 947 CTR_PWR_COS "Bitcodierte Verbraucherleistungs-Steuerung.
+Dieses Signal soll zukünftig die Signale Steuerung_Spitzenreduzierung_Priorität und Steuerung_Spitzenreduzierung_Priorität_Komfort aus der Nachricht Powermanagement Batteriespannung ersetzen. Alle, die diese Änderung bereits umsetzen können, sollten zukünftig dieses neue Signal einlesen."; 
+CM_ SG_ 947 CTR_CBR "Ansteuerung der Stromzweige über das Powermanagement."; 
+CM_ SG_ 947 RQ_PCOS "Anforderung zum Anzeigen aller momentan aktivierten Standverbraucher.
+Wenn dieses Signal nicht versandt  (E65) oder empfangen wird (z.B. E65-Gleichteile), müssen sich Standverbraucher in jedem Fall anmelden. \'Gesetzliche Verbraucher\', wie LM und DWA müssen sich in jedem Fall abmelden, wenn sie Ihren Betrieb einstellen.
+
+Transp.MOST-GW-Migration, 01.09.2006: Zusammenführung des Parameters RequestParkConsumer [2] mit dem Signal Anforderung_Standverbraucher [2]."; 
+CM_ SG_ 947 CTR_PCOS "Abschaltung von Standverbrauchern zur Erhaltung der Startfähigkeit des Fahrzeugs (Ladezustand Batterie). Dieses Signal entspricht 1:1 dem Signal Status_Standverbraucher in der Nachricht Powermanagement Batteriespannung, welche zukünftig durch die Nachricht Powermanagement Verbrauchersteuerung ersetzt werden soll.
+
+Die Standverbraucher müssen ihre Funktionen umgehend deaktivieren und nach 5 min ihren Ruhestrom erreicht haben. Ausnahmen sind das Telefon (10min) und das EGS (30 min). Eine Abmeldung muss in "; 
+CM_ SG_ 947 ST_ENERG_PWMG "Signal wurde für L6 BN KSP angelegt."; 
+CM_ SG_ 958 FLLUPT_GPWSUP "Mit diesem Signal wird die verbleibende Zeit (= Restlaufzeit des timers) bis zum Abschalten der Stromversorgung angezeigt. Sie wird nur bei aktiver Kommunikation ausgegeben, ein Wecken vor Ablauf der Zeit erfolgt aus Stromspargründen nicht.
+Der Fall \'Dauer ein\' wird ebenfalls angezeigt. Transp.MOST-GW-Migration, 01.09.2006: Zusammenführung des Parameters FrequencyCCMessageStd [1] mit dem Signal Status_Blinken_Takt_Checkcontrol_Meldung_Standard [4]."; 
+CM_ SG_ 1017 ST_DRV_VEH "Checksum calculation accordig CAN Specification (ALGO SAE J 1850)Appl CRC ID 55 (Dez)
+"; 
+CM_ SG_ 1017 ST_ENG_RUN_DRV "Signal is proposed as backup for ST_DRV_VEH. Signal receivers are also only proposal (same as ST_DRV_VEH), confirmation needed from suppliers. 
+"; 
+CM_ SG_ 1017 ST_IDLG_ENG_DRV "This signal indicates whether the engine is idle at the moment or not.
+"; 
+CM_ SG_ 1017 TEMP_ENG_DRV "This signal communicates the present engine temperature (coolant temperature). In case of a sensor defect, the code FFh (invalid) is transmitted. Values between 193-254 shall be ignored
+"; 
+CM_ SG_ 1017 TEMP_EOI_DRV "Temperature engine oil drive"; 
+CM_ SG_ 1017 ST_GRSEL_DRV "Gear and transmission status information routed from EMS
+"; 
+CM_ SG_ 1017 RLS_ENGSTA "Start release from EMS"; 
+CM_ SG_ 1017 RPM_ENG_MAX_ALW "Maximum allowed engine speed"; 
+CM_ SG_ 1464 ECU_ID_WUPREG "n.a."; 
+CM_ SG_ 1464 ID_FN_INQY "n.a."; 
+CM_ SG_ 1464 ID_FN_RQ_BUS "n.a."; 
+CM_ SG_ 1464 NO_CC_MESS_STD "n.a."; 
+CM_ SG_ 1464 WACA "n.a."; 
+
+BA_DEF_ BO_  "GenMsgSendType" ENUM "Cyclic","NotUsed","NotUsed","NotUsed","NotUsed","NotUsed","NotUsed","IfActive","NoMsgSendType","NotUsed";
+BA_DEF_ BO_  "GenMsgILSupport" ENUM "No","Yes";
+BA_DEF_ BO_  "DiagResponse" ENUM "No","Yes";
+BA_DEF_ BO_  "DiagRequest" ENUM "No","Yes";
+BA_DEF_ BO_  "NmAsrMessage" ENUM "No","Yes";
+BA_DEF_ BO_  "DiagState" ENUM "No","Yes";
+BA_DEF_ BO_  "DiagUudtResponse" ENUM "False","True";
+BA_DEF_ BO_  "GenMsgStartDelayTime" INT 0 65535;
+BA_DEF_ BO_  "GenMsgDelayTime" INT 0 0;
+BA_DEF_ BO_  "GenMsgNrOfRepetition" INT 0 0;
+BA_DEF_ BO_  "GenMsgCycleTimeFast" INT 0 0;
+BA_DEF_ BO_  "GenMsgCycleTime" INT 0 0;
+BA_DEF_ BU_  "NmStationAddress" HEX 0 0;
+BA_DEF_ BU_  "Address" HEX 0 255;
+BA_DEF_ BU_  "TpSTMin" INT 0 255;
+BA_DEF_ BU_  "ILUsed" ENUM "No","Yes";
+BA_DEF_ BU_  "NmAsrNode" ENUM "No","Yes";
+BA_DEF_ BU_  "NmAsrNodeIdentifier" HEX 0 255;
+BA_DEF_ BU_  "NmAsrCanMsgCycleOffset" INT 0 65535;
+BA_DEF_ BU_  "NmAsrCanMsgReducedTime" INT 320 640;
+BA_DEF_ BU_  "Version" STRING;
+BA_DEF_ SG_  "GenSigSendType" ENUM "Cyclic","OnWrite","OnWriteWithRepetition","OnChange","OnChangeWithRepetition","IfActive","IfActiveWithRepetition","NoSigSendType","NotUsed","NotUsed","NotUsed","NotUsed","NotUsed";
+BA_DEF_ SG_  "InvalidValue" STRING;
+BA_DEF_ SG_  "GenSigStartValue" INT 0 0;
+BA_DEF_ SG_  "GenSigTimeoutTime_ALL" INT 0 65535;
+BA_DEF_  "DBName" STRING;
+BA_DEF_  "NmAsrBaseAddress" HEX 0 2047;
+BA_DEF_  "NmAsrMessageCount" INT 1 256;
+BA_DEF_  "NmAsrTimeoutTime" INT 0 65535;
+BA_DEF_  "NmAsrWaitBusSleepTime" INT 0 65535;
+BA_DEF_  "NmAsrRepeatMessageTime" INT 0 65535;
+BA_DEF_  "NmAsrCanMsgCycleTime" INT 0 65535;
+BA_DEF_  "Baudrate" INT 0 1000000;
+BA_DEF_  "BusType" STRING;
+BA_DEF_  "NmType" STRING;
+BA_DEF_  "Manufacturer" STRING;
+
+
+
+BA_DEF_DEF_  "Address" 0;
+BA_DEF_DEF_  "Baudrate" 500000;
+BA_DEF_DEF_  "DiagRequest" "No";
+BA_DEF_DEF_  "DiagResponse" "No";
+BA_DEF_DEF_  "DiagState" "No";
+BA_DEF_DEF_  "DiagUudtResponse" "False";
+BA_DEF_DEF_  "GenMsgCycleTime" 0;
+BA_DEF_DEF_  "GenMsgCycleTimeFast" 0;
+BA_DEF_DEF_  "GenMsgDelayTime" 0;
+BA_DEF_DEF_  "GenMsgILSupport" "Yes";
+BA_DEF_DEF_  "GenMsgNrOfRepetition" 0;
+BA_DEF_DEF_  "GenMsgSendType" "NoMsgSendType";
+BA_DEF_DEF_  "GenMsgStartDelayTime" 0;
+BA_DEF_DEF_  "GenSigSendType" "Cyclic";
+BA_DEF_DEF_  "GenSigStartValue" 0;
+BA_DEF_DEF_  "GenSigTimeoutTime_ALL" 0;
+BA_DEF_DEF_  "ILUsed" "Yes";
+BA_DEF_DEF_  "Manufacturer" "VinFast";
+BA_DEF_DEF_  "NmAsrBaseAddress" 1280;
+BA_DEF_DEF_  "NmAsrCanMsgCycleOffset" 0;
+BA_DEF_DEF_  "NmAsrCanMsgCycleTime" 640;
+BA_DEF_DEF_  "NmAsrCanMsgReducedTime" 320;
+BA_DEF_DEF_  "NmAsrMessage" "No";
+BA_DEF_DEF_  "NmAsrMessageCount" 128;
+BA_DEF_DEF_  "NmAsrNode" "Yes";
+BA_DEF_DEF_  "NmAsrNodeIdentifier" 0;
+BA_DEF_DEF_  "NmAsrRepeatMessageTime" 3200;
+BA_DEF_DEF_  "NmAsrTimeoutTime" 2000;
+BA_DEF_DEF_  "NmAsrWaitBusSleepTime" 1500;
+BA_DEF_DEF_  "NmStationAddress" 0;
+BA_DEF_DEF_  "TpSTMin" 20;
+
+BA_ "BusType" "CAN";
+BA_ "GenMsgCycleTime" BO_ 303 100;
+BA_ "GenMsgSendType" BO_ 303 0;
+BA_ "GenMsgCycleTime" BO_ 409 100;
+BA_ "GenMsgSendType" BO_ 409 0;
+BA_ "GenMsgCycleTime" BO_ 410 100;
+BA_ "GenMsgSendType" BO_ 410 0;
+BA_ "GenMsgDelayTime" BO_ 417 50;
+BA_ "DiagState" BO_ 618 0;
+BA_ "GenMsgCycleTime" BO_ 618 200;
+BA_ "GenMsgCycleTimeFast" BO_ 618 0;
+BA_ "GenMsgILSupport" BO_ 618 1;
+BA_ "GenMsgNrOfRepetition" BO_ 618 0;
+BA_ "GenMsgSendType" BO_ 618 0;
+BA_ "NmAsrMessage" BO_ 618 0;
+BA_ "GenMsgDelayTime" BO_ 714 100;
+BA_ "GenMsgCycleTime" BO_ 764 5000;
+BA_ "GenMsgSendType" BO_ 764 0;
+BA_ "GenMsgCycleTime" BO_ 812 200;
+BA_ "GenMsgSendType" BO_ 812 0;
+BA_ "GenMsgDelayTime" BO_ 873 200;
+BA_ "GenMsgCycleTime" BO_ 928 5000;
+BA_ "GenMsgSendType" BO_ 928 0;
+BA_ "GenMsgDelayTime" BO_ 947 1000;
+BA_ "GenMsgCycleTime" BO_ 958 10000;
+BA_ "GenMsgSendType" BO_ 958 0;
+BA_ "GenMsgDelayTime" BO_ 1017 50;
+BA_ "GenMsgCycleTime" BO_ 1296 640;
+BA_ "GenMsgSendType" BO_ 1296 0;
+BA_ "DiagResponse" BO_ 1592 1;
+BA_ "GenMsgSendType" BO_ 1592 0;
+BA_ "DiagRequest" BO_ 1777 1;
+BA_ "DiagResponse" BO_ 1777 1;
+BA_ "GenMsgSendType" BO_ 1777 0;
+BA_ "GenSigStartValue" SG_ 303 CRC_KL 0;
+BA_ "GenSigStartValue" SG_ 303 ALIV_COU_KL 0;
+BA_ "GenSigSendType" SG_ 303 ST_VEH_CON 3;
+BA_ "GenSigStartValue" SG_ 303 ST_VEH_CON 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 303 ST_VEH_CON 500;
+BA_ "InvalidValue" SG_ 303 ST_VEH_CON "Fh";
+BA_ "GenSigSendType" SG_ 303 ST_KL 3;
+BA_ "GenSigStartValue" SG_ 303 ST_KL 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 303 ST_KL 500;
+BA_ "InvalidValue" SG_ 303 ST_KL "Fh";
+BA_ "GenSigStartValue" SG_ 303 ST_KL_DIV 0;
+BA_ "GenSigStartValue" SG_ 303 ST_KL_30B 0;
+BA_ "GenSigStartValue" SG_ 303 ST_KL_15N 0;
+BA_ "GenSigSendType" SG_ 303 ST_KL_KEY_VLD 3;
+BA_ "GenSigStartValue" SG_ 303 ST_KL_KEY_VLD 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 303 ST_KL_KEY_VLD 500;
+BA_ "InvalidValue" SG_ 303 ST_KL_KEY_VLD "Fh";
+BA_ "GenSigStartValue" SG_ 303 ST_KL_15_FLLUPT 0;
+BA_ "GenSigSendType" SG_ 303 CTR_ENG_STOP 3;
+BA_ "GenSigStartValue" SG_ 303 CTR_ENG_STOP 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 303 CTR_ENG_STOP 500;
+BA_ "InvalidValue" SG_ 303 CTR_ENG_STOP "3h";
+BA_ "GenSigSendType" SG_ 303 ST_STCD_PENG 3;
+BA_ "GenSigStartValue" SG_ 303 ST_STCD_PENG 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 303 ST_STCD_PENG 500;
+BA_ "InvalidValue" SG_ 303 ST_STCD_PENG "3h";
+BA_ "GenSigStartValue" SG_ 303 ST_OP_MSA 0;
+BA_ "GenSigStartValue" SG_ 303 ST_SSP 0;
+BA_ "GenSigSendType" SG_ 303 RWDT_BLS 3;
+BA_ "GenSigStartValue" SG_ 303 RWDT_BLS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 303 RWDT_BLS 500;
+BA_ "InvalidValue" SG_ 303 RWDT_BLS "Fh";
+BA_ "GenSigStartValue" SG_ 303 ST_KL_50_MSA 0;
+BA_ "GenSigStartValue" SG_ 303 ST_KL_DBG 0;
+BA_ "GenSigStartValue" SG_ 409 CRC_ACLNX_COG 0;
+BA_ "GenSigStartValue" SG_ 409 ALIV_ACLNX_COG 0;
+BA_ "GenSigStartValue" SG_ 409 ST_ECU_ACLNX_COG 0;
+BA_ "GenSigStartValue" SG_ 409 ACLNX_COG 0;
+BA_ "GenSigStartValue" SG_ 409 ACLNX_COG_ERR_AMP 0;
+BA_ "GenSigStartValue" SG_ 409 QU_ACLNX_COG 0;
+BA_ "GenSigStartValue" SG_ 410 CRC_ACLNY_COG 0;
+BA_ "GenSigStartValue" SG_ 410 ALIV_ACLNY_COG 0;
+BA_ "GenSigStartValue" SG_ 410 ST_ECU_ACLNY_COG 0;
+BA_ "GenSigStartValue" SG_ 410 ACLNY_COG 0;
+BA_ "GenSigStartValue" SG_ 410 ACLNY_COG_ERR_AMP 0;
+BA_ "GenSigStartValue" SG_ 410 QU_ACLNY_COG 0;
+BA_ "GenSigStartValue" SG_ 417 CRC_V_VEH 0;
+BA_ "GenSigSendType" SG_ 417 ALIV_V_VEH 0;
+BA_ "GenSigStartValue" SG_ 417 ALIV_V_VEH 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 417 ALIV_V_VEH 200;
+BA_ "InvalidValue" SG_ 417 ALIV_V_VEH "Fh";
+BA_ "GenSigStartValue" SG_ 417 ST_ECU_V_VEH 0;
+BA_ "GenSigSendType" SG_ 417 V_VEH_COG 0;
+BA_ "GenSigStartValue" SG_ 417 V_VEH_COG 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 417 V_VEH_COG 200;
+BA_ "InvalidValue" SG_ 417 V_VEH_COG "FFFFh";
+BA_ "GenSigSendType" SG_ 417 QU_V_VEH_COG 0;
+BA_ "GenSigStartValue" SG_ 417 QU_V_VEH_COG 8;
+BA_ "GenSigTimeoutTime_ALL" SG_ 417 QU_V_VEH_COG 200;
+BA_ "InvalidValue" SG_ 417 QU_V_VEH_COG "Fh";
+BA_ "GenSigSendType" SG_ 417 DVCO_VEH 0;
+BA_ "GenSigStartValue" SG_ 417 DVCO_VEH 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 417 DVCO_VEH 200;
+BA_ "InvalidValue" SG_ 417 DVCO_VEH "7h";
+BA_ "GenSigSendType" SG_ 618 ALIV_ST_LCS_VEH 0;
+BA_ "GenSigStartValue" SG_ 618 ALIV_ST_LCS_VEH 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 618 ALIV_ST_LCS_VEH 1000;
+BA_ "InvalidValue" SG_ 618 ALIV_ST_LCS_VEH "Fh";
+BA_ "GenSigSendType" SG_ 618 ST_ECU_ST_LCS_VEH 0;
+BA_ "GenSigStartValue" SG_ 618 ST_ECU_ST_LCS_VEH 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 618 ST_ECU_ST_LCS_VEH 1000;
+BA_ "InvalidValue" SG_ 618 ST_ECU_ST_LCS_VEH "";
+BA_ "GenSigSendType" SG_ 618 QU_FN_LCS_VEH 0;
+BA_ "GenSigStartValue" SG_ 618 QU_FN_LCS_VEH 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 618 QU_FN_LCS_VEH 1000;
+BA_ "InvalidValue" SG_ 618 QU_FN_LCS_VEH "";
+BA_ "GenSigSendType" SG_ 714 TEMP_EX 0;
+BA_ "GenSigStartValue" SG_ 714 TEMP_EX 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 714 TEMP_EX 500;
+BA_ "InvalidValue" SG_ 714 TEMP_EX "FFh";
+BA_ "GenSigStartValue" SG_ 714 TEMP_EX_unfilt 0;
+BA_ "GenSigStartValue" SG_ 764 ST_CLSY 0;
+BA_ "GenSigStartValue" SG_ 764 CTR_CLSY 0;
+BA_ "GenSigStartValue" SG_ 764 ST_DSW_DRD 0;
+BA_ "GenSigStartValue" SG_ 764 ST_DSW_PSD 0;
+BA_ "GenSigStartValue" SG_ 764 ST_DSW_DVDR 0;
+BA_ "GenSigStartValue" SG_ 764 ST_DSW_PSDR 0;
+BA_ "GenSigStartValue" SG_ 764 ST_CT_BTL 0;
+BA_ "GenSigStartValue" SG_ 764 ST_CT_BON 0;
+BA_ "GenSigStartValue" SG_ 764 ST_HOTM 0;
+BA_ "GenSigStartValue" SG_ 764 ST_PUBU_CLSY 0;
+BA_ "GenSigStartValue" SG_ 764 AUTH_CLSY 0;
+BA_ "GenSigSendType" SG_ 812 CRC_HGLV_EHC 0;
+BA_ "GenSigStartValue" SG_ 812 CRC_HGLV_EHC 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 812 CRC_HGLV_EHC 1000;
+BA_ "InvalidValue" SG_ 812 CRC_HGLV_EHC "";
+BA_ "GenSigSendType" SG_ 812 ALIV_HGLV_EHC 0;
+BA_ "GenSigStartValue" SG_ 812 ALIV_HGLV_EHC 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 812 ALIV_HGLV_EHC 1000;
+BA_ "InvalidValue" SG_ 812 ALIV_HGLV_EHC "Fh";
+BA_ "GenSigSendType" SG_ 812 HGLV_RLH_EHC 0;
+BA_ "GenSigStartValue" SG_ 812 HGLV_RLH_EHC 127;
+BA_ "GenSigTimeoutTime_ALL" SG_ 812 HGLV_RLH_EHC 1000;
+BA_ "InvalidValue" SG_ 812 HGLV_RLH_EHC "";
+BA_ "GenSigSendType" SG_ 812 HGLV_RRH_EHC 0;
+BA_ "GenSigStartValue" SG_ 812 HGLV_RRH_EHC 127;
+BA_ "GenSigTimeoutTime_ALL" SG_ 812 HGLV_RRH_EHC 1000;
+BA_ "InvalidValue" SG_ 812 HGLV_RRH_EHC "";
+BA_ "GenSigSendType" SG_ 812 QU_HGLV_RLH_EHC 0;
+BA_ "GenSigStartValue" SG_ 812 QU_HGLV_RLH_EHC 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 812 QU_HGLV_RLH_EHC 1000;
+BA_ "InvalidValue" SG_ 812 QU_HGLV_RLH_EHC "";
+BA_ "GenSigSendType" SG_ 812 QU_HGLV_RRH_EHC 0;
+BA_ "GenSigStartValue" SG_ 812 QU_HGLV_RRH_EHC 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 812 QU_HGLV_RRH_EHC 1000;
+BA_ "InvalidValue" SG_ 812 QU_HGLV_RRH_EHC "";
+BA_ "GenSigStartValue" SG_ 873 CRC_ST_TYR 0;
+BA_ "GenSigStartValue" SG_ 873 ALIV_ST_TYR 0;
+BA_ "GenSigStartValue" SG_ 873 QU_FN_TYR_INFO 0;
+BA_ "GenSigStartValue" SG_ 873 QU_TPL 0;
+BA_ "GenSigStartValue" SG_ 873 QU_TFAI 0;
+BA_ "GenSigStartValue" SG_ 896 NO_VECH_1 0;
+BA_ "GenSigStartValue" SG_ 896 NO_VECH_2 0;
+BA_ "GenSigStartValue" SG_ 896 NO_VECH_3 0;
+BA_ "GenSigStartValue" SG_ 896 NO_VECH_4 0;
+BA_ "GenSigStartValue" SG_ 896 NO_VECH_5 0;
+BA_ "GenSigStartValue" SG_ 896 NO_VECH_6 0;
+BA_ "GenSigStartValue" SG_ 896 NO_VECH_7 0;
+BA_ "GenSigStartValue" SG_ 928 ST_ENERG_FZM 0;
+BA_ "GenSigStartValue" SG_ 928 ST_ILK_ERRM_FZM 0;
+BA_ "GenSigStartValue" SG_ 947 SLCTN_SPCOS 0;
+BA_ "GenSigStartValue" SG_ 947 CTR_PWR_SPCOS 0;
+BA_ "GenSigStartValue" SG_ 947 CTR_PWR_COS 0;
+BA_ "GenSigStartValue" SG_ 947 CTR_CBR 0;
+BA_ "GenSigStartValue" SG_ 947 RQ_PCOS 0;
+BA_ "GenSigStartValue" SG_ 947 CTR_PCOS 0;
+BA_ "GenSigStartValue" SG_ 947 ST_ENERG_PWMG 0;
+BA_ "GenSigStartValue" SG_ 958 FLLUPT_GPWSUP 0;
+BA_ "GenSigStartValue" SG_ 1017 CRC_DT_PT_2 0;
+BA_ "GenSigStartValue" SG_ 1017 ST_MOD_DRV 0;
+BA_ "GenSigStartValue" SG_ 1017 ALIV_DT_PT_2 0;
+BA_ "GenSigSendType" SG_ 1017 ST_DRV_VEH 3;
+BA_ "GenSigStartValue" SG_ 1017 ST_DRV_VEH 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1017 ST_DRV_VEH 5000;
+BA_ "InvalidValue" SG_ 1017 ST_DRV_VEH "FFh";
+BA_ "GenSigSendType" SG_ 1017 ST_ENG_RUN_DRV 3;
+BA_ "GenSigStartValue" SG_ 1017 ST_ENG_RUN_DRV 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1017 ST_ENG_RUN_DRV 5000;
+BA_ "InvalidValue" SG_ 1017 ST_ENG_RUN_DRV "3h";
+BA_ "GenSigStartValue" SG_ 1017 ST_SW_CLT_DRV 0;
+BA_ "GenSigStartValue" SG_ 1017 ST_ILK_STRT_DRV 0;
+BA_ "GenSigSendType" SG_ 1017 ST_IDLG_ENG_DRV 3;
+BA_ "GenSigStartValue" SG_ 1017 ST_IDLG_ENG_DRV 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1017 ST_IDLG_ENG_DRV 5000;
+BA_ "InvalidValue" SG_ 1017 ST_IDLG_ENG_DRV "3h";
+BA_ "GenSigSendType" SG_ 1017 TEMP_ENG_DRV 3;
+BA_ "GenSigStartValue" SG_ 1017 TEMP_ENG_DRV 48;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1017 TEMP_ENG_DRV 5000;
+BA_ "InvalidValue" SG_ 1017 TEMP_ENG_DRV "FFh";
+BA_ "GenSigSendType" SG_ 1017 TEMP_EOI_DRV 3;
+BA_ "GenSigStartValue" SG_ 1017 TEMP_EOI_DRV 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1017 TEMP_EOI_DRV 5000;
+BA_ "InvalidValue" SG_ 1017 TEMP_EOI_DRV "FFh";
+BA_ "GenSigSendType" SG_ 1017 ST_GRSEL_DRV 3;
+BA_ "GenSigStartValue" SG_ 1017 ST_GRSEL_DRV 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1017 ST_GRSEL_DRV 5000;
+BA_ "InvalidValue" SG_ 1017 ST_GRSEL_DRV "Fh";
+BA_ "GenSigSendType" SG_ 1017 RLS_ENGSTA 3;
+BA_ "GenSigStartValue" SG_ 1017 RLS_ENGSTA 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1017 RLS_ENGSTA 5000;
+BA_ "InvalidValue" SG_ 1017 RLS_ENGSTA "3h";
+BA_ "GenSigStartValue" SG_ 1017 RDUC_DOCTR_RPM_DRV_2 0;
+BA_ "GenSigSendType" SG_ 1017 RPM_ENG_MAX_ALW 3;
+BA_ "GenSigStartValue" SG_ 1017 RPM_ENG_MAX_ALW 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1017 RPM_ENG_MAX_ALW 5000;
+BA_ "InvalidValue" SG_ 1017 RPM_ENG_MAX_ALW "FFh";
+BA_ "GenSigStartValue" SG_ 1296 NM2_Body_CAN_zGW_srcNodeID 0;
+BA_ "GenSigStartValue" SG_ 1296 NM2_Body_CAN_zGW_CtrlBitVector 0;
+BA_ "GenSigStartValue" SG_ 1296 NM2_Body_CAN_zGW_usrData0 0;
+BA_ "GenSigStartValue" SG_ 1296 NM2_Body_CAN_zGW_usrData1 0;
+BA_ "GenSigStartValue" SG_ 1296 NM2_Body_CAN_zGW_usrData2 0;
+BA_ "GenSigStartValue" SG_ 1296 NM2_Body_CAN_zGW_usrData3 0;
+BA_ "GenSigStartValue" SG_ 1296 NM2_Body_CAN_zGW_usrData4 0;
+BA_ "GenSigStartValue" SG_ 1296 NM2_Body_CAN_zGW_usrData5 0;
+BA_ "GenSigStartValue" SG_ 1464 ID2 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 ID2 5000;
+BA_ "GenSigSendType" SG_ 1464 ECU_ID_WUPREG 0;
+BA_ "GenSigStartValue" SG_ 1464 ECU_ID_WUPREG 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 ECU_ID_WUPREG 5000;
+BA_ "InvalidValue" SG_ 1464 ECU_ID_WUPREG "";
+BA_ "GenSigSendType" SG_ 1464 ID_FN_INQY 0;
+BA_ "GenSigStartValue" SG_ 1464 ID_FN_INQY 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 ID_FN_INQY 5000;
+BA_ "InvalidValue" SG_ 1464 ID_FN_INQY "";
+BA_ "GenSigSendType" SG_ 1464 ID_FN_RQ_BUS 0;
+BA_ "GenSigStartValue" SG_ 1464 ID_FN_RQ_BUS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 ID_FN_RQ_BUS 5000;
+BA_ "InvalidValue" SG_ 1464 ID_FN_RQ_BUS "";
+BA_ "GenSigStartValue" SG_ 1464 NO_CC_MESS_EXT 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 NO_CC_MESS_EXT 5000;
+BA_ "GenSigSendType" SG_ 1464 NO_CC_MESS_STD 0;
+BA_ "GenSigStartValue" SG_ 1464 NO_CC_MESS_STD 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 NO_CC_MESS_STD 5000;
+BA_ "InvalidValue" SG_ 1464 NO_CC_MESS_STD "";
+BA_ "GenSigSendType" SG_ 1464 WACA 0;
+BA_ "GenSigStartValue" SG_ 1464 WACA 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 WACA 5000;
+BA_ "InvalidValue" SG_ 1464 WACA "";
+BA_ "GenSigStartValue" SG_ 1464 ID_RQ_BUS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 ID_RQ_BUS 5000;
+BA_ "GenSigStartValue" SG_ 1464 ST_CC_MESS_EXT 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 ST_CC_MESS_EXT 5000;
+BA_ "GenSigStartValue" SG_ 1464 ST_CC_MESS_STD 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 ST_CC_MESS_STD 5000;
+BA_ "GenSigStartValue" SG_ 1464 TRANF_CC_MESS_EXT 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 TRANF_CC_MESS_EXT 5000;
+BA_ "GenSigStartValue" SG_ 1464 TRANF_CC_MESS_STD 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 TRANF_CC_MESS_STD 5000;
+BA_ "GenSigStartValue" SG_ 1464 ST_IDC_CCLK_CC_MESS_EXT 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 ST_IDC_CCLK_CC_MESS_EXT 5000;
+BA_ "GenSigStartValue" SG_ 1464 ST_IDC_CCLK_CC_MESS_STD 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 ST_IDC_CCLK_CC_MESS_STD 5000;
+BA_ "GenSigStartValue" SG_ 1464 NO_FRM_CC_MESS_EXT 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 NO_FRM_CC_MESS_EXT 5000;
+BA_ "GenSigStartValue" SG_ 1464 ST_RQ_BUS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 ST_RQ_BUS 5000;
+BA_ "GenSigStartValue" SG_ 1464 QUAN_FRM_CC_MESS_EXT 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 QUAN_FRM_CC_MESS_EXT 5000;
+BA_ "GenSigStartValue" SG_ 1464 ST_LAW_RQ 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 ST_LAW_RQ 5000;
+BA_ "GenSigStartValue" SG_ 1464 DUR_FLLUPT 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 DUR_FLLUPT 5000;
+BA_ "GenSigStartValue" SG_ 1464 UTDT_CC_MESS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1464 UTDT_CC_MESS 5000;
+BA_ "GenSigStartValue" SG_ 1592 TA 0;
+BA_ "GenSigStartValue" SG_ 1592 TPCI 0;
+BA_ "GenSigStartValue" SG_ 1592 Byte3 0;
+BA_ "GenSigStartValue" SG_ 1592 Byte4 0;
+BA_ "GenSigStartValue" SG_ 1592 Byte5 0;
+BA_ "GenSigStartValue" SG_ 1592 Byte6 0;
+BA_ "GenSigStartValue" SG_ 1592 Byte7 0;
+BA_ "GenSigStartValue" SG_ 1592 Byte8 0;
+BA_ "GenSigStartValue" SG_ 1777 TA 0;
+BA_ "GenSigStartValue" SG_ 1777 TPCI 0;
+BA_ "GenSigStartValue" SG_ 1777 Byte3 0;
+BA_ "GenSigStartValue" SG_ 1777 Byte4 0;
+BA_ "GenSigStartValue" SG_ 1777 Byte5 0;
+BA_ "GenSigStartValue" SG_ 1777 Byte6 0;
+BA_ "GenSigStartValue" SG_ 1777 Byte7 0;
+BA_ "GenSigStartValue" SG_ 1777 Byte8 0;
+
+
+VAL_ 303 ST_VEH_CON 0 "Initial (VSM_STM_STATE_INIT)" 1 "Standby, driver absent (VSM_STM_STATE_STANDBY)" 2 "Basis operation, driver present (VSM_STM_STATE_BASICOP)" 3 "Basis operation, vehicle coasting (VSM_STM_STATE_BASICOP_ROLL)" 4 "Engine postrun (VSM_STM_STATE_15OFF_DRIVE)" 5 "Ignition On (VSM_STM_STATE_IGNITION)" 6 "Ignition On, vehicle coasting (VSM_STM_STATE_IGNITION_ROLL)" 7 "Engine On, vehicle not coasting (VSM_STM_STATE_ENG_IDLE)" 8 "Driving (VSM_STM_STATE_DRIVE)" 9 "Impending start of engine (VSM_STM_STATE_ENG_START_PRE)" 10 "Impending start of engine, vehicle coasting (VSM_STM_STATE_ENG_START_PRE_ROLL)" 11 "Start engine (VSM_STM_STATE_ENG_START)" 12 "Start engine, vehicle coasting (VSM_STM_STATE_ENG_START_ROLL)" 13 "Car wash operation (VSM_STM_STATE_WASH)" 14 "Error (VSM_STM_STATE_ERROR)" 15 "Signal invalid"; 
+VAL_ 303 ST_KL 0 "Init" 1 "Reserved" 2 "KL30" 3 "Reserved" 4 "Reserved" 5 "Reserved" 6 "KL30B-ON" 7 "KL30C-ON (BEV Only)" 8 "KLR-ON" 9 "KL15-change" 10 "KL15-ON" 11 "KL50-delay (ICE only)" 12 "KL50-Change(ICE only)" 13 "KL50-ON (ICE only)" 14 "Reserved" 15 "Signal invalid"; 
+VAL_ 303 ST_KL_DIV 0 "KL_DIV_INIT" 1 "KL_DIV_IDLE" 2 "KL_DIV_REQUEST" 3 "KL_DIV_RELEASED" 4 "KL_DIV_SAVED" 5 "KL_DIV_WAIT_NVM" 6 "KL_DIV_WAIT_VALID" 7 "KL_DIV_RELEASE_TRIG" 8 "KL_DIV_VALID_IDLE" 9 "KL_DIV_BLOCKED" 10 "KL_DIV_FAILURE_CP" 11 "KL_DIV_TIMEOUT_CP" 12 "KL_DIV_INVALID_CP" 13 "KL_DIV_TIMEOUT" 14 "KL_DIV_FAILURE" 15 "KL_DIV_INVALID"; 
+VAL_ 303 ST_KL_30B 0 "Init-Wert" 1 "KL30BAus" 2 "Nachlauf größer 0s und kleinergl" 3 "Nachlauf größer 1s und kleinergl" 4 "Nachlauf größer 5s und kleinergl" 5 "Nachlauf größer 10s und kleinerg" 6 "Nachlauf größer 20s und kleinerg" 7 "Nachlauf größer 30s und kleinerg" 8 "Nachlauf größer 40s und kleinerg" 9 "Nachlauf größer 50s und kleinerg" 10 "Nachlauf größer 1min und kleiner" 11 "Nachlauf größer 5min und kleiner" 12 "Nachlauf größer 10min und kleine" 13 "KL30B-Dauer-Ein" 14 "Fehler" 15 "Signal ungültig"; 
+VAL_ 303 ST_KL_15N 0 "Init-Wert" 1 "KL15N-Aus" 2 "Nachlauf größer 0s und  kleinerg" 3 "Nachlauf größer 1000ms und klein" 4 "Nachlauf größer 2000ms und klein" 5 "Nachlauf größer 3000ms und klein" 6 "Nachlauf größer 4000ms undkleine" 10 "Reserviert" 11 "Nachlauf kleiner 1 min" 12 "Nachlauf Fahrt/Motorlauf" 13 "KL15N-Dauer-Ein" 14 "Fehler" 15 "Signal ungültig"; 
+VAL_ 303 ST_KL_KEY_VLD 0 "Init" 1 "Key invalid" 2 "Key search activ" 3 "Key valid AR" 4 "Key valid IR" 5 "Key 10sec delay" 6 "Reserved" 7 "Reserved" 8 "Reserved" 9 "Reserved" 10 "Reserved" 11 "Reserved" 12 "Reserved" 13 "Reserved" 14 "Error" 15 "Signal invalid"; 
+VAL_ 303 ST_KL_15_FLLUPT 0 "Init-Wert" 1 "Kl15-Aus" 2 "Nachlauf kleinergleich 1 s" 3 "Nachlauf kleinergleich 5 s" 4 "Nachlauf kleinergleich 10 s" 5 "Nachlauf kleinergleich 20 s" 6 "Nachlauf kleinergleich 30 s" 7 "Nachlauf kleinergleich 40 s" 8 "Nachlauf kleinergleich 50 s" 9 "Nachlauf kleinergleich 1 min" 10 "Nachlauf kleinergleich 10 min" 11 "Nachlauf kleinergleich 20 min" 12 "Nachlauf kleinergleich 30 min" 13 "Kl15-Dauer-Ein" 14 "Fehler" 15 "Signal ungültig"; 
+VAL_ 303 CTR_ENG_STOP 0 "Init" 1 "Default" 2 "Motor_Off" 3 "Signal invalid"; 
+VAL_ 303 ST_STCD_PENG 0 "Startcondition traction not fulfilled" 1 "Startcondition traction fulfilled" 2 "Startcondition traction  implausible fulfilled" 3 "Signal invalid"; 
+VAL_ 303 ST_OP_MSA 0 "MSA aktiv" 1 "MSA deaktiv" 2 "MSA-Status unplausibel" 3 "Signal ungültig"; 
+VAL_ 303 ST_SSP 0 "kein Taster-Hallsensor erkannt" 1 "ein Taster-Hallsensor erkannt" 2 "zwei Taster-Hallsensor erkannt" 3 "Signal ungültig"; 
+VAL_ 303 RWDT_BLS 0 "BLTS and BLS not applied" 1 "BLS applied" 2 "BLTS  applied" 3 "BLTS and BLS  valid applied" 4 "Reserved" 5 "Reserved" 6 "Reserved" 7 "Error (Invalid signal from BLTS or BLS)" 8 "Init" 15 "Signal invalid"; 
+VAL_ 303 ST_KL_50_MSA 0 "KL_50_MSA aus" 1 "KL_50_MSA ein" 2 "Reserve" 3 "Signal ungültig"; 
+VAL_ 303 ST_KL_DBG 255 "Signal ungültig"; 
+VAL_ 409 ALIV_ACLNX_COG 15 "Signal ungültig"; 
+VAL_ 409 ST_ECU_ACLNX_COG 0 "Zustand Initialisierung" 1 "Zustand Normalbetrieb" 2 "Zustand Normalbetrieb/Überspannu" 3 "Zustand Normalbetrieb/Unterspann" 4 "Zustand Diagnose" 5 "Zustand Diagnose/Überspannung se" 6 "Zustand Diagnose/Unterspannung s" 7 "Zustand Powerdown" 8 "Zustand PowerSave" 9 "Zustand Nicht verfügbar" 10 "Zustand Reset" 11 "Zustand Reserviert 11" 12 "Zustand Reserviert 12" 13 "Zustand Reserviert 13" 14 "Zustand Reserviert 14" 15 "Signal ungültig"; 
+VAL_ 409 QU_ACLNX_COG 4 "Ersatzwert ist im Nutzsignal ges" 7 "Sensor nicht vorhanden" 8 "Initialisierung" 9 "Signalwert ist gültig und abgesi" 10 "Signalwert ist gültig, Zustand/S" 11 "Signalqualität bzw. Überwachung " 12 "Abgleichwert ist im Nutzsignal g" 14 "Signalwert ist ungültig, Zustand" 15 "Signal ungültig"; 
+VAL_ 410 ST_ECU_ACLNY_COG 0 "Zustand Initialisierung" 1 "Zustand Normalbetrieb" 2 "Zustand Normalbetrieb/Überspannu" 3 "Zustand Normalbetrieb/Unterspann" 4 "Zustand Diagnose" 5 "Zustand Diagnose/Überspannung se" 6 "Zustand Diagnose/Unterspannung s" 7 "Zustand Powerdown" 8 "Zustand PowerSave" 9 "Zustand Nicht verfügbar" 10 "Zustand Reset" 11 "Zustand Reserviert 11" 12 "Zustand Reserviert 12" 13 "Zustand Reserviert 13" 14 "Zustand Reserviert 14" 15 "Signal ungültig"; 
+VAL_ 410 QU_ACLNY_COG 4 "Ersatzwert ist im Nutzsignal ges" 7 "Sensor nicht vorhanden" 8 "Initialisierung" 9 "Signalwert ist gültig und abgesi" 10 "Signalwert ist gültig, Zustand/S" 11 "Signalqualität bzw. Überwachung " 12 "Abgleichwert ist im Nutzsignal g" 14 "Signalwert ist ungültig, Zustand" 15 "Signal ungültig"; 
+VAL_ 417 ST_ECU_V_VEH 0 "Zustand Initialisierung" 1 "Zustand Normalbetrieb" 2 "Zustand Normalbetrieb/Überspannu" 3 "Zustand Normalbetrieb/Unterspann" 4 "Zustand Diagnose" 5 "Zustand Diagnose/Überspannung se" 6 "Zustand Diagnose/Unterspannung s" 7 "Zustand Powerdown" 8 "Zustand PowerSave" 9 "Zustand Nicht verfügbar" 10 "Zustand Reset" 11 "Zustand Reserviert 11" 12 "Zustand Reserviert 12" 13 "Zustand Reserviert 13" 14 "Zustand Reserviert 14" 15 "Signal ungültig"; 
+VAL_ 417 QU_V_VEH_COG 1 "Signal value is valid and secured and plausible" 2 "Reserved" 3 "Reserved" 4 "Reserved" 6 "Reserved" 7 "Reserved" 8 "Init" 9 "Reserved" 10 "Signal value is valid" 11 "Signal quality or monitoring limited" 12 "Reserved" 14 "Signal value is invalid" 15 "Signal invalid"; 
+VAL_ 417 DVCO_VEH 0 "Vehicle is stationary" 1 "Vehicle is moving forward" 2 "Vehicle is reversing" 3 "Vehicle is moving " 4 "Vehicle is stationary rear axle rol" 5 "Vehicle is stationary all axle roll" 6 "Vehicle is stationary Front axle roll" 7 "Signal invalid"; 
+VAL_ 618 ST_ECU_ST_LCS_VEH 0 "Zustand Initialisierung" 1 "Zustand Normalbetrieb" 2 "Zustand Normalbetrieb/Überspannu" 3 "Zustand Normalbetrieb/Unterspann" 4 "Zustand Diagnose" 5 "Zustand Diagnose/Überspannung se" 6 "Zustand Diagnose/Unterspannung s" 7 "Zustand Powerdown" 8 "Zustand PowerSave" 9 "Zustand Nicht verfügbar" 10 "Zustand Reset" 11 "Zustand Reserviert 11" 12 "Zustand Reserviert 12" 13 "Zustand Reserviert 13" 14 "Zustand Reserviert 14" 15 "Signal ungültig"; 
+VAL_ 618 QU_FN_LCS_VEH 16533 "Signal invalid"; 
+VAL_ 764 ST_CLSY 0 "Noch kein Status der Türmodule u" 15 "Signal ungültig"; 
+VAL_ 764 CTR_CLSY 8 "Keine Anforderung" 15 "Signal ungültig"; 
+VAL_ 764 ST_DSW_DRD 0 "FAT ist geschlossen" 1 "FAT ist offen" 2 "Signal unplausibel" 3 "Signal ungültig"; 
+VAL_ 764 ST_DSW_PSD 0 "Beifahrertür ist geschlossen" 1 "Beifahrertür ist offen" 2 "Signal unplausibel" 3 "Signal ungültig"; 
+VAL_ 764 ST_DSW_DVDR 0 "FATH ist geschlossen" 1 "FATH ist offen" 2 "Signal unplausibel" 3 "Signal ungültig"; 
+VAL_ 764 ST_DSW_PSDR 0 "BFTH ist geschlossen" 1 "BFTH ist offen" 2 "Signal unplausibel" 3 "Signal ungültig"; 
+VAL_ 764 ST_CT_BTL 0 "HK ist geschlossen" 1 "HK ist offen" 3 "Signal ungültig"; 
+VAL_ 764 ST_CT_BON 0 "Motorhaube geschlossen" 1 "Motorhaube offen" 3 "Signal ungültig"; 
+VAL_ 764 ST_HOTM 0 "Hotelstellung nicht aktiv" 1 "Hotelstellung aktiv" 3 "Signal ungültig"; 
+VAL_ 764 ST_PUBU_CLSY 0 "Keine Betätigung" 1 "Entriegeln" 2 "Verriegeln" 3 "Signal ungültig"; 
+VAL_ 764 AUTH_CLSY 2147483647 "Signal ungültig"; 
+VAL_ 812 QU_HGLV_RLH_EHC 1 "Signal value" 3 "Signal quality monitoring" 6 "Signal value not valid" 8 "Initialisierung" 21 "Signal invalid"; 
+VAL_ 812 QU_HGLV_RRH_EHC 1 "Signal value valid" 3 "Signal quality monitoring" 6 "Signal value not valid" 8 "Init" 21 "Signal invalid"; 
+VAL_ 873 QU_FN_TYR_INFO 255 "Signal ungültig"; 
+VAL_ 873 QU_TPL 48 "positionsloser Reifendruckverlus" 49 "Diffusion an allen vier Rädern e" 160 "Kein Reifendruckverlust" 255 "Signal ungültig"; 
+VAL_ 873 QU_TFAI 48 "positionsloser Reifenplatten" 49 "Diffusion an allen vier Rädern e" 160 "Kein Reifenplatten" 255 "Signal ungültig"; 
+VAL_ 928 ST_ENERG_FZM 0 "ENSTATE_GOOD" 1 "ENSTATE_OK" 2 "ENSTATE_SHORTAGE" 3 "ENSTATE_SEVERE_SHORTAGE" 15 "Signal ungültig"; 
+VAL_ 928 ST_ILK_ERRM_FZM 0 "Fehlerspeicherfreigabe" 1 "Fehlerspeichersperre" 2 "Reserve" 3 "Signal ungültig"; 
+VAL_ 947 SLCTN_SPCOS 0 "Kein Sonderverbraucher ausgewähl" 1 "PTC-Zuheizer" 15 "Signal ungültig"; 
+VAL_ 947 CTR_PWR_SPCOS 255 "Signal ungültig"; 
+VAL_ 947 CTR_PWR_COS 0 "Keine Reduzierung" 65535 "ungültig"; 
+VAL_ 947 CTR_CBR 1 "Alle Stromzweige AUS" 7 "Stromzweige 1 und 2 EIN" 127 "Alle 6 Stromzweige EIN" 255 "Signal ungültig"; 
+VAL_ 947 RQ_PCOS 0 "Keine Aktion" 1 "Standverbraucher müssen sich zu " 2 "unbelegt" 3 "Signal ungültig"; 
+VAL_ 947 CTR_PCOS 0 "Keine Aktion" 1 "Spezielle Standverbraucher dürfe" 2 "Standverbraucher müssen sich abs" 3 "Signal ungültig"; 
+VAL_ 947 ST_ENERG_PWMG 1 "Abschalten der  Kl 30 F" 2 "Keine Standverbraucher  zulässig" 4 "Bordnetzzustand gut" 8 "Batterieladezustand 100 %" 15 "Signal ungültig"; 
+VAL_ 958 FLLUPT_GPWSUP 4094 "Dauer EIN" 4095 "Signal ungültig"; 
+VAL_ 1017 ST_DRV_VEH 128 "Engine OFF" 129 "Engine cranking" 130 "Engine run (Normal operation and ESS)" 131 "Init" 132 "Start announcement of the engine by driver" 134 "Stop announcement of the engine by driver" 136 "Engine stop by ESS (Engine Off)" 137 "Engine start by ESS (Engine Cranking)" 140 "Start announcement of the engine by ESS" 142 "Stop announcement of the engine by ESS" 146 "Engine in the outlet by driver" 154 "Engine in the outlet by ESS" 158 "Engine in the outlet with Start announcement by ESS" 255 "Signal invalid"; 
+VAL_ 1017 ST_ENG_RUN_DRV 0 "Engine OFF" 1 "Engine cranking" 2 "Engine run" 3 "Signal Invalid"; 
+VAL_ 1017 ST_SW_CLT_DRV 0 "Kupplung nicht betätigt" 1 "Kupplung betätigt" 3 "Signal ungültig / Kupplung nicht"; 
+VAL_ 1017 ST_ILK_STRT_DRV 0 "Kein Motorstart, Pos. D/R" 1 "Motorstart zulassen - Getriebe i" 2 "Motorstart zulassen, Motorstop z" 3 "Signal ungültig"; 
+VAL_ 1017 ST_IDLG_ENG_DRV 0 "Engine idle" 1 "Engine not idle" 2 "Reserved" 3 "Signal invalid"; 
+VAL_ 1017 ST_GRSEL_DRV 0 "Init" 1 "N" 2 "R" 3 "P" 4 "NP" 5 "1" 6 "2" 7 "3" 8 "4" 9 "5" 10 "6" 11 "7" 12 "8" 13 "9" 15 "Signal invalid"; 
+VAL_ 1017 RLS_ENGSTA 0 "No engine start" 1 "Engine start/stop delayed" 2 "Engine start alowed" 3 "Signal invalid"; 
+VAL_ 1464 ECU_ID_WUPREG 255 "Signal invalid"; 
+VAL_ 1464 ID_FN_INQY 161 "Operation button Entertainment" 246 "Control exterior mirror" 426 "Effect ErgoCommander" 482 "Safe VIN" 525 "Position steering column" 550 "Rain sensor wiper speed" 570 "Status key" 594 "Wiper status" 615 "Operation pushbutton operating menu" 638 "Status soft top convertible" 742 "Status Climate Air distribution drivere" 746 "Status Climate Air distribution passenger" 748 "Status Climate " 750 "Status climate additional programs" 752 "Status Climate Stand functions" 759 "Unit" 760 "Time date" 768 "Status RSE" 783 "Status Service Call TeleX" 787 "Status Service Call Teleservice" 806 "Wirkungsgrad Information Data" 818 "Consumption information" 822 "Display checkcontrol message" 826 "Status Monitor Front" 828 "Status Monitor Rear 1" 830 "Status Monitor Rear 2" 833 "Status card data" 841 "Raw value fuel tank" 860 "Status Bordcomputer" 864 "Daten Bordcomputer 1" 896 "VIN" 897 "Electronic engine oil stick" 904 "vehicle type" 917 "Coding Powermanagement" 921 "Status M-Drive" 937 "Status ECM CKM" 939 "Status Shiftlights CKM" 950 "Position window regulator driver" 951 "Position window regulator driver rear" 952 "Position window regulator passenger" 953 "Position window regulator passenger rear" 954 "Position sliding roof" 956 "Position window lift sec" 959 "Position window lift tailgate" 960 "Configuration FAS" 961 "Configuration BFS" 962 "Configuration FASH" 963 "Configuration BFSH" 964 "Status EDCK CKM" 976 "Status lane departure warning system" 981 "Status cental lock" 983 "Status DWA CKM" 985 "Status RLS CKM" 987 "Status Memoryposition CKM" 989 "Status Light CKM" 991 "Status Climate CKM" 993 "Status ALC CKM" 995 "Status tailgateCKM" 1003 "Limits swing left" 1004 "Limits swing right" 1009 "Status light Extended  CKM" 1013 "Status of cargo compartment cover CKM" 1050 "Status Configuration IC 4" 1060 "Status Configuration IC" 1063 "Configuration DSC" 1070 "Status M-Drive 2" 1076 "Configuration EPS" 1077 "Measure engine oil" 1087 "Identification number Sensorcluster" 65535 "Signal invalid"; 
+VAL_ 1464 ID_FN_RQ_BUS 1 "Entertainment function" 2 "Remote Services" 3 "Residual heat function / burnout" 4 "Auxiliary heating/parking ventilation" 5 "Extension N-Holding Phase" 6 "Operation parking brake" 7 "Follow-up / connection RSE" 8 "Remote horn" 25 "Switch on / extension clamp" 43 "Alarm" 44 "EMF-button" 45 "roll monitoring" 46 "Requirement outside lighting" 47 "transhipment function" 51 "KL15Wup-Signal" 53 "Coolant temperature" 54 "IC display" 257 "switch on preventer" 258 "Wacke up " 259 "Switch OFF KL30F Stand time" 260 "Switch OFF KL30F CarSharing" 272 "OBD-Diagnostic" 273 "Exstension time water pump" 275 "Exstension time E-fan" 276 "Exstension time water pump additional Waterpumpe" 277 "Exstension time water pump hyb" 278 "Standl ventilation" 280 "Third-party charge detection hybrid / charging" 281 "Battery monitor  TSR" 288 "Leveling" 289 "Exstension time ventilation cooling" 304 "Trailer connection AAG" 305 "Req IK" 306 "Req IK OSFG" 513 "Domainmaster  ICE" 514 "Domainmaster elec motor" 515 "Domainmaster entertainment" 516 "Domainmaster body" 517 "Domainmaster Chasis" 769 "BDC Internal 30B Request inlight" 770 "BDC Internal 30B Request outlight" 771 "BDC Internal 30B Request FA-CAN " 772 "BDC Internal 30B Request Telesta" 773 "BDC Internal 30B Request Battery" 774 "CO2 Sensor" 65535 "Signal invalid"; 
+VAL_ 1464 NO_CC_MESS_STD 0 "No Error" 1 "Error(CurveBehavrestricted)" 2 "Error (Limited driving comfort)"; 
+VAL_ 1464 WACA 0 "ECU reset" 1 "Car alarm" 2 "Residual heat" 3 "CO2-recognition" 4 "CD/DVD Eject/CD/DVD insert" 5 "OFF switch light" 6 "Mirror" 7 "Remote Services" 8 "Emergency Call" 9 "CAS-Bus, button tailgate" 10 "CID-flap button" 11 "Smart Opener" 12 "Start charging" 14 "Switch for hitch" 16 "Door contact front driver" 17 "Door contact front passenger" 18 "Door contact front driver rear" 19 "Door contact front driver rear" 20 "Button driver door CA" 21 "Button passenger door CA" 22 "Button opener tailgate inner" 23 "Button opener tailgate" 24 "Button opener tailgate window" 25 "Tailgate contact" 26 "Input tailgate window" 27 "Bonnet" 28 "Unlock door lock / comfort opening" 29 "Lock door lock / comfort lock" 30 "Short circuit terminal 30 B" 32 "Start Stop button A" 33 "Start Stop button B" 34 "Hallsensor Eject" 35 "Center lock unlock" 36 "Park Automatic" 37 "Light swich ON" 38 "Hazard switch" 39 "Steering column switch to flash" 40 "Lenkstocktaster towards" 41 "Lenkstocktaster towards light" 42 "interior switch" 43 "Gear switch" 44 "EMF- Button" 45 "Entertainmen" 46 "Steering colunm adjustment switch" 47 "Regulation air spring" 48 "RKE" 49 "Wakeup-Signal TCU" 50 "Hotel switch" 51 "IBS" 52 "Parking heater / ventilate / climate" 53 "Coolant query by IC" 54 "Klemme 15 Wakeu line" 55 "Button Driver's door rear release" 56 "Button passenger door rear release" 57 "Button Driver's door" 58 "Button passenger door release" 59 "Button Driver's door rear release" 60 "Button passenger door rear release" 61 "Brake light switch" 62 "Clutch switch" 63 "Invalid wake-up reason, wake-up reason" 64 "Fog light" 65 "Rear fog light" 66 "Sarah- button" 67 "FES-button" 68 "PDC-button" 69 "Side-View-button" 70 "Rear spoiler-Taster" 71 "VDP-" 72 "MSA-button" 73 "Button audio volume steering wheel" 74 "Button special function" 75 "Button knurled steering wheel" 76 "Push-button telephone steering wheel" 77 "Push-button PTT steering wheel" 78 "Push-button seat heating driver" 79 "Push-button seat heating passenger" 80 "Push-button seat heating driver rear" 81 "Push-button seat heating passenger rear" 82 "Seat memory driver" 83 "Switch block door China long" 84 "Steering switch light" 85 "Door control unit" 88 "Car Sharing Modul" 89 "seat switch" 90 "AC control" 91 "PWF state change" 93 "Park light switch" 96 "Seat memory driver rear" 97 "Seat memory passenger" 98 "Seat memory pasenger rear" 99 "Nox-Diagnosis" 102 "Closing aid" 112 "Wake up" 255 "Signal invalid"; 
+VAL_ 1464 ST_CC_MESS_STD 0 "No Error" 1 "Error"; 
+VAL_ 1464 TRANF_CC_MESS_STD 0 "No Error" 1 "Error"; 
+VAL_ 1464 ST_IDC_CCLK_CC_MESS_STD 0 "No Error" 1 "Error"; 
+
+
+
+

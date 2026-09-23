@@ -254,11 +254,36 @@ public:
     // mismatched, or no response. `timeoutMs` keeps scans responsive.
     // -------------------------------------------------------------------
     int probeDID(uint16_t target, uint16_t did,
-                 std::vector<uint8_t>& resp, std::string& err, int timeoutMs = 1500);
+                                 std::vector<uint8_t>& resp, std::string& err, int timeoutMs = 1500,
+                                 uint8_t* nrcOut = nullptr);
     int probeRoutine(uint16_t target, uint16_t rid,
-                     std::vector<uint8_t>& resp, std::string& err, int timeoutMs = 1500);
+                                         std::vector<uint8_t>& resp, std::string& err, int timeoutMs = 1500,
+                                         uint8_t* nrcOut = nullptr);
     int probeIOControl(uint16_t target, uint16_t did,
-                       std::vector<uint8_t>& resp, std::string& err, int timeoutMs = 1500);
+                                             std::vector<uint8_t>& resp, std::string& err, int timeoutMs = 1500,
+                                             uint8_t* nrcOut = nullptr);
+
+        int probeDiagnosticSession(uint16_t target, UdsSession session,
+                                                             std::vector<uint8_t>& resp, uint8_t& nrc,
+                                                             std::string& err, int timeoutMs = 1500);
+
+    struct ServiceCapability {
+        uint8_t service = 0;
+        int subFunction = -1;
+        int identifier = -1;
+        std::string name;
+        int status = -1;       // 1 positive, 0 recognized via NRC, -1 unsupported/no response
+        uint8_t nrc = 0;
+        std::vector<uint8_t> request;
+        std::vector<uint8_t> response;
+        std::string detail;
+    };
+
+    // Fingerprints a conservative allowlist of read-only/restorative UDS
+    // services. It never resets, clears, writes, unlocks, starts routines,
+    // seizes I/O, changes communication, or enters programming mode.
+    std::vector<ServiceCapability> fingerprintSafeServices(
+        uint16_t target, int timeoutMs = 1500);
 
     // 0x2F <DID> 0x00 - returnControlToECU. Restores normal ECU control of an
     // I/O channel that may have been seized; safe to call unconditionally.
@@ -476,9 +501,9 @@ public:
                          const std::vector<uint8_t>& serviceRequestRecord,
                          std::vector<uint8_t>& out, std::string& err);
 
-    // Best-effort recovery: returns control of every touched I/O DID to the
-    // ECU, re-enables DTC logging (0x85 on) and drops back to the default
-    // session (0x10 0x01). `summary` accumulates a human-readable result.
+    // Best-effort discovery recovery: returns control of every touched I/O DID
+    // to the ECU and drops back to the default session. It deliberately does
+    // not alter DTC logging or other persistent/operational settings.
     void restoreSafeState(uint16_t target, const std::vector<uint16_t>& touchedIoDids,
                           std::string& summary);
 

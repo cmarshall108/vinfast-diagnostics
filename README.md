@@ -29,11 +29,24 @@ telemetry and commands.
   reachability indicator from the last probe.
 - **Per-ECU actions** — Read DTCs (0x19/0x02), Clear DTCs (0x14, auto-enters an
   Extended session first, with a confirmation dialog), Read ID (0x22 VIN).
+- **Safe capability matrix** — fingerprints a conservative UDS service
+  allowlist and optional DID/routine/I/O ranges for the selected topology ECU,
+  compares Default and Extended sessions, and exports reproducible JSON or CSV.
 - **Connected-car cloud client** — optional REST/IoT path to VinFast's app
   back-end (Auth0 + AWS) for telemetry and remote commands, based on public
   community sources. Completely separate from the on-vehicle diagnostic bus.
+- **DBC-backed live CAN** — bundles seven CAN network matrices and their
+  signal-forwarding CSVs. Add a signal by network, message, and signal to view
+  DBC scaling, units, comments, enumerations, and matching routes.
 - **Live log** — colour-coded hex dump of every OpenXC/UDS TX/RX frame.
 - Background worker thread keeps the Qt GUI responsive during network I/O.
+
+The adapter's raw CAN frames do not identify a CAN network, so each DBC
+watch uses the network selected for that signal; the displayed network is an
+explicit decoding assumption, not a detected bus identity. Routing CSVs are
+reference data for signal forwarding and do not define actuator or write
+procedures. The runtime uses the bundled DBC and CSV resources directly; it
+does not load vendor configuration or editor-layout files.
 
 > ⚠️ **Realistic expectations.** Reading DTCs typically works in the default
 > session. **Clearing very often requires Security Access (0x27).** The VF8
@@ -117,6 +130,32 @@ MS-CAN 125 kbit/s uses ELM protocol B and is not implemented by every clone.
 Unsupported adapters fail during connection instead of silently using the wrong
 bit rate. Passive raw-CAN live monitoring and OpenXC firmware bootloader control
 remain OpenXC-only; active UDS live polling works through ELM327.
+
+### Safe ECU capability research
+
+Select a confirmed reachable ECU in **ECU Topology**, then open **Service
+Discovery / Capability Matrix** from its detail dialog. The action stays gray
+until that ECU has responded to a scan or identification request. Service
+Discovery is intentionally absent from the global navigation so every scan is
+anchored to a selected ECU. The page builds a per-ECU, per-session evidence matrix.
+Its safe fingerprint sends only:
+
+- `0x3E 00` TesterPresent
+- `0x19 01 FF` report DTC count
+- `0x22 F190` read VIN/identity DID
+- `0x31 03 FFFF` request routine results (never starts a routine)
+- `0x2F FFFF 00` return I/O control to the ECU
+- `0x83 01` read extended timing limits
+
+Results distinguish a positive response, a recognized service that returned an
+NRC, an explicit `0x11 serviceNotSupported`, and no response. Optional range
+scans retain only positively confirmed DIDs, routine IDs, and I/O IDs. Every row
+records ECU address, session, request bytes, response bytes, NRC, and explanatory
+detail; **Export JSON** and **Export CSV** preserve the matrix for comparison.
+
+This workflow deliberately excludes ECU reset, DTC clearing, writes, security
+access, routine start/stop, communication control, DTC-setting changes, memory
+access, event configuration, and all download/upload/file-transfer services.
 
 ## Building from source
 

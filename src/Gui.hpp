@@ -71,6 +71,7 @@ private:
     struct LiveSignal {
         bool        passiveCan = false;
         uint32_t    canId = 0;
+        std::string canNetwork; // Added to select network per DBC signal
         std::string canMessage;
         std::string canSignal;
         bool        pollOnce = false;
@@ -87,10 +88,17 @@ private:
     };
 
     struct DiscoveredService {
-        uint8_t     service;   // 0x22 DID, 0x31 routine, 0x2F IO
-        uint16_t    id;
-        int         exists;    // 1 positive, 0 exists-via-NRC
-        std::string note;      // decoded reply / NRC text
+        std::string ecuName;
+        uint16_t    target = 0;
+        std::string session;
+        uint8_t     service = 0;
+        int         subFunction = -1;
+        int         id = -1;
+        int         status = -1;
+        uint8_t     nrc = 0;
+        std::string note;
+        std::string requestHex;
+        std::string responseHex;
     };
 
     // A timestamped capture of every readable BMS 0x22 DID plus whatever cloud
@@ -220,12 +228,13 @@ private:
     int  svcTarget_       = 0x0693;  // BMS_DiagReq
     int  svcStart_        = 0x0000;
     int  svcEnd_          = 0x00FF;
+    std::string svcTargetName_ = "Selected ECU";
     bool svcScanDIDs_     = true;
     bool svcScanRoutines_ = true;
     bool svcScanIO_       = false;
-    bool svcSuspendDTC_   = true;
     bool svcExtendedSess_ = true;
     bool svcRestoreAfter_ = true;
+    bool svcFingerprint_  = true;
 
     // --- shared state (guarded by mutex_) ---
     std::mutex                mutex_;
@@ -241,6 +250,8 @@ private:
     // --- worker / background threads ---
     std::atomic<bool> busy_{false};
     std::atomic<bool> topologyScanCancel_{false};
+    std::atomic<bool> serviceScanCancel_{false};
+    std::atomic<uint64_t> serviceSelectionGeneration_{0};
     std::thread       worker_;
     std::atomic<bool> keepAliveRun_{false};
     std::thread       keepAliveThread_;
@@ -326,9 +337,10 @@ private:
     QCheckBox*    cbSvcDIDs_   = nullptr;
     QCheckBox*    cbSvcRoutines_ = nullptr;
     QCheckBox*    cbSvcIO_     = nullptr;
-    QCheckBox*    cbSvcSuspend_= nullptr;
     QCheckBox*    cbSvcExt_    = nullptr;
     QCheckBox*    cbSvcRestore_= nullptr;
+    QCheckBox*    cbSvcFingerprint_= nullptr;
+    QLabel*       svcSelectedEcuLabel_= nullptr;
     QTableWidget* svcTable_    = nullptr;
 
     // protocol / advanced page

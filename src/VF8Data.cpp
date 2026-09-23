@@ -218,12 +218,293 @@ const std::vector<VF8RefSystem> kVF8ReferenceScan = {
     }},
 };
 
+const VF8DealerDtcReport kVF8DealerDtcReport = {
+    "2026-05-28 17:10:57", "RLLV1AEB0RH004878", "17286", "VF_james_burris",
+    "1.12.45", "PD1U - VF8", "ND1U - BEV_US_ECO_CATL", "D015 - US",
+    "Y024 - MY_2024", "FRS 8A.4.9.16", "8A.3.12.1", "E02C - EDS1.1-260kW",
+    "T023 - AWD_Permanent", "CE11 - Jet Black CLE17038", "868040050160016", 167,
+    {
+        {"ACM", "Airbag Control Module", true, {
+            {"B0073-1B", "Active", "Belt Pretensioner 2nd Row Driver Side Circuit Resistance Above Threshold"},
+            {"B0070-1B", "Active", "Belt Pretensioner Front Driver Side Circuit Resistance Above Threshold"},
+            {"B0075-1B", "Active", "Belt Pretensioner 2nd Row Passenger Side Circuit Resistance Above Threshold"},
+            {"B1400-1B", "History", "HV Battery Disconnect Circuit Resistance Above Threshold"},
+            {"U1170-00", "History", "Airbag Warning Lamp Handshake Fault"},
+            {"B1417-00", "Active", "Crashdata Belt Pretensioner Stored"},
+            {"U1102-00", "History", "SAS Message Timeout Fault (CAN message: SAS Sensor - 0x17E)"},
+            {"U1126-00", "History", "Airbag Warning Lamp State Message Timeout Fault (CAN message: IC STAT AIRBAG - 0x2F1)"},
+            {"U1166-00", "History", "Engine Status (BEV) Message Timeout Fault (CAN message: VCU HV DrSys status - 0xD9)"},
+            {"U1186-00", "History", "Digital Vehicle Speed Message Timeout Fault (CAN message for MHU DIGIT SPEED - 0x40D)"},
+        }},
+        {"ADAS", "Advanced Driver Assistance System", false, {}},
+        {"APM", "Auxiliary Power Module", true, {
+            {"U1101-16", "History", "Power supply - Circuit Voltage Below Threshold"},
+            {"U1247-87", "History", "Lost communication with Door Switch Block - Missing Message"},
+        }},
+        {"AVAS", "Acoustic Vehicle Alerting System", true, {
+            {"U1101-16", "History", "Power Supply - Circuit Voltage Below Threshold"},
+            {"U0122-87", "History", "Lost Communication with Vehicle Control Unit (VCU) - Missing Message"},
+            {"U019E-87", "History", "Lost communication with GS (Gear shift) ECU - Missing Message"},
+            {"U0122-87", "History", "Lost Communication with Vehicle Control Unit (VCU) - Missing Message"},
+        }},
+        {"BCM", "Body Control Module", true, {
+            {"U1101-16", "History", "Power Supply - Circuit Voltage Below Threshold"},
+            {"U1108-87", "History", "Lost Communication With Airbag Control Module (ACM) - Missing Message"},
+            {"U015C-87", "History", "Lost Communication With Advanced Driver Assistant System ADAS - Missing Message"},
+            {"U0146-87", "History", "Lost Communication With Serial Data Gateway Module A - Missing Message"},
+            {"U1191-88", "History", "LIN2 - Bus off"},
+            {"U020C-87", "History", "Lost Communication With Wireless Charger (WLC) Module - Missing Message"},
+            {"B1007-13", "Active", "High beam Right - Circuit open"},
+            {"B100D-13", "Active", "Daytime running light Right - Circuit open"},
+            {"B1016-13", "History", "Turn signal Front right - Circuit open"},
+            {"U0416-82", "History", "Invalid Data Received From VCU - Alive / Sequence Counter Incorrect / Not Updated"},
+            {"U045D-82", "History", "Invalid Data Received From ADAS - Alive / Sequence Counter Incorrect / Not Updated"},
+            {"U0477-81", "History", "Invalid Data from Serial Data Gateway Module A - Invalid serial data received"},
+            {"U01B0-81", "History", "Invalid Data received from Battery Sensor (BAS) - Invalid serial data received"},
+            {"P058D-09", "Active", "LIN1 - 12V Battery not good condition - Component Failure"},
+        }},
+        {"BCM_BPM", "Body Control Module - Battery Power Management", true, {
+            {"U1101-16", "History", "Power Supply - Circuit Voltage Below Threshold"},
+            {"B1030-71", "History", "Front Left mirror fold or unfold - Actuator stuck"},
+        }},
+        {"BMS", "Battery Management System", true, {
+            {"U1101-16", "History", "Power Supply - Circuit Voltage Below Threshold"},
+            {"P1800-00", "Active", "BMS power unintended shutdown"},
+            {"P1241-00", "History", "Crash detected (CAN) - No sub type information"},
+            {"P1834-01", "History", "Crash PWM short to VS or open circuit"},
+            {"P18D0-00", "History", "Primary Current error status message rolling counter Fault"},
+            {"P1240-03", "History", "Crash detected (PWM) - FM / PWM failure"},
+            {"U0146-87", "History", "Lost communication with XGW - Missing Message"},
+            {"U1101-17", "History", "BMS power supply voltage low"},
+            {"P0ABF-86", "History", "Hybrid/EV Battery Pack Current Sensor A Circuit - Signal Invalid"},
+        }},
+        {"CCU_F", "Climate Control Unit - Front", true, {
+            {"B170E-54", "Active", "Air Distribution Drive Motor - Missing calibration"},
+        }},
+        {"EDS_F", "Electric Drive System - Front", true, {
+            {"P0A90-01", "History", "Drive Motor A Performance - Drive Motor A Performance"},
+            {"P141E-01", "History", "Motor Resolver signal - General Electric Failure"},
+            {"170301", "History", "DTC isn't defined in database"},
+            {"U1001-04", "History", "HyMcu Communication failure"},
+            {"U1002-11", "History", "CPLD three-phase overcurrent fault"},
+            {"U1003-04", "History", "Internal power hardware failure"},
+            {"U1004-04", "Active", "Hardware Electric Failure"},
+            {"U1004-1C", "Active", "External Under Power Supply KL30 Failure"},
+            {"U1006-04", "Active", "IGBT Low Bridge Fault B"},
+            {"U1006-11", "History", "CPLD overvoltage failure"},
+            {"U1007-11", "History", "CPLD Power supply undervoltage Upper bridge failure"},
+            {"U1008-04", "History", "IGBT Up Bridge Fault B"},
+            {"U1008-11", "History", "CPLD Power supply undervoltage Lower bridge failure"},
+            {"U1101-16", "History", "Power supply - Circuit voltage below threshold"},
+        }},
+        {"EDS_R", "Electric Drive System - Rear", true, {
+            {"P0A90-01", "History", "Drive Motor A Performance - Drive Motor A Performance"},
+            {"P141E-01", "History", "Motor Resolver signal - General Electric Failure"},
+            {"P1421-83", "History", "Invalid Data Received from Motor - Value of Signal Protection Calculation"},
+            {"U1001-04", "History", "HvMcu Communication failure"},
+            {"U1002-11", "History", "CPLD three-phase overcurrent fault"},
+            {"U1003-04", "History", "Internal power hardware failure"},
+            {"U1003-1C", "Active", "External Over Power Supply KL30 Failure"},
+            {"U1004-04", "Active", "Hardware Electric Failure"},
+            {"U1004-1C", "Active", "External Under Power Supply KL30 Failure"},
+            {"U1006-04", "Active", "IGBT Low Bridge Fault B"},
+            {"U1006-11", "History", "CPLD overvoltage failure"},
+            {"U1007-11", "History", "CPLD Power supply undervoltage Upper bridge failure"},
+            {"U1008-04", "History", "IGBT Up Bridge Fault B"},
+            {"U1008-11", "History", "CPLD Power supply undervoltage Lower bridge failure"},
+            {"U1101-16", "History", "Power supply - Circuit voltage below threshold"},
+        }},
+        {"EPS1", "Electric Power Steering 1", true, {
+            {"U1101-16", "History", "Power Supply - Circuit Voltage Below Threshold"},
+            {"U0122-87", "Active", "Lost Communication with VCU - Missing Message"},
+        }},
+        {"EPS2", "Electric Power Steering 2", true, {
+            {"U1101-16", "History", "Power Supply - Circuit Voltage Below Threshold"},
+            {"U0122-87", "History", "Lost Communication with VCU - Missing Message"},
+            {"U0416-86", "History", "Invalid Data Received from VCU - Signal invalid"},
+        }},
+        {"GS", "Gear Shift", true, {
+            {"U1101-16", "History", "Power Supply - Circuit Voltage Below Threshold"},
+            {"U0122-87", "History", "Lost Communication With VCU - Missing Message"},
+        }},
+        {"IDB", "Integrated Dynamic Brake", true, {
+            {"U0122-87", "History", "Lost Communication with Vehicle Control Unit (VCU) - Missing Message"},
+            {"C0594-01", "History", "Brake Booster Motor - General Electric Failure"},
+            {"C0594-96", "History", "Brake Booster Motor - Component Internal Failure"},
+            {"U1108-87", "History", "Lost Communication With Airbag Control Module (ACM) - Missing Message"},
+            {"U0416-81", "History", "Data From Vehicle Control Unit (VCU) - Invalid Serial Data Received"},
+        }},
+        {"MHU", "Multimedia Head Unit", true, {
+            {"B161A-03", "History", "Airbag System Crash Detection Signal - FM / PWM Failure"},
+            {"U3000-04", "History", "Control Module - System Internal Failure"},
+            {"U0146-87", "History", "Lost Communication With Serial Data Gateway Module A - Missing Message"},
+            {"U015C-87", "History", "Lost Communication With Advanced Driving System Control Module A - Missing Message"},
+            {"U110B-87", "History", "Lost Communication With Child Presence Detection Module - Missing Message"},
+            {"B160D-14", "History", "Microphone 1 - Circuit Short To Ground or Open"},
+            {"B160E-14", "History", "Microphone 2 - Circuit Short To Ground or Open"},
+            {"U1101-16", "History", "Power Supply - Circuit Voltage Below Threshold"},
+            {"B161B-01", "History", "ADAS Camera - General Electrical Failure"},
+            {"B161A-01", "History", "Lost Communication with Airbag System Crash Detection Hardwire - General Electrical Failure"},
+        }},
+        {"MRGEN", "Motor Generator", true, {
+            {"U1012-88", "History", "Detection of the fault in case of the private CAN is in BUS OFF state"},
+            {"B1C71-00", "History", "Monitoring of sudden changes in the alignment not explainable by normal driving scenarios and chassis movement"},
+            {"B1C78-00", "History", "Time stamp received from the Master is deviated from the Time Slave by the acceptable threshold value. Master is Camera"},
+            {"C1504-96", "History", "Internal fault"},
+            {"U1117-81", "History", "Lost Communication With IDB Module - Missing Message"},
+            {"U1121-81", "History", "Lost Communication With IDB Module - Missing Message"},
+            {"U1122-81", "History", "Lost Communication With IDB Module - Missing Message"},
+            {"U1133-81", "History", "Lost Communication With MHU Module - Missing Message"},
+            {"U1140-82", "History", "Received Message from BCM Module with an Incorrect Alive Counter"},
+            {"U1140-89", "History", "Received Message from YSS Module with an Invalid value - Invalid Serial Data Received"},
+            {"U1141-81", "History", "Lost Communication With BCM Module - Missing Message"},
+            {"U1141-89", "History", "Received Message from BCM Module with an Invalid value - Invalid Serial Data Received"},
+            {"U1142-82", "History", "Received Message from BCM Module with an Incorrect Alive Counter"},
+            {"U1143-82", "History", "Received Message from XGW Module with an Incorrect Alive Counter"},
+            {"U1146-81", "History", "Lost Communication With BCM Module - Missing Message"},
+            {"U1148-81", "History", "Lost Communication With XGW Module - Missing Message"},
+            {"U1161-81", "History", "Lost Communication With IDB Module - Missing Message"},
+            {"U1162-81", "History", "Lost Communication With IDB Module - Missing Message"},
+            {"U1164-81", "History", "Lost Communication With VCU Module - Missing Message"},
+        }},
+        {"OCS", "Occupant Classification System", true, {
+            {"U1101-16", "History", "IGN voltage low - System Voltage Low"},
+            {"U0154-87", "Active", "XGW Communication error - Missing message"},
+        }},
+        {"PSM_D", "Power Supply Module - Driver", true, {
+            {"U1101-16", "History", "Circuit Voltage Below Threshold - Power Supply Circuit Voltage Below Threshold"},
+            {"U0146-87", "History", "Lost communication with IDB STATUS node - Lost Communication With Serial Data Gateway Module A - Missing Message"},
+        }},
+        {"RCU", "Rear Control Unit", true, {
+            {"U0122-87", "History", "Lost Communication with Vehicle Control Unit (VCU) - Missing Message"},
+            {"U160E-81", "History", "Invalid data received From Integrated Dynamic Brake (IDB) - Invalid Serial Data Received"},
+            {"U1108-87", "History", "Lost Communication With Airbag Control Module (ACM) - Missing Message"},
+        }},
+        {"SCAM", "Surround Camera Module", true, {
+            {"U1243-29", "History", "DTC CanADAS SDE InvOorSignal"},
+            {"U1150-89", "History", "DTC CanHS MFS CAN Button 3F7 InvMFS control"},
+            {"U1115-89", "History", "DTC CanHS IDBInfo Flag 0x32F InvIDB ACC Available Flag"},
+            {"U1116-89", "History", "DTC CanHS IDB Info Flag 0x32F InvIDB AEB Available Flag"},
+            {"U1130-89", "History", "DTC CANHS IDB STATUS 0x20D ABSFault"},
+            {"U1132-89", "History", "DTC CANHS IDB STATUS 0x20D IDBFault"},
+            {"U1134-89", "History", "DTC CANHS IDB STATUS 0x20D TCSAvailable"},
+            {"U1140-81", "History", "DTC CanHS ACM OCCUPANT STATUS 381 Absent"},
+            {"U1182-89", "History", "DTC CanHS IDB FUNCTION 95 InvTSMActive"},
+            {"U1187-89", "History", "DTC CanHS VCU HV DrvSys status D9 InvDR Vsystem"},
+            {"U1146-89", "History", "DTC CanHS BCM LIGHT 106 InvBCM HighBeamSts"},
+            {"U1196-89", "History", "DTC CanHS VCU HV DrvSys status D9 InvHVsystem"},
+        }},
+        {"SHVU_F", "Seat Heater Vehicle Unit - Front", true, {
+            {"U1101-16", "History", "Power supply - Circuit Voltage below threshold"},
+            {"B2111-14", "History", "LH seat Heater - Circuit Short To Ground or Open"},
+        }},
+        {"SRR_FL", "Short Range Radar - Front Left", true, {
+            {"C1054-46", "History", "System Synchronization Failure"},
+            {"U2C49-81", "History", "VCAN Invalid input signal"},
+            {"U2E04-68", "History", "Battery Voltage Low"},
+        }},
+        {"SRR_FR", "Short Range Radar - Front Right", true, {
+            {"U2C49-81", "History", "VCAN Invalid input signal"},
+            {"U2E04-68", "History", "Battery Voltage Low"},
+        }},
+        {"SRR_RL", "Short Range Radar - Rear Left", true, {
+            {"C1054-46", "History", "System Synchronization Failure"},
+            {"U2C49-81", "History", "VCAN Invalid input signal"},
+            {"U2E04-68", "History", "Battery Voltage Low"},
+        }},
+        {"SRR_RR", "Short Range Radar - Rear Right", true, {
+            {"C1054-46", "History", "System Synchronization Failure"},
+            {"U2C49-81", "History", "VCAN Invalid input signal"},
+            {"U2E04-68", "History", "Battery Voltage Low"},
+        }},
+        {"VCU", "Vehicle Control Unit", true, {
+            {"P1137-00", "History", "BMS Error Level 5 Or 6 OR 7 confirmed error - No Sub Type Information"},
+            {"P1033-00", "History", "BCM battery voltage below threshold confirmed error - No Sub Type Information"},
+            {"P1150-00", "History", "Front EDS power off request and work status confirmed error - No Sub Type Information"},
+            {"P1151-00", "History", "Rear EDS power off request and work status confirmed error - No Sub Type Information"},
+            {"P1188-00", "History", "Vehicle moving distance in Park/Neutral confirmed error - No Sub Type Information"},
+            {"P0CCF-94", "Active", "Hybrid/EV Battery Pack Coolant Pump A - Unexpected Operation"},
+            {"P106B-29", "History", "Proximity Pilot Signal voltage - signal invalid"},
+        }},
+        {"XGW", "Serial Data Gateway Module A", true, {
+            {"B2002-11", "History", "Front axle sensor - Circuit Short To Ground"},
+            {"B2001-01", "History", "Headlamp Left Motor - General Electric Failure"},
+            {"B2000-01", "Active", "Headlamp Right Motor - General Electric Failure"},
+            {"B2003-11", "History", "Rear axle sensor - Circuit Short To Ground"},
+            {"U1171-88", "History", "Chassis CAN - Bus Off Failure"},
+            {"U1108-87", "History", "Lost Communication With Airbag Control Module - Missing Message"},
+            {"U110B-87", "History", "Lost Communication With Child Presence Detection Module - Missing Message"},
+            {"U1101-16", "History", "Power Supply - Circuit Voltage Below Threshold"},
+            {"U023A-87", "History", "Lost Communication With Windshield Camera - Missing Message"},
+        }},
+        {"CPD", "Child Presence Detection", true, {
+            {"U1101-16", "History", "Power Supply - Circuit voltage below threshold"},
+            {"U1100-17", "History", "Power Supply - Circuit voltage above threshold"},
+            {"U0156-87", "History", "Lost communication with Media Head Unit - Missing Message"},
+            {"U0146-87", "History", "Lost communication with Serial Data Gateway Module A - Missing Message"},
+            {"U0447-82", "History", "Invalid Data Received from XGW - Alive / Sequence Counter Incorrect / Not Updated"},
+        }},
+        {"TRM", "Telematics / Remote Module", false, {}},
+    }
+};
+
+const VF8BatteryHealthReport kVF8BatteryHealthReport = {
+    "2026-05-28 16:57:05", "RLLV1AEB0RH004878", "17286", "VF_james_burris", "1.12.45",
+    {
+        {"HV Battery Serial number (GB/T 34014 format)", "36 30 30 30 39 32", "byte string", ""},
+        {"HV Battery Manufacturing Date (GB/T 144010 format)", "44 32 56", "YY MM DD bytes", ""},
+        {"ECU purchase part / revision level", "BAT30002300-01", "", ""},
+        {"Hardware part / revision level", "BAT30002013-01", "", ""},
+        {"Software part / revision level", "SOW30002100-25", "", ""},
+        {"Vehicle Identification Number (VIN)", "RLLV1AEB0RH004878", "", ""},
+        {"Odometer reading", "17286", "km", ""},
+        {"State of charge (SOC)", "77", "%", "<= 3%"},
+        {"State of health (SOH)", "98", "%", "<= 70%"},
+        {"State of charge estimate (SOCE)", "0", "%", "<= 70%"},
+        {"Positive contactor condition (aging)", "1612", "Count", ">= 190,000"},
+        {"Negative contactor condition (aging)", "1613", "Count", ">= 190,000"},
+        {"Precharge contactor condition (aging)", "1609", "Count", ">= 190,000"},
+        {"Isolation resistance", "3592", "Kohm", "< 230 Kohm"},
+        {"Maximum cell voltage", "4080", "Volt", "< 4.4 Volt"},
+        {"Minimum cell voltage", "4", "Volt", "> 2.8 Volt"},
+        {"Cell voltage sum", "439.30002", "Volt", "< 280 Volt or > 462 Volt"},
+        {"Actual Voltage", "439.2", "", ""},
+        {"Array of module voltages received from MCUs", "32.600002", "", ""},
+        {"Maximum measured raw cell temperature of battery pack", "29", "°C", ">55"},
+        {"Minimum measured raw cell temperature of battery pack", "27", "°C", "<-30"},
+        {"Terminal 30 contactor voltage", "13.400001", "V", ""},
+        {"Terminal 15 voltages", "13.400001", "Volt", ""},
+        {"Total energy stored in battery during its life cycle", "5810", "kW", ""},
+        {"Total energy supplied by battery during its life cycle", "4422", "kW", ""},
+        {"Maximum voltage of battery during its life cycle", "4", "Volt", "> 462 Volt"},
+        {"Minimum voltage of battery during its life cycle", "4", "Volt", "< 280 Volt"},
+        {"Monitored maximum cell voltage", "4", "Volt", "< 4.4 Volt"},
+        {"Monitored minimum cell voltage", "4", "Volt", "> 2.8 Volt"},
+        {"BDU over-temperature counter during discharge", "0", "count", "> 100"},
+        {"BDU over-temperature counter during charge", "0", "count", "> 100"},
+        {"Monitored maximum cell temperature", "29", "°C", ">55"},
+        {"Monitored maximum cell temperature", "27", "°C", "<-30"},
+    }
+};
+
 const char* vf8DtcLookup(const std::string& code) {
-    // Return the first non-empty description recorded for this DTC string in
-    // the reference scan (the same code can appear under several systems).
+    std::string normalized;
+    normalized.reserve(code.size());
+    for (char ch : code)
+        if (ch != '-') normalized.push_back(ch);
+
     for (const auto& sys : kVF8ReferenceScan) {
         for (const auto& d : sys.dtcs) {
-            if (code == d.dtc && d.desc && d.desc[0] != '\0')
+            if (normalized == d.dtc && d.desc && d.desc[0] != '\0')
+                return d.desc;
+        }
+    }
+    for (const auto& sys : kVF8DealerDtcReport.systems) {
+        for (const auto& d : sys.dtcs) {
+            std::string dealerCode;
+            for (const char* ch = d.dtc; *ch; ++ch)
+                if (*ch != '-') dealerCode.push_back(*ch);
+            if (normalized == dealerCode && d.desc && d.desc[0] != '\0')
                 return d.desc;
         }
     }
@@ -473,11 +754,16 @@ std::string vf8DtcDescribe(const std::string& autelCode) {
     if (const char* exact = vf8DtcLookup(autelCode))
         return exact;
 
-    if (autelCode.size() < 7)
+    std::string normalized;
+    normalized.reserve(autelCode.size());
+    for (char ch : autelCode)
+        if (ch != '-') normalized.push_back(ch);
+
+    if (normalized.size() < 7)
         return "(refer to vehicle service manual)";
 
-    std::string base = autelCode.substr(0, 5);              // e.g. "U0146"
-    uint8_t ftb = (uint8_t)std::strtoul(autelCode.substr(5, 2).c_str(), nullptr, 16);
+    std::string base = normalized.substr(0, 5);              // e.g. "U0146"
+    uint8_t ftb = (uint8_t)std::strtoul(normalized.substr(5, 2).c_str(), nullptr, 16);
     std::string ftbText = vf8FailureType(ftb);
 
     // 2) Standardized base description combined with the failure type.
@@ -714,6 +1000,30 @@ static const VF8Enum kEnHVIL[]      = {{0,"Closed"},{1,"Open/short to batt"},
                                        {2,"short to ground"},{0,nullptr}};
 static const VF8Enum kEnHVOnOff[]   = {{0,"HV Off"},{1,"Precharge"},{2,"HV On"},
                                        {3,"Fail to HV on"},{0,nullptr}};
+static const VF8Enum kEnBmsFault[]  = {{0,"No error"},{1,"Error"},{0,nullptr}};
+static const VF8Enum kEnBmsRelayError[] = {{0,"Error"},{1,"Normal"},{0,nullptr}};
+static const VF8Enum kEnBmsRelay[]  = {{0,"Reserved"},{1,"Open"},{2,"Closed"},
+                                       {3,"Stuck closed"},{4,"Stuck open"},{0,nullptr}};
+static const VF8Enum kEnBmsBalance[] = {{0,"Inactive"},{1,"Active"},{0,nullptr}};
+static const VF8Enum kEnBmsIgnition[] = {{0,"OFF"},{1,"ON"},{0,nullptr}};
+static const VF8Enum kEnBmsCrash[]  = {{0,"No crash"},{1,"Crash"},{0,nullptr}};
+static const VF8Enum kEnBmsErrorLevel[] = {
+    {0,"No error"},{1,"Warning"},{2,"Limp Home"},
+    {3,"Power down without FTTI"},{4,"Delay power down with FTTI"},
+    {5,"Emergency off condition"},{6,"Fault, needs shutdown and wakeup"},
+    {7,"Battery locked - reserved"},{0,nullptr}};
+static const VF8Enum kEnBmsSystem[] = {
+    {0,"Initialization / self-checking"},{1,"Self-check passed; HV permitted"},
+    {2,"HV power-up successful"},{3,"HV power-down successful"},
+    {4,"Power-down in progress"},{5,"Power-down complete"},
+    {6,"BCU sleep mode"},{7,"Failure; unable to operate"},{8,"Invalid"},{0,nullptr}};
+static const VF8Enum kEnBmsInsulation[] = {
+    {0,"Normal (>250 kOhm)"},{1,"Level 1 (100-250 kOhm)"},
+    {3,"Level 3 (<100 kOhm)"},{0,nullptr}};
+static const VF8Enum kEnBmsHvStatus[] = {
+    {0,"HV Off"},{1,"Pre Charge"},{2,"HV On"},{3,"Super-fast charge"},
+    {4,"AC charge"},{5,"Undefined"},{6,"Undefined"},{7,"Undefined"},
+    {8,"Undefined"},{9,"Undefined"},{0,nullptr}};
 
 // --- message / signal catalog ----------------------------------------------
 // Fields: name, startBit, length, bigEndian, isSigned, scale, offset, unit, enum
@@ -758,7 +1068,10 @@ const std::vector<VF8CanMessage> kVF8InfoCanBus = {
     {0x165, "VCU_ChargingConnection", "XGW_Info", 8, {
         {"VCU_AcChgGunIn",        12, 1, true, false, 1, 0, "",  kEnGun},
         {"VCU_DCChgGunIn",        13, 1, true, false, 1, 0, "",  kEnGun},
+        {"VCU_CPValue",           38, 7, true, false, 1, 0, "%", nullptr},
         {"VCU_ACChargingVoltage", 43, 8, true, false, 1, 0, "V", nullptr},
+        {"VCU_MinCurrentOfACCharging", 47, 3, true, false, 1, 0, "A", nullptr},
+        {"VCU_MaxCurrentOfACCharging", 48, 6, true, false, 1, 0, "A", nullptr},
     }},
     {0x176, "BMS_HVMeas1", "XGW_Info", 8, {
         {"BMS_HVPackVol_MEAS", 23, 16, true, false, 0.1, 0, "V", nullptr},
@@ -770,24 +1083,97 @@ const std::vector<VF8CanMessage> kVF8InfoCanBus = {
     }},
     {0x214, "BMS_Sts_0x214", "XGW_Info", 8, {
         {"BMS_Display_SOC", 21, 10, true, false, 0.1, 0, "%", nullptr},
-        {"BMS_MinCellSOC",  27, 10, true, false, 0.1, 0, "%", nullptr},
-        {"BMS_MaxCellSOC",  33, 10, true, false, 0.1, 0, "%", nullptr},
     }},
     {0x215, "BMS_Sts", "XGW_Info", 8, {
+        {"BMS_BatBalance_ERR", 12, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"BMS_Balance_STS",    13, 1, true, false, 1, 0, "", kEnBmsBalance},
+        {"BMS_IGN_Sts",        14, 1, true, false, 1, 0, "", kEnBmsIgnition},
+        {"BMS_HWCrash_Sts",    15, 1, true, false, 1, 0, "", kEnBmsCrash},
         {"BMS_HVIL_STS",      17, 2,  true, false, 1,   0, "",  kEnHVIL},
         {"BMS_HVOnOff_STS",   19, 2,  true, false, 1,   0, "",  kEnHVOnOff},
+        {"BMS_ERR_LEV",       23, 4,  true, false, 1,   0, "",  kEnBmsErrorLevel},
         {"BMS_SocActual_EST", 25, 10, true, false, 0.1, 0, "%", nullptr},
+        {"BMS_Sys_STS",       29, 4,  true, false, 1,   0, "",  kEnBmsSystem},
+        {"BMS_ISU_Status",    31, 2,  true, false, 1,   0, "",  kEnBmsInsulation},
         {"BMS_SOH",           47, 8,  true, false, 0.5, 0, "%", nullptr},
         {"BMS_SOE",           55, 8,  true, false, 0.5, 0, "%", nullptr},
+        {"BMS_HV_Sts",        63, 8,  true, false, 1,   0, "",  kEnBmsHvStatus},
     }},
     {0x216, "BMS_ChgParamReq", "XGW_Info", 8, {
         {"BMS_RemainChargeTime", 21, 14, true, false, 1,   0, "min", nullptr},
         {"BMS_ChgVoltage_REQ",   37, 14, true, false, 0.1, 0, "V",   nullptr},
         {"BMS_ChgCurrent_REQ",   55, 16, true, false, 0.1, 0, "A",   nullptr},
     }},
-    {0x230, "BMS_CapacityThrput", "XGW_Info", 8, {
-        {"BMS_Capacity_Thrput_Charge",    7,  32, true, true, 1, 0, "Ah", nullptr},
-        {"BMS_Capacity_Thrput_Discharge", 39, 32, true, true, 1, 0, "Ah", nullptr},
+    {0x225, "BMS_FaultMgr_0x225", "XGW_Info", 8, {
+        {"CDM_bAcvCanComStblMon",          12, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"FRMo_bErrHvbatStReqExtMon",      13, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"FRMo_bErrChrgnAllwdExtMon",      14, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"FRMo_bErrVehCrashStExtMon",      15, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"CDM_bErrComctnLossCanMon",       16, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"CTCMon_bErrCtctrSopcMon",        17, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"CTCMon_bInvldCtctrHisdIFbMon",   18, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"CTCMon_bInvldCtctrLosdUFbMon",   19, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"CTM_bErrCellTDifMaxMon",         20, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"CTM_bErrCellTMaxMon",            21, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"CTM_bErrCellTMinMon",            22, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"CTM_bErrThrwyPredMon",           23, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"CUM_bErrCellUDifMaxMon",         24, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"CUM_bErrCellUMaxMon",            25, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"CUM_bErrCellUMinMon",            26, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"CUM_bErrCellUProtnMaxNvMon",     27, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"CUM_bErrCellUProtnMinNvMon",     28, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"CUM_bErrPackUImplyMon",          29, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"EHPMon_bRdyHvilMon",             30, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"EHPMon_bErrWlddNegNvMon",        31, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"EHPMon_bErrWlddPosNvMon",        32, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"EHPMon_bErrWlddPrechNvMon",      33, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"EHPMon_bErrHvilMon",             34, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"EHPMon_bErrHvilShoMon",          35, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"EHPMon_bErrPackIslnRNvMon",      36, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"EHPMon_bErrVehCrashNvMon",       37, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"EHPMon_bErrVehIslnRNvMon",       38, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"FRMo_bErrMemStorgNvMon",         39, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"L1IM_bErrClmp30MaxMonInp",       40, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"L1IM_bErrClmp30MinMonInp",       41, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"L1IM_bErrCtctrDtrtMonInp",       42, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"L1IM_bErrUActImplyMonInp",       43, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"MCCM_bAcvMdulCtlrStsMon",        44, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"MCCM_bErrLntecSngFltMon",        45, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"MCCM_bErrLntecLtntFltMon",       46, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"MCCM_bErrMdulCellSnsrCfgMon",    47, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"MCCM_bErrMdulCtlrComMon",        48, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"MCCM_bErrSnsrTEltlMon",          49, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"MCCM_bWarnSnsrTEltlMon",         50, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"PCM_bRdySnsrIMon",               51, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"PCM_bErrPackEFlowMaxLimMon",     52, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"PCM_bErrPackIChDchaMaxLimMon",   53, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"PCM_bErrSnsrIImplyMon",          54, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"FRMo_bErrSnsrI1ExtMon",          55, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"PCM_bInvldSnsrI1Mon",            56, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"PCM_bInvldSnsrI2Mon",            57, 1, true, false, 1, 0, "", kEnBmsFault},
+        {"FRMo_bErrSopcLvl3Mon",           58, 1, true, false, 1, 0, "", kEnBmsFault},
+    }},
+    {0x375, "BMS_Relay", "XGW_Info", 8, {
+        {"BMS_PreChgRelay_ERR",   12, 1, true, false, 1, 0, "", kEnBmsRelayError},
+        {"BMS_TotalNegRelay_ERR", 13, 1, true, false, 1, 0, "", kEnBmsRelayError},
+        {"BMS_MainPosRelay_ERR",  14, 1, true, false, 1, 0, "", kEnBmsRelayError},
+        {"BMS_MainPosRelay_STS",  18, 3, true, false, 1, 0, "", kEnBmsRelay},
+        {"BMS_PreChgRelay_STS",   21, 3, true, false, 1, 0, "", kEnBmsRelay},
+        {"BMS_TotalNegRelay_STS", 26, 3, true, false, 1, 0, "", kEnBmsRelay},
+    }},
+    {0x493, "BMS_WarnMsg", "XGW_Info", 8, {
+        {"BMS_PackTempSts",                 13, 2, true, false, 1, 0, "", nullptr},
+        {"BMS_ThermalRunaway",              14, 1, true, false, 1, 0, "", nullptr},
+        {"BMS_BatteryReplacement",          15, 1, true, false, 1, 0, "", nullptr},
+        {"BMS_Warning_PowerDegrade",        16, 1, true, false, 1, 0, "", nullptr},
+        {"BMS_Warning_DeltaSoC",            17, 1, true, false, 1, 0, "", nullptr},
+        {"BMS_Warning_HVILSts",             18, 1, true, false, 1, 0, "", nullptr},
+        {"BMS_Warning_Isolation",           19, 1, true, false, 1, 0, "", nullptr},
+        {"BMS_Warning_CoolantLeakage",      20, 1, true, false, 1, 0, "", nullptr},
+        {"BMS_MalfunctionSts",              21, 1, true, false, 1, 0, "", nullptr},
+        {"BMS_LowBattery",                  23, 2, true, false, 1, 0, "", nullptr},
+        {"BMS_Warning_DeltaTemperature",    31, 8, true, false, 1, 0, "", nullptr},
+        {"BMS_Warning_BDUTemperatureSts",   39, 8, true, false, 1, 0, "", nullptr},
     }},
     {0x245, "BMS_CellTemp", "XGW_Info", 8, {
         {"BMS_MinCellTemp",        31, 8, true, false, 1, -40, "degC", nullptr},

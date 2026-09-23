@@ -3,6 +3,7 @@
 #include "Logger.hpp"
 #include "VF8Data.hpp"
 #include "CloudData.hpp"
+#include "DbcCatalog.hpp"
 
 #include <QStackedWidget>
 #include <QListWidget>
@@ -19,6 +20,11 @@
 #include <QCheckBox>
 #include <QFileDialog>
 #include <QFile>
+#include <QSaveFile>
+#include <QTextStream>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QPlainTextEdit>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -761,8 +767,12 @@ void Gui::buildUi() {
     root->addLayout(body, 1);
     setCentralWidget(central);
 
-    connect(nav_, &QListWidget::currentRowChanged,
-            pages_, &QStackedWidget::setCurrentIndex);
+    connect(nav_, &QListWidget::currentRowChanged, this, [this](int row) {
+        if (row < 0) return;
+        // Service Discovery remains an internal page opened from an ECU's
+        // topology detail. Sidebar pages after Live Data skip over it.
+        pages_->setCurrentIndex(row >= 4 ? row + 1 : row);
+    });
     nav_->setCurrentRow(0);
 }
 
@@ -773,8 +783,7 @@ QWidget* Gui::buildNav() {
     nav_->setSpacing(2);
     nav_->setFocusPolicy(Qt::NoFocus);
     const char* items[] = {"Dashboard", "Connection", "ECU Topology",
-                           "Live Data", "Service Disc.", "Protocol",
-                           "Cloud", "Reference", "Log"};
+                           "Live Data", "Protocol", "Cloud", "Reference", "Log"};
     for (const char* s : items) {
         auto* it = new QListWidgetItem(s, nav_);
         it->setSizeHint(QSize(160, 46));
@@ -939,8 +948,8 @@ QWidget* Gui::buildDashboardPage() {
     addTile(0, 1, "Scan all ECUs\n(read DTCs)", [this] { nav_->setCurrentRow(2); });
     addTile(0, 2, "Live data", [this] { nav_->setCurrentRow(3); });
     addTile(1, 0, "Connection\nsettings", [this] { nav_->setCurrentRow(1); });
-    addTile(1, 1, "Service\ndiscovery", [this] { nav_->setCurrentRow(4); });
-    addTile(1, 2, "Reference\nscan", [this] { nav_->setCurrentRow(5); });
+    addTile(1, 1, "ECU capabilities\nselect module", [this] { nav_->setCurrentRow(2); });
+    addTile(1, 2, "Reference\nscan", [this] { nav_->setCurrentRow(6); });
     lay->addWidget(quick);
 
     lay->addStretch(1);
@@ -1867,7 +1876,8 @@ QWidget* Gui::buildLivePage() {
             for (const auto& signal : message.sigs) {
                 bool exists = false;
                 for (const auto& current : liveSignals_) {
-                    if (current.passiveCan && current.canId == message.canId &&
+                        if (current.passiveCan && current.canNetwork == "Info_CAN" &&
+                            current.canId == message.canId &&
                             current.canSignal == signal.name) {
                         exists = true;
                         break;
@@ -1877,6 +1887,7 @@ QWidget* Gui::buildLivePage() {
 
                 LiveSignal row;
                 row.passiveCan = true;
+                row.canNetwork = "Info_CAN";
                 row.canId = message.canId;
                 row.canMessage = message.name;
                 row.canSignal = signal.name;
@@ -1979,17 +1990,29 @@ QWidget* Gui::buildServicePage() {
     lay->setContentsMargins(18, 18, 18, 18);
     lay->setSpacing(12);
 
+    auto* backBtn = new QPushButton("Back to ECU Topology");
+    backBtn->setMaximumWidth(180);
+    connect(backBtn, &QPushButton::clicked, this, [this] {
+        pages_->setCurrentIndex(2);
+        nav_->setCurrentRow(2);
+    });
+    lay->addWidget(backBtn, 0, Qt::AlignLeft);
+
     auto* svcIntro = new QLabel(
-        "<b>Safe service enumerator.</b> Finds which DIDs / routines / I/O "
-        "channels an ECU implements <i>without executing anything</i> - only "
-        "read-only or restorative sub-functions are sent (0x22 read, 0x31 0x03 "
-        "request-results, 0x2F 0x00 return-control).");
+        "<b>Safe ECU capability matrix.</b> Compares recognized UDS services, "
+        "DIDs, routines and I/O channels by ECU and diagnostic session. Only "
+        "read-only or restorative requests are sent; reset, clear, write, "
+        "security, routine-start, communication-control and programming services are excluded.");
     svcIntro->setWordWrap(true);
     lay->addWidget(svcIntro);
+    svcSelectedEcuLabel_ = new QLabel("No reachable ECU selected.");
+    svcSelectedEcuLabel_->setObjectName("sectionTitle");
+    lay->addWidget(svcSelectedEcuLabel_);
 
     auto* cfg = card("Scan");
     auto* f = new QFormLayout(cfg);
     edSvcTarget_ = hexEdit("0693", 4);  // BMS_DiagReq
+    edSvcTarget_->setReadOnly(true);
     edSvcStart_  = hexEdit("0000", 4);
     edSvcEnd_    = hexEdit("00FF", 4);
     auto* tr = new QHBoxLayout;
@@ -2001,55 +2024,105 @@ QWidget* Gui::buildServicePage() {
     cbSvcDIDs_ = new QCheckBox("DIDs (0x22)"); cbSvcDIDs_->setChecked(true);
     cbSvcRoutines_ = new QCheckBox("Routines (0x31)");
     cbSvcIO_ = new QCheckBox("I/O (0x2F)");
+    cbSvcFingerprint_ = new QCheckBox("Safe service fingerprint");
+    cbSvcFingerprint_->setChecked(true);
     auto* cr = new QHBoxLayout;
-    cr->addWidget(cbSvcDIDs_); cr->addWidget(cbSvcRoutines_); cr->addWidget(cbSvcIO_); cr->addStretch(1);
+    cr->addWidget(cbSvcFingerprint_); cr->addWidget(cbSvcDIDs_);
+    cr->addWidget(cbSvcRoutines_); cr->addWidget(cbSvcIO_); cr->addStretch(1);
     f->addRow("Categories", cr);
-    cbSvcExt_ = new QCheckBox("Enter Extended session");
-    cbSvcSuspend_ = new QCheckBox("Suspend DTC logging during scan (0x85)");
+    cbSvcExt_ = new QCheckBox("Compare Default and Extended sessions");
+    cbSvcExt_->setChecked(true);
     cbSvcRestore_ = new QCheckBox("Restore safe state when finished"); cbSvcRestore_->setChecked(true);
-    f->addRow("Fail-safes", cbSvcExt_);
-    f->addRow("", cbSvcSuspend_);
+    f->addRow("Scope", new QLabel("Selected ECU only"));
+    f->addRow("Sessions", cbSvcExt_);
     f->addRow("", cbSvcRestore_);
     auto* btns = new QHBoxLayout;
     auto* runBtn = new QPushButton("Run service discovery"); runBtn->setObjectName("primary");
+    auto* stopBtn = new QPushButton("Stop");
     auto* restoreBtn = new QPushButton("Restore safe state");
+    auto* useIoBtn = new QPushButton("Use selected confirmed I/O DID");
     auto* clearBtn = new QPushButton("Clear results");
-    btns->addWidget(runBtn); btns->addWidget(restoreBtn); btns->addWidget(clearBtn); btns->addStretch(1);
+    auto* exportJsonBtn = new QPushButton("Export JSON");
+    auto* exportCsvBtn = new QPushButton("Export CSV");
+    btns->addWidget(runBtn); btns->addWidget(stopBtn);
+    btns->addWidget(restoreBtn); btns->addWidget(useIoBtn); btns->addWidget(clearBtn);
+    btns->addWidget(exportJsonBtn); btns->addWidget(exportCsvBtn); btns->addStretch(1);
     f->addRow(btns);
     lay->addWidget(cfg);
 
-    svcTable_ = new QTableWidget(0, 4);
-    svcTable_->setHorizontalHeaderLabels({"Service", "ID", "", "Reply / note"});
-    svcTable_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
-    svcTable_->setColumnWidth(0, 110);
-    svcTable_->setColumnWidth(1, 60);
-    svcTable_->setColumnWidth(2, 50);
+    svcTable_ = new QTableWidget(0, 9);
+    svcTable_->setHorizontalHeaderLabels(
+        {"ECU", "Address", "Session", "Service", "Sub", "ID", "Result", "NRC", "Evidence"});
+    svcTable_->horizontalHeader()->setSectionResizeMode(8, QHeaderView::Stretch);
+    svcTable_->setColumnWidth(0, 120);
+    svcTable_->setColumnWidth(1, 72);
+    svcTable_->setColumnWidth(2, 80);
+    svcTable_->setColumnWidth(3, 150);
     svcTable_->verticalHeader()->setVisible(false);
     svcTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     lay->addWidget(svcTable_, 1);
 
+    connect(useIoBtn, &QPushButton::clicked, this, [this] {
+        const int row = svcTable_->currentRow();
+        DiscoveredService selected;
+        bool valid = false;
+        {
+            std::lock_guard<std::mutex> g(mutex_);
+            if (row >= 0 && row < static_cast<int>(svcResults_.size()) &&
+                    svcResults_[row].service == 0x2F &&
+                    svcResults_[row].status == 1 && svcResults_[row].id >= 0) {
+                selected = svcResults_[row];
+                valid = true;
+            }
+        }
+        if (!valid) {
+            QMessageBox::information(this, "Actuator control",
+                "Select a positive I/O-control (0x2F) result first.");
+            return;
+        }
+        edProtoTarget_->setText(QString("%1").arg(selected.target, 4, 16, QChar('0')).toUpper());
+        edProtoIoDid_->setText(QString("%1").arg(selected.id, 4, 16, QChar('0')).toUpper());
+        nav_->setCurrentRow(4);
+    });
+
     connect(runBtn, &QPushButton::clicked, this, [this, runBtn] {
         syncSettingsFromUi();
+        if (busy_) {
+            Logger::instance().warn("Wait for the current operation to finish before starting discovery");
+            return;
+        }
         int span = svcEnd_ - svcStart_ + 1;
         int cats = (svcScanDIDs_?1:0)+(svcScanRoutines_?1:0)+(svcScanIO_?1:0);
-        if (span < 1 || span > 4096 || cats == 0) {
-            Logger::instance().warn("Service scan: pick at least one category and a 1..4096 range");
+        if (span < 1 || span > 4096 || (cats == 0 && !svcFingerprint_)) {
+            Logger::instance().warn("Service scan: pick a fingerprint/category and a 1..4096 range");
+            return;
+        }
+        const std::string targetName = svcTargetName_;
+        const uint16_t targetAddress = static_cast<uint16_t>(svcTarget_);
+        const int sessionCount = svcExtendedSess_ ? 2 : 1;
+        const long long requestCount = static_cast<long long>(sessionCount) *
+            (static_cast<long long>(cats) * span + (svcFingerprint_ ? 6 : 0) + 1);
+        if (targetAddress == 0 || requestCount > 50000) {
+            Logger::instance().warn("Service scan is empty or exceeds the 50,000-request safety limit");
             return;
         }
         if (!confirmPopup(runBtn, "Run service discovery",
-                QString("Actively probe ECU 0x%1 over 0x%2-0x%3 using only "
-                        "read-only/restorative requests. No routine is started "
-                        "and no actuator is seized. Proceed?")
-                    .arg(svcTarget_, 4, 16, QChar('0'))
+                QString("Fingerprint %1 at ECU 0x%2 with approximately %3 "
+                        "read-only/restorative requests over 0x%4-0x%5. "
+                        "Destructive UDS services are excluded. Proceed?")
+                    .arg(QString::fromStdString(targetName))
+                    .arg(targetAddress, 4, 16, QChar('0')).arg(requestCount)
                     .arg(svcStart_, 4, 16, QChar('0'))
                     .arg(svcEnd_, 4, 16, QChar('0')),
                 "Yes, run"))
             return;
-        uint16_t tgt = (uint16_t)svcTarget_;
         int start = svcStart_, end = svcEnd_;
         bool dids = svcScanDIDs_, routines = svcScanRoutines_, io = svcScanIO_;
-        bool ext = svcExtendedSess_, susp = svcSuspendDTC_, restore = svcRestoreAfter_;
-        startWorker([this, tgt, start, end, dids, routines, io, ext, susp, restore] {
+        bool compare = svcExtendedSess_, fingerprint = svcFingerprint_, restore = svcRestoreAfter_;
+        const uint64_t selectionGeneration = serviceSelectionGeneration_.load();
+        serviceScanCancel_ = false;
+        startWorker([this, targetName, targetAddress, start, end, dids, routines, io,
+                 compare, fingerprint, restore, selectionGeneration] {
             std::string err;
             if (!ensureConnectedOrNotify("Service Discovery", err)) { Logger::instance().error(err); return; }
             {
@@ -2057,72 +2130,204 @@ QWidget* Gui::buildServicePage() {
                 svcResults_.clear();
             }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
-            std::string e;
-            if (ext)  uds.diagnosticSessionControl(tgt, UdsSession::Extended, e);
-            if (susp) uds.controlDTCSetting(tgt, false, e);
-            std::vector<uint16_t> touchedIo;
-            auto record = [this](uint8_t svc, uint16_t id, int ex, const std::string& note) {
+            auto record = [this, selectionGeneration](DiscoveredService result) {
+                if (serviceSelectionGeneration_.load() != selectionGeneration) return;
                 std::lock_guard<std::mutex> g(mutex_);
-                svcResults_.push_back({svc, id, ex, note});
+                svcResults_.push_back(std::move(result));
             };
             int found = 0;
             int conditional = 0;
-            for (int id = start; id <= end && (transport_.isConnected() || canBackup_.isConnected()); ++id) {
-                if (!transport_.isConnected() && !canBackup_.isConnected()) {
-                    showDisconnectPopup("Service Discovery", "The OpenXC device disconnected or went to sleep.");
-                    break;
+                for (const auto& [ecuName, tgt] :
+                    std::vector<std::pair<std::string, uint16_t>>{{targetName, targetAddress}}) {
+                if (serviceScanCancel_ ||
+                    serviceSelectionGeneration_.load() != selectionGeneration) break;
+                std::vector<std::pair<UdsSession, std::string>> sessions = {
+                    {UdsSession::Default, "Default"}
+                };
+                if (compare) sessions.push_back({UdsSession::Extended, "Extended"});
+                std::vector<uint16_t> touchedIo;
+                for (const auto& [session, sessionName] : sessions) {
+                        if (serviceScanCancel_ ||
+                            serviceSelectionGeneration_.load() != selectionGeneration) break;
+                    std::string sessionError;
+                    std::vector<uint8_t> sessionResponse;
+                    uint8_t sessionNrc = 0;
+                    int entered = uds.probeDiagnosticSession(
+                        tgt, session, sessionResponse, sessionNrc, sessionError);
+                        int sessionStatus = entered == 0 && sessionNrc == 0x11 ? -1 : entered;
+                    record({ecuName, tgt, sessionName, 0x10, static_cast<int>(session), -1,
+                            sessionStatus, sessionNrc,
+                            entered == 1 ? "session entered" :
+                                entered == 0 ? "service recognized; session request rejected" : sessionError,
+                            "10" + byteHex(static_cast<uint8_t>(session)),
+                            toHex(sessionResponse.data(), sessionResponse.size())});
+                    if (entered != 1) continue;
+
+                    if (fingerprint) {
+                        for (auto& capability : uds.fingerprintSafeServices(tgt)) {
+                            record({ecuName, tgt, sessionName, capability.service,
+                                    capability.subFunction, capability.identifier, capability.status,
+                                    capability.nrc, capability.detail,
+                                    toHex(capability.request.data(), capability.request.size()),
+                                    toHex(capability.response.data(), capability.response.size())});
+                            if (capability.status == 1) ++found;
+                            else if (capability.status == 0) ++conditional;
+                        }
+                    }
+                    for (int id = start; id <= end; ++id) {
+                        if (serviceScanCancel_ ||
+                            serviceSelectionGeneration_.load() != selectionGeneration ||
+                                (!transport_.isConnected() && !canBackup_.isConnected())) break;
+                        std::vector<uint8_t> resp;
+                        std::string localError;
+                        auto recordIdentifier = [&](uint8_t service, int result, uint8_t nrc) {
+                            std::string request = byteHex(service);
+                            if (service == 0x31) request += "03";
+                            request += byteHex((id >> 8) & 0xFF) + byteHex(id & 0xFF);
+                            if (service == 0x2F) request += "00";
+                            if (result == 1) {
+                                record({ecuName, tgt, sessionName, service, service == 0x31 ? 3 : -1,
+                                        id, 1, 0, "identifier confirmed",
+                                        request,
+                                        toHex(resp.data(), resp.size())});
+                                ++found;
+                            } else if (result == 0) {
+                                record({ecuName, tgt, sessionName, service, service == 0x31 ? 3 :
+                                            service == 0x2F ? 0 : -1,
+                                        id, 0, nrc,
+                                        "service recognized; identifier request rejected: " + nrcText(nrc),
+                                        request, toHex(resp.data(), resp.size())});
+                                ++conditional;
+                            }
+                        };
+                        uint8_t nrc = 0;
+                        if (dids) {
+                            int result = uds.probeDID(tgt, (uint16_t)id, resp, localError, 1500, &nrc);
+                            recordIdentifier(0x22, result, nrc);
+                        }
+                        nrc = 0; resp.clear(); localError.clear();
+                        if (routines) {
+                            int result = uds.probeRoutine(tgt, (uint16_t)id, resp, localError, 1500, &nrc);
+                            recordIdentifier(0x31, result, nrc);
+                        }
+                        nrc = 0; resp.clear(); localError.clear();
+                        if (io) {
+                            int result = uds.probeIOControl(tgt, (uint16_t)id, resp, localError, 1500, &nrc);
+                            recordIdentifier(0x2F, result, nrc);
+                            if (result == 1) touchedIo.push_back((uint16_t)id);
+                        }
+                    }
                 }
-                std::vector<uint8_t> resp; std::string le;
-                if (dids) { int r = uds.probeDID(tgt, (uint16_t)id, resp, le);
-                    if (r == 1) {
-                        record(0x22, (uint16_t)id, r, toHex(resp.data(), resp.size()));
-                        found++;
-                    } else if (r == 0) ++conditional;
+                if (restore) {
+                    std::string summary;
+                    uds.restoreSafeState(tgt, touchedIo, summary);
                 }
-                if (routines) { int r = uds.probeRoutine(tgt, (uint16_t)id, resp, le);
-                    if (r == 1) {
-                        record(0x31, (uint16_t)id, r, toHex(resp.data(), resp.size()));
-                        found++;
-                    } else if (r == 0) ++conditional;
-                }
-                if (io) { int r = uds.probeIOControl(tgt, (uint16_t)id, resp, le);
-                    if (r == 1) {
-                        record(0x2F, (uint16_t)id, r, toHex(resp.data(), resp.size()));
-                        touchedIo.push_back((uint16_t)id);
-                        found++;
-                    } else if (r == 0) ++conditional;
-                }
+                if (!transport_.isConnected() && !canBackup_.isConnected()) break;
             }
             if (!transport_.isConnected() && !canBackup_.isConnected()) {
-                showDisconnectPopup("Service Discovery", "The OpenXC device disconnected or went to sleep.");
+                showDisconnectPopup("Service Discovery",
+                    "The diagnostic interface disconnected during capability fingerprinting.");
             }
-            if (restore && (ext || susp || !touchedIo.empty())) {
-                std::string summary;
-                uds.restoreSafeState(tgt, touchedIo, summary);
-            }
-            else if (susp) { uds.controlDTCSetting(tgt, true, e); }
             Logger::instance().info("Service discovery complete: " + std::to_string(found) +
-                " confirmed positive identifier(s), " + std::to_string(conditional) +
-                " conditional NRC response(s) ignored on 0x" +
-                byteHex((tgt>>8)&0xFF) + byteHex(tgt&0xFF));
+                " positive capability/identifier result(s), " + std::to_string(conditional) +
+                " conditional NRC result(s)" +
+                (serviceScanCancel_ ? " (stopped by user)" : ""));
         });
+    });
+    connect(stopBtn, &QPushButton::clicked, this, [this] {
+        serviceScanCancel_ = true;
+        Logger::instance().warn("Stopping capability fingerprint after the current request");
     });
     connect(restoreBtn, &QPushButton::clicked, this, [this] {
         syncSettingsFromUi();
-        uint16_t tgt = (uint16_t)svcTarget_;
-        std::vector<uint16_t> touched;
+        const uint16_t target = static_cast<uint16_t>(svcTarget_);
+        std::vector<uint16_t> identifiers;
         { std::lock_guard<std::mutex> g(mutex_);
-          for (auto& s : svcResults_) if (s.service == 0x2F) touched.push_back(s.id); }
-        startWorker([this, tgt, touched] {
+          for (const auto& result : svcResults_) {
+              if (result.target == target && result.service == 0x2F &&
+                      result.id >= 0 && result.status == 1)
+                  identifiers.push_back(static_cast<uint16_t>(result.id));
+          }
+        }
+        startWorker([this, target, identifiers = std::move(identifiers)] {
             std::string err;
             if (!ensureConnected(err)) { Logger::instance().error(err); return; }
             UDSClient uds(transport_, (uint16_t)testerAddr_);
-            std::string summary; uds.restoreSafeState(tgt, touched, summary);
+            std::string summary;
+            uds.restoreSafeState(target, identifiers, summary);
         });
     });
     connect(clearBtn, &QPushButton::clicked, this, [this] {
         std::lock_guard<std::mutex> g(mutex_); svcResults_.clear();
     });
+    auto exportResults = [this](bool json) {
+        std::vector<DiscoveredService> results;
+        { std::lock_guard<std::mutex> guard(mutex_); results = svcResults_; }
+        if (results.empty()) {
+            QMessageBox::information(this, "Export capability matrix", "There are no results to export.");
+            return;
+        }
+        const QString extension = json ? "json" : "csv";
+        QString path = QFileDialog::getSaveFileName(
+            this, "Export capability matrix", "ecu-capabilities." + extension,
+            json ? "JSON (*.json)" : "CSV (*.csv)");
+        if (path.isEmpty()) return;
+        QSaveFile file(path);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QMessageBox::warning(this, "Export failed", file.errorString());
+            return;
+        }
+        if (json) {
+            QJsonArray rows;
+            for (const auto& result : results) {
+                QJsonObject row;
+                row["ecu"] = QString::fromStdString(result.ecuName);
+                row["address"] = QString("0x%1").arg(result.target, 4, 16, QChar('0')).toUpper();
+                row["session"] = QString::fromStdString(result.session);
+                row["service"] = QString("0x%1").arg(result.service, 2, 16, QChar('0')).toUpper();
+                if (result.subFunction >= 0) row["subFunction"] = result.subFunction;
+                if (result.id >= 0) row["identifier"] = QString("0x%1").arg(result.id, 4, 16, QChar('0')).toUpper();
+                row["status"] = result.status == 1 ? "positive" :
+                    result.status == 0 ? "service_recognized_request_rejected" :
+                    result.nrc == 0x11 ? "service_unsupported" : "no_response_or_unavailable";
+                if (result.nrc) row["nrc"] = QString("0x%1").arg(result.nrc, 2, 16, QChar('0')).toUpper();
+                row["detail"] = QString::fromStdString(result.note);
+                row["request"] = QString::fromStdString(result.requestHex);
+                row["response"] = QString::fromStdString(result.responseHex);
+                rows.append(row);
+            }
+            QJsonObject root;
+            root["schemaVersion"] = 1;
+            root["generatedAtUtc"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+            root["results"] = rows;
+            file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+        } else {
+            QTextStream stream(&file);
+            auto csv = [](QString value) {
+                value.replace('"', "\"\"");
+                return '"' + value + '"';
+            };
+            stream << "ECU,Address,Session,Service,SubFunction,Identifier,Status,NRC,Detail,Request,Response\n";
+            for (const auto& result : results) {
+                stream << csv(QString::fromStdString(result.ecuName)) << ','
+                       << QString("0x%1").arg(result.target, 4, 16, QChar('0')).toUpper() << ','
+                       << csv(QString::fromStdString(result.session)) << ','
+                       << QString("0x%1").arg(result.service, 2, 16, QChar('0')).toUpper() << ','
+                       << (result.subFunction >= 0 ? QString::number(result.subFunction) : QString()) << ','
+                       << (result.id >= 0 ? QString("0x%1").arg(result.id, 4, 16, QChar('0')).toUpper() : QString()) << ','
+                       << (result.status == 1 ? "positive" :
+                           result.status == 0 ? "service_recognized_request_rejected" :
+                           result.nrc == 0x11 ? "service_unsupported" : "no_response_or_unavailable") << ','
+                       << (result.nrc ? QString("0x%1").arg(result.nrc, 2, 16, QChar('0')).toUpper() : QString()) << ','
+                       << csv(QString::fromStdString(result.note)) << ','
+                       << csv(QString::fromStdString(result.requestHex)) << ','
+                       << csv(QString::fromStdString(result.responseHex)) << '\n';
+            }
+        }
+        if (!file.commit()) QMessageBox::warning(this, "Export failed", file.errorString());
+    };
+    connect(exportJsonBtn, &QPushButton::clicked, this, [exportResults] { exportResults(true); });
+    connect(exportCsvBtn, &QPushButton::clicked, this, [exportResults] { exportResults(false); });
 
     return page;
 }
@@ -2687,8 +2892,10 @@ QWidget* Gui::buildProtocolPage() {
     auto* ioNote = new QLabel(
         "InputOutputControlByIdentifier drives an actuator directly (open a "
         "valve, cycle a relay, command a value). Often needs an extended/diagnostic "
-        "session and security unlock first. <b>Always</b> hand control back to the "
-        "ECU when finished.");
+        "session and security unlock first. Provided CAN signal definitions are not "
+        "UDS I/O DIDs. Run per-ECU 0x2F discovery and load a positive DID before "
+        "active control; DID meaning and control bytes remain ECU-specific. "
+        "<b>Always</b> hand control back to the ECU when finished.");
     ioNote->setWordWrap(true);
     iol->addRow(ioNote);
     edProtoIoDid_    = hexEdit("F010", 4);
@@ -2720,6 +2927,28 @@ QWidget* Gui::buildProtocolPage() {
             IoControlOption::ShortTermAdjustment, IoControlOption::FreezeCurrentState,
             IoControlOption::ResetToDefault, IoControlOption::ReturnControlToECU};
         IoControlOption opt = kOpt[optIdx];
+        if (opt != IoControlOption::ReturnControlToECU) {
+            bool confirmed = false;
+            {
+                std::lock_guard<std::mutex> g(mutex_);
+                confirmed = std::any_of(svcResults_.begin(), svcResults_.end(),
+                    [tgt, did](const DiscoveredService& result) {
+                        return result.target == tgt && result.service == 0x2F &&
+                            result.id == did && result.status == 1;
+                    });
+            }
+            if (!confirmed) {
+                QMessageBox::information(this, "Actuator control",
+                    "This ECU/DID has not returned a positive 0x2F discovery result. "
+                    "Run service discovery for this ECU and select a confirmed I/O DID first.");
+                return;
+            }
+            if (opt == IoControlOption::ShortTermAdjustment && state.empty()) {
+                QMessageBox::information(this, "Actuator control",
+                    "Short-term adjustment requires the ECU-specific control-state bytes.");
+                return;
+            }
+        }
         if (opt != IoControlOption::ReturnControlToECU &&
             !confirmPopup(ioRunBtn, "Actuator control",
                           QString("Drive actuator DID 0x%1 on ECU 0x%2? This physically "
@@ -3803,6 +4032,50 @@ QWidget* Gui::buildReferencePage() {
         }
     }
 
+    int dealerDtcCount = 0;
+    for (const auto& sys : kVF8DealerDtcReport.systems)
+        dealerDtcCount += static_cast<int>(sys.dtcs.size());
+    auto* dealerTop = new QTreeWidgetItem(refTree_);
+    dealerTop->setText(0, QString("Dealer VDSA DTC report - %1")
+        .arg(kVF8DealerDtcReport.createdAt));
+    dealerTop->setText(1, QString("%1/%2 rows").arg(dealerDtcCount)
+        .arg(kVF8DealerDtcReport.printedDtcCount));
+    dealerTop->setText(2, QString("VIN %1; %2 km; %3; VDSA %4. Dealer observations are kept separate from the Autel scan.")
+        .arg(kVF8DealerDtcReport.vin).arg(kVF8DealerDtcReport.mileageKm)
+        .arg(kVF8DealerDtcReport.model).arg(kVF8DealerDtcReport.vdsaVersion));
+    int dealerRow = 1;
+    for (const auto& sys : kVF8DealerDtcReport.systems) {
+        auto* systemItem = new QTreeWidgetItem(dealerTop);
+        systemItem->setText(0, QString("%1 - %2").arg(sys.code).arg(sys.name));
+        systemItem->setText(1, sys.responded
+            ? QString("%1 DTCs").arg(sys.dtcs.size())
+            : QString("Row %1: ECU did not respond").arg(dealerRow));
+        for (const auto& dtc : sys.dtcs) {
+            auto* item = new QTreeWidgetItem(systemItem);
+            item->setText(0, QString("%1  %2").arg(dealerRow).arg(dtc.dtc));
+            item->setText(1, dtc.status);
+            item->setText(2, dtc.desc && dtc.desc[0]
+                ? QString::fromUtf8(dtc.desc)
+                : QString::fromStdString(vf8DtcDescribe(dtc.dtc)));
+            ++dealerRow;
+        }
+        if (!sys.responded) ++dealerRow;
+    }
+
+    auto* batteryTop = new QTreeWidgetItem(refTree_);
+    batteryTop->setText(0, QString("Dealer HV battery health report - %1")
+        .arg(kVF8BatteryHealthReport.createdAt));
+    batteryTop->setText(1, QString("%1 items").arg(kVF8BatteryHealthReport.items.size()));
+    batteryTop->setText(2, QString("VIN %1; %2 km; VDSA %3. Values, units, and thresholds are shown as printed.")
+        .arg(kVF8BatteryHealthReport.vin).arg(kVF8BatteryHealthReport.mileageKm)
+        .arg(kVF8BatteryHealthReport.vdsaVersion));
+    for (const auto& measurement : kVF8BatteryHealthReport.items) {
+        auto* item = new QTreeWidgetItem(batteryTop);
+        item->setText(0, measurement.description);
+        item->setText(1, QString("%1 %2").arg(measurement.value).arg(measurement.unit));
+        item->setText(2, measurement.threshold);
+    }
+
     // ---- 2024 VF8 vehicle specification --------------------------------------
     auto* specTop = new QTreeWidgetItem(refTree_);
     specTop->setText(0, "2024 VinFast VF8 (US) - vehicle specification");
@@ -3991,8 +4264,11 @@ void Gui::applyStyle() {
         QPushButton { background: #f7f9fc; border: 1px solid #cfd9e4;
                       border-radius: 6px; padding: 7px 14px; }
         QPushButton:hover { background: #edf3f8; }
+        QPushButton:disabled { background: #e3e8ee; border-color: #d2dae3;
+                       color: #8b98a8; }
         QPushButton#primary { background: #2e7dd1; border: none; color: #fff; font-weight: 600; }
         QPushButton#primary:hover { background: #3a8ce0; }
+        QPushButton#primary:disabled { background: #d9e0e8; color: #8b98a8; }
         QPushButton#danger { background: #b23a4a; border: none; color: #fff; }
         QPushButton#danger:hover { background: #c8485a; }
         QFrame#ecuCanvas {
@@ -4297,8 +4573,9 @@ void Gui::refreshLive() {
         set(0, s.ok==1?"●":s.ok==0?"○":"·", dotc);
         set(1, QString::fromStdString(s.name));
         if (s.passiveCan) {
-            set(2, QString("CAN 0x%1 · %2")
-                    .arg(s.canId, 3, 16, QChar('0')).toUpper()
+            set(2, QString("%1 · CAN 0x%2 · %3")
+                .arg(QString::fromStdString(s.canNetwork))
+                    .arg(QString("%1").arg(s.canId, 3, 16, QChar('0')).toUpper())
                     .arg(QString::fromStdString(s.canMessage)));
         } else {
             set(2, QString("UDS %1/%2")
@@ -4308,7 +4585,8 @@ void Gui::refreshLive() {
         set(4, QString::fromStdString(s.rawHex), &grey);
 
         QString filter = liveFilter_ ? liveFilter_->text().trimmed() : QString();
-        QString searchable = QString::fromStdString(s.name + " " + s.canMessage + " " + s.unit);
+        QString searchable = QString::fromStdString(
+            s.name + " " + s.canNetwork + " " + s.canMessage + " " + s.unit);
         liveTable_->setRowHidden((int)i,
             !filter.isEmpty() && !searchable.contains(filter, Qt::CaseInsensitive));
     }
@@ -4326,12 +4604,30 @@ void Gui::refreshServiceResults() {
             if (!it) { it = new QTableWidgetItem; svcTable_->setItem((int)i, col, it); }
             it->setText(txt); if (fg) it->setForeground(*fg);
         };
-        const char* sv = s.service==0x22?"DID 0x22":s.service==0x31?"Routine 0x31":"I/O 0x2F";
-        QColor green(0x43,0xd1,0x7a), amber(0xf2,0xb1,0x34);
-        set(0, sv);
-        set(1, QString("%1").arg(s.id,4,16,QChar('0')));
-        set(2, s.exists==1?"pos":"nrc", s.exists==1?&green:&amber);
-        set(3, QString::fromStdString(s.note));
+        const char* serviceName =
+            s.service == 0x10 ? "SessionControl" :
+            s.service == 0x19 ? "ReadDTCInformation" :
+            s.service == 0x22 ? "ReadDataByIdentifier" :
+            s.service == 0x2F ? "IOControl" :
+            s.service == 0x31 ? "RoutineControl" :
+            s.service == 0x3E ? "TesterPresent" :
+            s.service == 0x83 ? "AccessTiming" : "UDS service";
+        QColor green(0x43,0xd1,0x7a), amber(0xf2,0xb1,0x34), red(0xe0,0x55,0x6a);
+        set(0, QString::fromStdString(s.ecuName));
+        set(1, QString("0x%1").arg(s.target,4,16,QChar('0')).toUpper());
+        set(2, QString::fromStdString(s.session));
+        set(3, QString("%1 (0x%2)").arg(serviceName).arg(s.service,2,16,QChar('0')));
+        set(4, s.subFunction >= 0 ? QString("0x%1").arg(s.subFunction,2,16,QChar('0')) : "-");
+        set(5, s.id >= 0 ? QString("0x%1").arg(s.id,4,16,QChar('0')) : "-");
+        set(6, s.status == 1 ? "positive" :
+            s.status == 0 ? "recognized / rejected" :
+            s.nrc == 0x11 ? "unsupported" : "no response",
+            s.status == 1 ? &green : s.status == 0 ? &amber : &red);
+        set(7, s.nrc ? QString("0x%1").arg(s.nrc,2,16,QChar('0')) : "-");
+        QString evidence = QString::fromStdString(s.note);
+        if (!s.requestHex.empty()) evidence += " | TX " + QString::fromStdString(s.requestHex);
+        if (!s.responseHex.empty()) evidence += " | RX " + QString::fromStdString(s.responseHex);
+        set(8, evidence);
     }
 }
 
@@ -4864,7 +5160,32 @@ void Gui::openAddSignalDialog(QWidget* anchor) {
     auto* dlg = new QDialog(this);
     dlg->setWindowTitle("Add live signal");
     dlg->setAttribute(Qt::WA_DeleteOnClose);
+    dlg->setMinimumWidth(620);
     auto* f = new QFormLayout(dlg);
+    const auto* networks = &can::dbcNetworks();
+    auto* dbcNetwork = new QComboBox;
+    auto* dbcMessage = new QComboBox;
+    auto* dbcSignal = new QComboBox;
+    auto* dbcDetails = new QLabel("Select a signal to inspect its DBC definition.");
+    dbcDetails->setWordWrap(true);
+    auto* dbcRoute = new QLabel("Select a DBC signal to inspect its routing.");
+    dbcRoute->setWordWrap(true);
+    for (const auto& network : *networks)
+        dbcNetwork->addItem(QString::fromStdString(network.name),
+                            QString::fromStdString(network.name));
+    f->addRow("DBC network", dbcNetwork);
+    f->addRow("Message", dbcMessage);
+    f->addRow("Signal", dbcSignal);
+    f->addRow("Definition", dbcDetails);
+    f->addRow("Routing", dbcRoute);
+    auto* addDbc = new QPushButton("Add DBC signal");
+    addDbc->setObjectName("primary");
+    f->addRow(addDbc);
+    auto* divider = new QFrame;
+    divider->setFrameShape(QFrame::HLine);
+    f->addRow(divider);
+    f->addRow(new QLabel("Custom UDS signal"));
+
     auto* edTarget = hexEdit("0693", 4);
     auto* edDid    = hexEdit("F190", 4);
     auto* edName   = new QLineEdit("Signal");
@@ -4881,12 +5202,124 @@ void Gui::openAddSignalDialog(QWidget* anchor) {
     f->addRow("Offset", edOffset);
     f->addRow("Unit", edUnit);
     auto* row = new QHBoxLayout;
-    auto* ok = new QPushButton("Add"); ok->setObjectName("primary");
+    auto* ok = new QPushButton("Add UDS signal"); ok->setObjectName("primary");
     auto* cancel = new QPushButton("Cancel");
     row->addStretch(1); row->addWidget(cancel); row->addWidget(ok);
     f->addRow(row);
 
+    auto fillMessages = [dbcNetwork, dbcMessage, dbcSignal, dbcDetails, dbcRoute, networks] {
+        dbcMessage->clear();
+        dbcSignal->clear();
+        dbcDetails->setText("Select a signal to inspect its DBC definition.");
+        dbcRoute->setText("Select a DBC signal to inspect its routing.");
+        const int networkIndex = dbcNetwork->currentIndex();
+        if (networkIndex < 0 || networkIndex >= static_cast<int>(networks->size())) return;
+        const auto& network = (*networks)[static_cast<size_t>(networkIndex)];
+        for (size_t i = 0; i < network.messages.size(); ++i) {
+            const auto& message = network.messages[i];
+            dbcMessage->addItem(QString("0x%1  %2")
+                .arg(message.id, 3, 16, QChar('0')).toUpper()
+                .arg(QString::fromStdString(message.name)), static_cast<int>(i));
+        }
+    };
+    auto fillSignals = [dbcNetwork, dbcMessage, dbcSignal, dbcDetails, dbcRoute, networks] {
+        dbcSignal->clear();
+        dbcDetails->setText("Select a signal to inspect its DBC definition.");
+        dbcRoute->setText("Select a DBC signal to inspect its routing.");
+        const int networkIndex = dbcNetwork->currentIndex();
+        const int messageIndex = dbcMessage->currentData().toInt();
+        if (networkIndex < 0 || networkIndex >= static_cast<int>(networks->size())) return;
+        const auto& network = (*networks)[static_cast<size_t>(networkIndex)];
+        if (messageIndex < 0 || messageIndex >= static_cast<int>(network.messages.size())) return;
+        const auto& message = network.messages[static_cast<size_t>(messageIndex)];
+        for (size_t i = 0; i < message.signalList.size(); ++i) {
+            const auto& signal = message.signalList[i];
+            QString label = QString::fromStdString(signal.name);
+            if (!signal.unit.empty()) label += QString(" (%1)").arg(QString::fromStdString(signal.unit));
+            dbcSignal->addItem(label, static_cast<int>(i));
+        }
+    };
+    auto updateDbcInfo = [dbcNetwork, dbcMessage, dbcSignal, dbcDetails, dbcRoute, networks] {
+        const int networkIndex = dbcNetwork->currentIndex();
+        const int messageIndex = dbcMessage->currentData().toInt();
+        const int signalIndex = dbcSignal->currentData().toInt();
+        if (networkIndex < 0 || networkIndex >= static_cast<int>(networks->size())) return;
+        const auto& network = (*networks)[static_cast<size_t>(networkIndex)];
+        if (messageIndex < 0 || messageIndex >= static_cast<int>(network.messages.size())) return;
+        const auto& message = network.messages[static_cast<size_t>(messageIndex)];
+        if (signalIndex < 0 || signalIndex >= static_cast<int>(message.signalList.size())) return;
+        const auto& signal = message.signalList[static_cast<size_t>(signalIndex)];
+        QString details = QString("%1 | bit %2, %3-bit %4-endian %5 | factor %6, offset %7")
+            .arg(QString::fromStdString(signal.name))
+            .arg(signal.startBit)
+            .arg(signal.length)
+            .arg(signal.bigEndian ? "big" : "little")
+            .arg(signal.isSigned ? "signed" : "unsigned")
+            .arg(signal.factor, 0, 'g', 8)
+            .arg(signal.offset, 0, 'g', 8);
+        if (!signal.unit.empty()) details += QString(" | %1").arg(QString::fromStdString(signal.unit));
+        if (!signal.comment.empty()) details += QString("\n%1").arg(QString::fromStdString(signal.comment));
+        if (!signal.values.empty()) {
+            QStringList enumLabels;
+            for (const auto& value : signal.values)
+                enumLabels.push_back(QString("%1=%2").arg(value.value).arg(QString::fromStdString(value.label)));
+            details += QString("\nValues: %1").arg(enumLabels.join(", "));
+        }
+        dbcDetails->setText(details);
+        const auto routes = can::dbcRouteDescriptions(network.name, message.id, signal.name);
+        if (routes.empty()) {
+            dbcRoute->setText("No matching forwarding entry in the bundled routing tables.");
+        } else {
+            QStringList lines;
+            for (const auto& route : routes) lines.push_back(QString::fromStdString(route));
+            dbcRoute->setText(lines.join("\n"));
+        }
+    };
+    connect(dbcNetwork, qOverload<int>(&QComboBox::currentIndexChanged), dlg,
+            [fillMessages, fillSignals, updateDbcInfo] {
+                fillMessages();
+                fillSignals();
+                updateDbcInfo();
+            });
+    connect(dbcMessage, qOverload<int>(&QComboBox::currentIndexChanged), dlg,
+            [fillSignals, updateDbcInfo] { fillSignals(); updateDbcInfo(); });
+    connect(dbcSignal, qOverload<int>(&QComboBox::currentIndexChanged), dlg, updateDbcInfo);
+    fillMessages();
+    fillSignals();
+    updateDbcInfo();
+
     connect(cancel, &QPushButton::clicked, dlg, &QDialog::reject);
+    connect(addDbc, &QPushButton::clicked, this, [=, this] {
+        const int networkIndex = dbcNetwork->currentIndex();
+        const int messageIndex = dbcMessage->currentData().toInt();
+        const int signalIndex = dbcSignal->currentData().toInt();
+        if (networkIndex < 0 || networkIndex >= static_cast<int>(networks->size())) return;
+        const auto& network = (*networks)[static_cast<size_t>(networkIndex)];
+        if (messageIndex < 0 || messageIndex >= static_cast<int>(network.messages.size())) return;
+        const auto& message = network.messages[static_cast<size_t>(messageIndex)];
+        if (signalIndex < 0 || signalIndex >= static_cast<int>(message.signalList.size())) return;
+        const auto& signal = message.signalList[static_cast<size_t>(signalIndex)];
+        LiveSignal watch;
+        watch.passiveCan = true;
+        watch.canNetwork = network.name;
+        watch.canId = message.id;
+        watch.canMessage = message.name;
+        watch.canSignal = signal.name;
+        watch.name = signal.name;
+        watch.unit = signal.unit;
+        watch.value = "(waiting for CAN)";
+        {
+            std::lock_guard<std::mutex> g(mutex_);
+            const bool exists = std::any_of(liveSignals_.begin(), liveSignals_.end(),
+                [&watch](const LiveSignal& current) {
+                    return current.passiveCan && current.canNetwork == watch.canNetwork &&
+                        current.canId == watch.canId && current.canSignal == watch.canSignal;
+                });
+            if (exists) return;
+            liveSignals_.push_back(std::move(watch));
+        }
+        dlg->accept();
+    });
     connect(ok, &QPushButton::clicked, this, [=, this] {
         LiveSignal s;
         s.target = parseHex16(edTarget->text(), 0x0693);
@@ -4930,8 +5363,11 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
     });
     connect(edAddr, &QLineEdit::editingFinished, this, [this, idx, edAddr] {
         std::lock_guard<std::mutex> g(mutex_);
-        if (idx < (int)ecus_.size())
+        if (idx < (int)ecus_.size()) {
             ecus_[idx].logicalAddr = parseHex16(edAddr->text(), ecus_[idx].logicalAddr);
+            ecus_[idx].reachable = -1;
+            ecus_[idx].statusMsg = "address changed; reachability unknown";
+        }
     });
 
     // action buttons (two rows)
@@ -4951,6 +5387,12 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
     r2->addWidget(bCount); r2->addWidget(bSupp); r2->addWidget(bLogOn);
     r2->addWidget(bLogOff); r2->addWidget(bReset);
     lay->addLayout(r2);
+    auto* r3 = new QHBoxLayout;
+    auto* bService = new QPushButton("Service Discovery / Capability Matrix");
+    bService->setObjectName("primary");
+    r3->addWidget(bService);
+    r3->addStretch(1);
+    lay->addLayout(r3);
 
     auto* statusLbl = new QLabel; statusLbl->setWordWrap(true);
     auto* idLbl     = new QLabel; idLbl->setWordWrap(true);
@@ -4976,7 +5418,7 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
 
     // dialog refresh: status, id info, DTC table (rebuilt when size changes)
     auto* dtimer = new QTimer(dlg);
-    auto refresh = [this, idx, statusLbl, idLbl, dtcTable, dlg, targetOf] {
+    auto refresh = [this, idx, statusLbl, idLbl, dtcTable, bService, dlg, targetOf] {
         EcuRow r;
         { std::lock_guard<std::mutex> g(mutex_);
           if (idx >= (int)ecus_.size()) return;
@@ -4985,6 +5427,17 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
         idLbl->setText(r.idInfo.empty() ? QString()
                        : QString("<pre style='white-space:pre-wrap'>%1</pre>")
                              .arg(QString::fromStdString(r.idInfo)));
+        const bool hasAddress = r.logicalAddr != 0;
+        const bool reachable = r.reachable == 1;
+        bService->setEnabled(hasAddress && reachable);
+        if (!hasAddress)
+            bService->setToolTip("Service Discovery requires a known diagnostic address.");
+        else if (r.reachable == 0)
+            bService->setToolTip("Service Discovery is disabled because this ECU did not respond.");
+        else if (!reachable)
+            bService->setToolTip("Scan or identify this ECU first to confirm it is reachable.");
+        else
+            bService->setToolTip("Open the safe capability matrix for this ECU.");
         if (dtcTable->rowCount() != (int)r.dtcs.size())
             dtcTable->setRowCount((int)r.dtcs.size());
         for (size_t di = 0; di < r.dtcs.size(); ++di) {
@@ -5033,6 +5486,33 @@ void Gui::openEcuDialog(int idx, QWidget* anchor) {
     refresh();
 
     // ---- wire actions ----
+    connect(bService, &QPushButton::clicked, this, [this, idx, dlg] {
+        EcuRow selected;
+        {
+            std::lock_guard<std::mutex> guard(mutex_);
+            if (idx < 0 || idx >= static_cast<int>(ecus_.size()) ||
+                    ecus_[idx].logicalAddr == 0 || ecus_[idx].reachable != 1)
+                return;
+            selected = ecus_[idx];
+            serviceScanCancel_ = true;
+            ++serviceSelectionGeneration_;
+            svcResults_.clear();
+        }
+        svcTarget_ = selected.logicalAddr;
+        svcTargetName_ = selected.name;
+        edSvcTarget_->setText(
+            QString("%1").arg(selected.logicalAddr, 4, 16, QChar('0')).toUpper());
+        svcSelectedEcuLabel_->setText(
+            QString("%1  ·  ECU 0x%2")
+                .arg(QString::fromStdString(selected.name))
+                .arg(QString("%1").arg(selected.logicalAddr, 4, 16, QChar('0')).toUpper()));
+        pages_->setCurrentIndex(4);
+        nav_->setCurrentRow(-1);
+        dlg->close();
+        Logger::instance().info("Service Discovery selected " + selected.name +
+                                " at 0x" + byteHex((selected.logicalAddr >> 8) & 0xFF) +
+                                byteHex(selected.logicalAddr & 0xFF));
+    });
     connect(bRead, &QPushButton::clicked, this, [this, idx, targetOf] {
         uint16_t target = targetOf();
         startWorker([this, idx, target] {
@@ -5261,7 +5741,7 @@ void Gui::syncSettingsFromUi() {
     if (cbSvcDIDs_)    svcScanDIDs_  = cbSvcDIDs_->isChecked();
     if (cbSvcRoutines_)svcScanRoutines_ = cbSvcRoutines_->isChecked();
     if (cbSvcIO_)      svcScanIO_    = cbSvcIO_->isChecked();
-    if (cbSvcSuspend_) svcSuspendDTC_= cbSvcSuspend_->isChecked();
+    if (cbSvcFingerprint_) svcFingerprint_ = cbSvcFingerprint_->isChecked();
     if (cbSvcExt_)     svcExtendedSess_ = cbSvcExt_->isChecked();
     if (cbSvcRestore_) svcRestoreAfter_ = cbSvcRestore_->isChecked();
     if (cbCanEnabled_) canEnabled_   = cbCanEnabled_->isChecked();
@@ -5341,7 +5821,7 @@ void Gui::startLivePoll() {
     liveRun_ = true;
     if (liveCanStatus_) {
         liveCanStatus_->setText(passthroughEnabled
-            ? "Monitoring VF8 Info-CAN catalog on OBD bus 1..."
+            ? "Monitoring raw CAN passthrough. DBC network is selected per signal; frames are not network-tagged."
             : "Info-CAN unavailable; polling verified BMS UDS data.");
     }
     bool bundle = liveBundle_;
@@ -5349,7 +5829,7 @@ void Gui::startLivePoll() {
         using Clock = std::chrono::steady_clock;
         auto nextUdsPoll = Clock::now();
         const auto passiveStart = Clock::now();
-        bool catalogFrameSeen = false;
+        bool infoCatalogFrameSeen = false;
         bool unavailableReported = false;
         bool passiveMonitorEnabled = passthroughEnabled;
         // Each live signal maps to a slice [off, off+len) of its target's
@@ -5423,8 +5903,7 @@ void Gui::startLivePoll() {
                 }
             }
 
-            // 1) Passive Info-CAN: decode the next broadcast frame into every
-            // catalog signal carried by that message.
+            // 1) Decode raw CAN using the network selected for each watch.
             openxc::RawCanFrame canFrame;
             bool receivedCan = false;
             if (hasPassiveCan) {
@@ -5435,24 +5914,39 @@ void Gui::startLivePoll() {
                 }
             }
             if (receivedCan) {
-                auto values = vf8DecodeCanFrame(canFrame.arbitrationId,
-                                                canFrame.data.data(), canFrame.data.size());
-                if (!values.empty()) {
-                    if (!catalogFrameSeen) {
-                        catalogFrameSeen = true;
-                        QMetaObject::invokeMethod(this, [this, canFrame] {
-                            if (liveCanStatus_) {
-                                liveCanStatus_->setText(QString("Receiving VF8 Info-CAN on bus %1")
-                                                        .arg(canFrame.bus));
-                            }
-                        }, Qt::QueuedConnection);
-                    }
-                    std::string raw = toHex(canFrame.data.data(), canFrame.data.size());
+                std::set<std::string> watchedNetworks;
+                {
                     std::lock_guard<std::mutex> g(mutex_);
+                    for (const auto& signal : liveSignals_) {
+                        if (signal.passiveCan && signal.canId == canFrame.arbitrationId)
+                            watchedNetworks.insert(signal.canNetwork);
+                    }
+                }
+                const auto infoValues = vf8DecodeCanFrame(
+                    canFrame.arbitrationId, canFrame.data.data(), canFrame.data.size());
+                const std::string raw = toHex(canFrame.data.data(), canFrame.data.size());
+                bool infoFrameRecognized = !infoValues.empty();
+                std::lock_guard<std::mutex> g(mutex_);
+                for (const auto& decoded : infoValues) {
+                    for (auto& signal : liveSignals_) {
+                        if (signal.passiveCan && signal.canNetwork == "Info_CAN" &&
+                                signal.canId == canFrame.arbitrationId &&
+                                signal.canSignal == decoded.signal) {
+                            signal.value = decoded.display;
+                            signal.rawHex = raw;
+                            signal.ok = 1;
+                        }
+                    }
+                }
+                for (const auto& network : watchedNetworks) {
+                    const auto values = can::decodeDbcFrame(network, canFrame.arbitrationId,
+                        canFrame.data.data(), canFrame.data.size());
+                    if (network == "Info_CAN" && !values.empty()) infoFrameRecognized = true;
                     for (const auto& decoded : values) {
                         for (auto& signal : liveSignals_) {
-                            if (signal.passiveCan && signal.canId == canFrame.arbitrationId &&
-                                    signal.canSignal == decoded.signal) {
+                            if (signal.passiveCan && signal.canNetwork == network &&
+                                    signal.canId == canFrame.arbitrationId &&
+                                    signal.canSignal == decoded.name) {
                                 signal.value = decoded.display;
                                 signal.rawHex = raw;
                                 signal.ok = 1;
@@ -5460,15 +5954,26 @@ void Gui::startLivePoll() {
                         }
                     }
                 }
+                const bool firstInfoFrame = infoFrameRecognized && !infoCatalogFrameSeen;
+                infoCatalogFrameSeen = infoCatalogFrameSeen || infoFrameRecognized;
+                if (firstInfoFrame) {
+                    QMetaObject::invokeMethod(this, [this, canFrame] {
+                        if (liveCanStatus_) {
+                            liveCanStatus_->setText(QString(
+                                "VF8 Info-CAN catalog frame observed on adapter bus %1")
+                                .arg(canFrame.bus));
+                        }
+                    }, Qt::QueuedConnection);
+                }
             }
 
-            if (!catalogFrameSeen && !unavailableReported &&
+            if (!infoCatalogFrameSeen && !unavailableReported &&
                     Clock::now() - passiveStart >= std::chrono::seconds(3)) {
                 unavailableReported = true;
                 {
                     std::lock_guard<std::mutex> g(mutex_);
                     for (auto& signal : liveSignals_) {
-                        if (signal.passiveCan && signal.ok < 0) {
+                        if (signal.passiveCan && signal.canNetwork == "Info_CAN" && signal.ok < 0) {
                             signal.value = "Internal Info-CAN not exposed at OBD DLC";
                             signal.ok = 0;
                         }
@@ -5480,18 +5985,11 @@ void Gui::startLivePoll() {
                 QMetaObject::invokeMethod(this, [this] {
                     if (liveCanStatus_) {
                         liveCanStatus_->setText(
-                            "No catalog frames on OBD bus 1. The VF8 gateway exposes UDS "
-                            "diagnostics here, but not the internal Info-CAN broadcast bus. "
-                            "Continuing with verified BMS UDS data.");
+                            "No VF8 Info-CAN catalog frames observed. DBC watches use the "
+                            "network selected for each signal; adapter frames are not "
+                            "network-tagged. Continuing passive monitoring and UDS reads.");
                     }
                 }, Qt::QueuedConnection);
-                {
-                    std::lock_guard<std::mutex> n(netMutex_);
-                    std::string err;
-                    if (!transport_.setPassthrough(false, err))
-                        Logger::instance().warn("Live Data passthrough fallback: " + err);
-                }
-                passiveMonitorEnabled = false;
             }
 
             // Passive CAN is drained continuously; the interval control only

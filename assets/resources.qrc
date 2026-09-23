@@ -3,4 +3,24 @@
   <qresource prefix="/images">
     <file alias="obd-connector.png">images/obd-connector-a-emale.png</file>
   </qresource>
+  <qresource prefix="/can/dbcs">
+    <file alias="01_Info_CAN_Matrix_BEV_v10.7.5.dbc">can/dbcs/01_Info_CAN_Matrix_BEV_v10.7.5.dbc</file>
+    <file alias="03_Body_CAN_Matrix_BEV_v10.7.5.dbc">can/dbcs/03_Body_CAN_Matrix_BEV_v10.7.5.dbc</file>
+    <file alias="05_Diag_CAN_Matrix_BEV_v10.6.dbc">can/dbcs/05_Diag_CAN_Matrix_BEV_v10.6.dbc</file>
+    <file alias="06_PT_CAN_Matrix_BEV_v10.7.4.dbc">can/dbcs/06_PT_CAN_Matrix_BEV_v10.7.4.dbc</file>
+    <file alias="09_Chassis_CAN_Matrix_BEV_v10.7.1.dbc">can/dbcs/09_Chassis_CAN_Matrix_BEV_v10.7.1.dbc</file>
+    <file alias="11_BA_CAN_Matrix_BEV_v10.7.5.dbc">can/dbcs/11_BA_CAN_Matrix_BEV_v10.7.5.dbc</file>
+    <file alias="12_ASU_Body_Private_Bus_BEV_v10.6.dbc">can/dbcs/12_ASU_Body_Private_Bus_BEV_v10.6.dbc</file>
+  </qresource>
+  <qresource prefix="/can/routing">
+    <file alias="ToBA_v10.7.1.csv">can/routing/ToBA_v10.7.1.csv</file>
+    <file alias="ToBody_v10.7.3.csv">can/routing/ToBody_v10.7.3.csv</file>
+    <file alias="ToChassis_v10.7.1.csv">can/routing/ToChassis_v10.7.1.csv</file>
+    <file alias="ToDiag_v10.7.5.csv">can/routing/ToDiag_v10.7.5.csv</file>
+    <file alias="ToInfo_v10.7.5.csv">can/routing/ToInfo_v10.7.5.csv</file>
+    <file alias="ToPT_v10.7.1.csv">can/routing/ToPT_v10.7.1.csv</file>
+    <file alias="ToPT_v10.7.4.csv">can/routing/ToPT_v10.7.4.csv</file>
+    <file alias="ToXGWLIN1_v10.6.9.csv">can/routing/ToXGWLIN1_v10.6.9.csv</file>
+    <file alias="ToXGWLIN2_v10.6.9.csv">can/routing/ToXGWLIN2_v10.6.9.csv</file>
+  </qresource>
 </RCC>

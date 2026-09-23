@@ -1,0 +1,3404 @@
+VERSION "10.7.5"
+
+NS_ : 
+  NS_DESC_
+  CM_
+  BA_DEF_
+  BA_
+  VAL_
+  CAT_DEF_
+  CAT_
+  FILTER
+  BA_DEF_DEF_
+  EV_DATA_
+  ENVVAR_DATA_
+  SGTYPE_
+  SGTYPE_VAL_
+  BA_DEF_SGTYPE_
+  BA_SGTYPE_
+  SIG_TYPE_REF_
+  VAL_TABLE_
+  SIG_GROUP_
+  SIG_VALTYPE_
+  SIGTYPE_VALTYPE_
+  BO_TX_BU_
+  BA_DEF_REL_
+  BA_REL_
+  BA_DEF_DEF_REL_
+  BU_SG_REL_
+  BU_EV_REL_
+  BU_BO_REL_
+  SG_MUL_VAL_
+
+BS_:
+
+BU_: BMS DUMMY_ECU Sensor VCU_BA XGW_BA
+
+
+BO_ 133 ACM_CRASH_INFO: 8 XGW_BA
+  SG_ CHKSM_CRASH_Sts : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ ALV_CRASH_Sts : 11|4@0+ (1,0) [0|14] "" BMS
+  SG_ ACM_Crash_Sts : 18|2@0+ (1,0) [0|3] "" BMS
+  SG_ ACM_Airbag_Deployment_Status : 20|2@0+ (1,0) [0|3] "-" BMS
+  SG_ ACM_Crash_Intensity : 23|3@0+ (1,0) [0|7] "" BMS
+  SG_ ACM_Front_Crash : 25|2@0+ (1,0) [0|3] "-" BMS
+  SG_ ACM_DriverSide_Crash : 27|2@0+ (1,0) [0|3] "" BMS
+  SG_ ACM_PassSide_Crash : 29|2@0+ (1,0) [0|3] "-" BMS
+  SG_ ACM_Rear_Crash : 31|2@0+ (1,0) [0|3] "-" BMS
+  SG_ ACM_Rollover_Crash : 33|2@0+ (1,0) [0|3] "-" BMS
+
+BO_ 266 BCM_VOLTAGE: 8 XGW_BA
+  SG_ CHKSM_BCM_VOLTAGE : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ ALIVE_BCM_VOLTAGE : 11|4@0+ (1,0) [0|14] "" BMS
+  SG_ UBatt : 23|14@0+ (0.0009777,3) [3|18] "V" BMS
+  SG_ LV_Batt_Temp : 39|8@0+ (1,-40) [-40|105] "Degree C" BMS
+  SG_ LV_SOC : 47|8@0+ (1,0) [0|100] "%" BMS
+  SG_ LV_Batt_Current : 55|16@0+ (0.03125,-1536) [-1536|511.90625] "A" BMS
+
+BO_ 274 BCM_CLAMP_STAT: 8 XGW_BA
+  SG_ CHKSM_BCM_CLAMP_STAT : 7|8@0+ (1,0) [0|255] "" DUMMY_ECU
+  SG_ ALIVE_BCM_CLAMP_STAT : 11|4@0+ (1,0) [0|14] "" DUMMY_ECU
+  SG_ RemoteFunctionState : 13|2@0+ (1,0) [0|3] "" DUMMY_ECU
+  SG_ STAT_BLS : 15|2@0+ (1,0) [0|3] "-" DUMMY_ECU
+  SG_ STAT_CL_50_L : 17|2@0+ (1,0) [0|3] "" DUMMY_ECU
+  SG_ Clamp50AdviceRemoteStart : 19|2@0+ (1,0) [0|3] "-" DUMMY_ECU
+  SG_ Clamp50AdviceESS : 21|2@0+ (1,0) [0|3] "-" DUMMY_ECU
+  SG_ STAT_CL_R_L : 25|2@0+ (1,0) [0|3] "" DUMMY_ECU
+  SG_ STAT_CL_15_1_L : 27|2@0+ (1,0) [0|3] "-" DUMMY_ECU
+  SG_ STAT_CL_15_1_DME_L : 29|2@0+ (1,0) [0|3] "" DUMMY_ECU
+  SG_ FobId : 31|2@0+ (1,0) [0|3] "Bit" DUMMY_ECU
+  SG_ STAT_Terminal : 34|3@0+ (1,0) [0|7] "Bit" BMS
+  SG_ STAT_CL30_C_BEV : 36|2@0+ (1,0) [0|3] "Bit" BMS
+  SG_ BCM_Clamp_Transport : 39|3@0+ (1,0) [0|7] "" BMS
+
+BO_ 291 VCU_ACCharging_Info: 8 VCU_BA
+  SG_ CHKSM_ACChargingInfo : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ ALIVE_ACChargingInfo : 11|4@0+ (1,0) [0|14] "" BMS
+  SG_ ACCharging_MaxChargingPower : 23|10@0+ (0.1,0) [0|102.2] "kW" BMS
+  SG_ CurrentACChargingPower : 39|16@0+ (0.1,0) [0|6553.5] "kW" BMS
+  SG_ ACCharging_MaxCurrent : 55|16@0+ (0.1,0) [0|3276.7] "A" BMS
+
+BO_ 292 VCU_DCCharging_Info: 8 VCU_BA
+  SG_ CHKSM_DCChargingInfo : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ ALIVE_DCChargingInfo : 11|4@0+ (1,0) [0|14] "" BMS
+  SG_ DCCharging_MaxChargingPower : 23|10@0+ (0.1,0) [0|102.2] "kW" BMS
+  SG_ CurrentDCChargingPower : 39|16@0+ (0.1,0) [0|6553.5] "kW" BMS
+  SG_ DCCharging_MaxCurrent : 55|16@0+ (0.1,0) [0|3276.7] "A" BMS
+
+BO_ 293 BMS_AllowDischargeCurr: 8 BMS
+  SG_ Checksum_0x125 : 7|8@0+ (1,0) [0|255] "" VCU_BA
+  SG_ Rolling_Counter_0x125 : 11|4@0+ (1,0) [0|14] "" VCU_BA
+  SG_ BMS_AllowDischgCurr : 23|16@0+ (0.1,0) [0|1500] "A" VCU_BA
+  SG_ BMS_AllowDischgCurrPeak : 39|16@0+ (0.1,0) [0|1500] "A" VCU_BA
+  SG_ SECCAN_BMS_AllowDischargeCurr : 63|8@0+ (1,0) [0|255] "" VCU_BA
+
+BO_ 294 BMS_AllowChargeCurr: 8 BMS
+  SG_ Checksum_0x126 : 7|8@0+ (1,0) [0|255] "" VCU_BA
+  SG_ Rolling_Counter_0x126 : 11|4@0+ (1,0) [0|14] "" VCU_BA
+  SG_ BMS_AllowChgCurr : 23|16@0+ (0.1,0) [0|1500] "A" VCU_BA
+  SG_ BMS_AllowChgCurrPeak : 39|16@0+ (0.1,0) [0|1500] "A" VCU_BA
+  SG_ SECCAN_BMS_AllowChargeCurr : 63|8@0+ (1,0) [0|255] "" VCU_BA
+
+BO_ 357 VCU_ChargingConnection: 8 VCU_BA
+  SG_ CHSKM_VCU_ChargingConnection : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ ALV_VCU_ChargingConnection : 11|4@0+ (1,0) [0|14] "" BMS
+  SG_ VCU_AcChgGunIn : 12|1@0+ (1,0) [0|1] "-" BMS
+  SG_ VCU_DCChgGunIn : 13|1@0+ (1,0) [0|1] "-" BMS
+
+BO_ 372 BMS_CurMeas: 8 BMS
+  SG_ CHSKM_BMS_CurMeas : 7|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ ALV_BMS_CurMeas : 11|4@0+ (1,0) [0|14] "" VCU_BA,XGW_BA
+  SG_ BMS_StartOfMeasument_STS : 15|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ BMS_PackCur_MEAS : 23|16@0+ (0.1,-3276.8) [-3276.8|3276.7] "A" VCU_BA,XGW_BA
+
+BO_ 374 BMS_HVMeas1: 8 BMS
+  SG_ Checksum_0x176 : 7|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ Rolling_Counter_0x176 : 11|4@0+ (1,0) [0|14] "" VCU_BA,XGW_BA
+  SG_ BMS_HVPackVol_MEAS : 23|16@0+ (0.1,0) [0|800] "V" VCU_BA,XGW_BA
+  SG_ BMS_HVLinkVol_MEAS : 39|16@0+ (0.1,0) [0|800] "V" VCU_BA,XGW_BA
+
+BO_ 375 BMS_HVMeas2: 8 BMS
+  SG_ Checksum_0x177 : 7|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ Rolling_Counter_0x177 : 11|4@0+ (1,0) [0|14] "" VCU_BA,XGW_BA
+  SG_ BMS_HVBusVol_MEAS : 23|16@0+ (0.1,0) [0|800] "V" VCU_BA,XGW_BA
+  SG_ BMS_HVFuseVol_MEAS : 39|16@0+ (0.1,0) [0|800] "V" VCU_BA,XGW_BA
+
+BO_ 409 VCU_Sts1: 8 VCU_BA
+  SG_ CHSKM_VCU_Sts1 : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ ALV_VCU_Sts1 : 11|4@0+ (1,0) [0|14] "" BMS
+  SG_ VCU_BMS_HVOnOff_REQ : 19|2@0+ (1,0) [0|1] "" BMS
+
+BO_ 417 IDB_V_VEH: 5 XGW_BA
+  SG_ CHSKM_V_VEH : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ ALIV_V_VEH : 11|4@0+ (1,0) [0|14] "" BMS
+  SG_ V_VEH_COG : 23|16@0+ (0.015625,0) [0|350] "km/h" BMS
+  SG_ DVCO_VEH : 35|3@0+ (1,0) [0|7] "" BMS
+  SG_ QU_V_VEH_COG : 39|4@0+ (1,0) [0|15] "" BMS
+
+BO_ 504 EDS_OutPut_FR: 8 XGW_BA
+  SG_ CHKSM_EDS_OutPut_FR : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ ALV_EDS_OutPut_FR : 11|4@0+ (1,0) [0|14] "" BMS
+  SG_ EDS_Work_STS_FR : 15|4@0+ (1,0) [0|15] "-" BMS
+  SG_ EDS_Spd_FR : 23|16@0+ (1,-20000) [-20000|20000] "rpm" BMS
+  SG_ EDS_output_trqValid_FR : 33|2@0+ (1,0) [0|1] "" BMS
+  SG_ EDS_MotorDriveSts_FR : 35|2@0+ (1,0) [0|3] "" BMS
+  SG_ EDS_powoff_req_FR : 37|2@0+ (1,0) [0|1] "" BMS
+  SG_ EDS_SpdValid_FR : 39|2@0+ (1,0) [0|1] "" BMS
+  SG_ EDS_output_trq_FR : 47|16@0+ (1,-2000) [-2000|2000] "Nm" BMS
+  SG_ EDS_VCU_6SO_flag_FWD : 63|2@0+ (1,0) [0|1] "" BMS
+
+BO_ 505 EDS_OutPut_RR: 8 XGW_BA
+  SG_ CHKSM_EDS_OutPut_RR : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ ALV_EDS_OutPut_RR : 11|4@0+ (1,0) [0|14] "" BMS
+  SG_ EDS_Work_STS_RR : 15|4@0+ (1,0) [0|15] "-" BMS
+  SG_ EDS_Spd_RR : 23|16@0+ (1,-20000) [-20000|20000] "rpm" BMS
+  SG_ EDS_output_trqValid_RR : 33|2@0+ (1,0) [0|1] "" BMS
+  SG_ EDS_MotorDriveSts_RR : 35|2@0+ (1,0) [0|3] "" BMS
+  SG_ EDS_powoff_req_RR : 37|2@0+ (1,0) [0|1] "" BMS
+  SG_ EDS_SpdValid_RR : 39|2@0+ (1,0) [0|1] "" BMS
+  SG_ EDS_output_trq_RR : 47|16@0+ (1,-2000) [-2000|2000] "Nm" BMS
+  SG_ EDS_VCU_6SO_flag_RWD : 63|2@0+ (1,0) [0|1] "-" BMS
+
+BO_ 517 BMS_VolMeas1: 8 BMS
+  SG_ Checksum_0x205 : 7|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ Rolling_Counter_0x205 : 11|4@0+ (1,0) [0|14] "" VCU_BA,XGW_BA
+  SG_ BMS_CellNumMinCellVol : 23|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ BMS_CellNumMaxCellVol : 31|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ BMS_MinCellVol : 36|13@0+ (0.001,0) [0|6] "V" VCU_BA,XGW_BA
+  SG_ BMS_MaxCellVol : 52|13@0+ (0.001,0) [0|6] "V" VCU_BA,XGW_BA
+
+BO_ 518 BMS_VolMeas2: 8 BMS
+  SG_ Checksum_0x206 : 7|8@0+ (1,0) [0|255] "" VCU_BA
+  SG_ Rolling_Counter_0x206 : 11|4@0+ (1,0) [0|14] "" VCU_BA
+  SG_ BMS_MaxMinDiffCellVol : 20|13@0+ (0.001,0) [0|2] "V" VCU_BA
+  SG_ SECCAN_BMS_VolMeas2 : 63|8@0+ (1,0) [0|255] "" VCU_BA
+
+BO_ 521 BMS_PowerCont: 8 BMS
+  SG_ Checksum_0x209 : 7|8@0+ (1,0) [0|255] "" VCU_BA
+  SG_ Rolling_Counter_0x209 : 11|4@0+ (1,0) [0|14] "" VCU_BA
+  SG_ BMS_MaxDischgPwr_ALW : 23|12@0+ (0.1,0) [0|400] "kW" VCU_BA
+  SG_ BMS_MaxChgPwr_ALW : 27|12@0+ (0.1,0) [0|400] "kW" VCU_BA
+  SG_ BMS_MaxDischgPwr_Peak : 47|12@0+ (0.2,0) [0|800] "kW" VCU_BA
+  SG_ BMS_MaxChgPwr_Peak : 51|12@0+ (0.2,0) [0|800] "kW" VCU_BA
+
+BO_ 524 IC_ODO: 8 XGW_BA
+  SG_ CHKSM_IC_ODO : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ ALIV_IC_ODO : 11|4@0+ (1,0) [0|14] "" BMS
+  SG_ MHU_Odometer_IC : 23|20@0+ (1,0) [0|999999] "km" BMS
+
+BO_ 532 BMS_Sts_0x214: 8 BMS
+  SG_ Checksum_0x214 : 7|8@0+ (1,0) [0|255] "" XGW_BA,VCU_BA
+  SG_ Rolling_Counter_0x214 : 11|4@0+ (1,0) [0|14] "" XGW_BA,VCU_BA
+  SG_ BMS_Display_SOC : 21|10@0+ (0.1,0) [0|100] "%" XGW_BA,VCU_BA
+
+BO_ 533 BMS_Sts: 8 BMS
+  SG_ Checksum_0x215 : 7|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ Rolling_Counter_0x215 : 11|4@0+ (1,0) [0|14] "" VCU_BA,XGW_BA
+  SG_ BMS_BatBalance_ERR : 12|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ BMS_Balance_STS : 13|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ BMS_IGN_Sts : 14|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ BMS_HWCrash_Sts : 15|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ BMS_HVIL_STS : 17|2@0+ (1,0) [0|3] "" VCU_BA,XGW_BA
+  SG_ BMS_HVOnOff_STS : 19|2@0+ (1,0) [0|3] "" VCU_BA,XGW_BA
+  SG_ BMS_ERR_LEV : 23|4@0+ (1,0) [0|7] "-" VCU_BA,XGW_BA
+  SG_ BMS_SocActual_EST : 25|10@0+ (0.1,0) [0|100] "%" VCU_BA,XGW_BA
+  SG_ BMS_Sys_STS : 29|4@0+ (1,0) [0|15] "" VCU_BA,XGW_BA
+  SG_ BMS_ISU_Status : 31|2@0+ (1,0) [0|3] "" VCU_BA,XGW_BA
+  SG_ BMS_SOH : 47|8@0+ (0.5,0) [0|100] "%" VCU_BA,XGW_BA
+  SG_ BMS_SOE : 55|8@0+ (0.5,0) [0|100] "%" VCU_BA,XGW_BA
+  SG_ BMS_HV_Sts : 63|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+
+BO_ 534 BMS_ChgParamReq: 8 BMS
+  SG_ Checksum_0x216 : 7|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ Rolling_Counter_0x216 : 11|4@0+ (1,0) [0|14] "" VCU_BA,XGW_BA
+  SG_ BMS_RemainChargeTime : 21|14@0+ (1,0) [0|16383] "min" VCU_BA,XGW_BA
+  SG_ BMS_ChgVoltage_REQ : 37|14@0+ (0.1,0) [0|800] "V" VCU_BA,XGW_BA
+  SG_ BMS_ChgCurrent_REQ : 55|16@0+ (0.1,0) [0|1500] "A" VCU_BA,XGW_BA
+
+BO_ 535 VCU_BMS_Information: 8 VCU_BA
+  SG_ CHSKM_VCU_BMS_Information : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ ALIV_VCU_BMS_Information : 11|4@0+ (1,0) [0|14] "" BMS
+  SG_ VCU_DCChargeRelayP : 12|1@0+ (1,0) [0|1] "" BMS
+  SG_ VCU_DCChargeRelayN : 13|1@0+ (1,0) [0|1] "" BMS
+  SG_ VCU_BMS_Insulation_Mon_Req : 14|1@0+ (1,0) [0|1] "" BMS
+
+BO_ 537 VCU_PTControl: 8 VCU_BA
+  SG_ CHSKM_VCU_PTControl : 7|8@0+ (1,0) [0|255] "" BMS,XGW_BA
+  SG_ ALV_VCU_PTControl : 11|4@0+ (1,0) [0|14] "" BMS,XGW_BA
+  SG_ VCU_ChargeAllow : 54|1@0+ (1,0) [0|1] "" BMS,XGW_BA
+
+BO_ 526 BMS_FaultInfo: 8 BMS
+ SG_ BMS_faultnumber : 7|64@0+ (1,0) [0|1.84467E+019] ""  Vector__XXX
+
+BO_ 544 VCU_BMS_Thermal_FB: 8 VCU_BA
+  SG_ CHSKM_VCU_BMS_Thermal_FB : 7|8@0+ (1,0) [0|255] "" BMS,XGW_BA
+  SG_ ALIV_VCU_BMS_Thermal_FB : 11|4@0+ (1,0) [0|14] "" BMS,XGW_BA
+  SG_ VCU_BMS_PTCOnOff_Sts : 12|1@0+ (1,0) [0|1] "" BMS,XGW_BA
+  SG_ VCU_BMS_ValveOnOff_Sts : 13|1@0+ (1,0) [0|1] "" BMS,XGW_BA
+  SG_ VCU_BMS_PumpFB : 18|3@0+ (1,0) [0|3] "" BMS,XGW_BA
+
+BO_ 549 BMS_FaultMgr_0x225: 8 BMS
+  SG_ Checksum_0x225 : 7|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ Rolling_Counter_0x225 : 11|4@0+ (1,0) [0|14] "" VCU_BA,XGW_BA
+  SG_ CDM_bAcvCanComStblMon : 12|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ FRMo_bErrHvbatStReqExtMon : 13|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ FRMo_bErrChrgnAllwdExtMon : 14|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ FRMo_bErrVehCrashStExtMon : 15|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ CDM_bErrComctnLossCanMon : 16|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ CTCMon_bErrCtctrSopcMon : 17|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ CTCMon_bInvldCtctrHisdIFbMon : 18|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ CTCMon_bInvldCtctrLosdUFbMon : 19|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ CTM_bErrCellTDifMaxMon : 20|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ CTM_bErrCellTMaxMon : 21|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ CTM_bErrCellTMinMon : 22|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ CTM_bErrThrwyPredMon : 23|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ CUM_bErrCellUDifMaxMon : 24|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ CUM_bErrCellUMaxMon : 25|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ CUM_bErrCellUMinMon : 26|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ CUM_bErrCellUProtnMaxNvMon : 27|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ CUM_bErrCellUProtnMinNvMon : 28|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ CUM_bErrPackUImplyMon : 29|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ EHPMon_bRdyHvilMon : 30|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ EHPMon_bErrWlddNegNvMon : 31|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ EHPMon_bErrWlddPosNvMon : 32|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ EHPMon_bErrWlddPrechNvMon : 33|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ EHPMon_bErrHvilMon : 34|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ EHPMon_bErrHvilShoMon : 35|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ EHPMon_bErrPackIslnRNvMon : 36|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ EHPMon_bErrVehCrashNvMon : 37|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ EHPMon_bErrVehIslnRNvMon : 38|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ FRMo_bErrMemStorgNvMon : 39|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ L1IM_bErrClmp30MaxMonInp : 40|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ L1IM_bErrClmp30MinMonInp : 41|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ L1IM_bErrCtctrDtrtMonInp : 42|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ L1IM_bErrUActImplyMonInp : 43|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ MCCM_bAcvMdulCtlrStsMon : 44|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ MCCM_bErrLntecSngFltMon : 45|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ MCCM_bErrLntecLtntFltMon : 46|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ MCCM_bErrMdulCellSnsrCfgMon : 47|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ MCCM_bErrMdulCtlrComMon : 48|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ MCCM_bErrSnsrTEltlMon : 49|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ MCCM_bWarnSnsrTEltlMon : 50|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ PCM_bRdySnsrIMon : 51|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ PCM_bErrPackEFlowMaxLimMon : 52|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ PCM_bErrPackIChDchaMaxLimMon : 53|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ PCM_bErrSnsrIImplyMon : 54|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ FRMo_bErrSnsrI1ExtMon : 55|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ PCM_bInvldSnsrI1Mon : 56|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ PCM_bInvldSnsrI2Mon : 57|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ FRMo_bErrSopcLvl3Mon : 58|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ BMS_FRMo_Reserved_1 : 59|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ BMS_FRMo_Reserved_2 : 60|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ BMS_FRMo_Reserved_3 : 61|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ BMS_FRMo_Reserved_4 : 62|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ BMS_FRMo_Reserved_5 : 63|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+
+BO_ 550 BMS_QMMgr_0x226: 8 BMS
+  SG_ Checksum_0x226 : 7|8@0+ (1,0) [0|255] "" DUMMY_ECU
+  SG_ Rolling_Counter_0x226 : 11|4@0+ (1,0) [0|14] "" DUMMY_ECU
+  SG_ BMS_QMMo_Reserved_0 : 12|1@0+ (1,0) [0|1] "" DUMMY_ECU
+  SG_ BMS_QMMo_Reserved_1 : 13|1@0+ (1,0) [0|1] "" DUMMY_ECU
+  SG_ BMS_QMMo_Reserved_2 : 14|1@0+ (1,0) [0|1] "" DUMMY_ECU
+  SG_ BMS_QMMo_Reserved_3 : 15|1@0+ (1,0) [0|1] "" DUMMY_ECU
+  SG_ BMS_QMMo_Reserved_4 : 16|1@0+ (1,0) [0|1] "" DUMMY_ECU
+  SG_ BMS_QMMo_Reserved_5 : 17|1@0+ (1,0) [0|1] "" DUMMY_ECU
+  SG_ BMS_QMMo_Reserved_6 : 18|1@0+ (1,0) [0|1] "" DUMMY_ECU
+  SG_ BMS_QMMo_Reserved_7 : 19|1@0+ (1,0) [0|1] "" DUMMY_ECU
+  SG_ BMS_QMMo_Reserved_8 : 20|1@0+ (1,0) [0|1] "" DUMMY_ECU
+  SG_ BMS_QMMo_Reserved_9 : 21|1@0+ (1,0) [0|1] "" DUMMY_ECU
+  SG_ BMS_QMMo_Reserved_10 : 22|1@0+ (1,0) [0|1] "" DUMMY_ECU
+  SG_ BMS_QMMo_Reserved_11 : 23|1@0+ (1,0) [0|1] "" DUMMY_ECU
+  SG_ CDEM_ErrDisp_0 : 39|16@0+ (1,0) [0|65535] "" DUMMY_ECU
+  SG_ CDEM_ErrDisp_1 : 55|16@0+ (1,0) [0|65535] "" DUMMY_ECU
+
+BO_ 581 BMS_CellTemp: 8 BMS
+  SG_ Checksum_0x245 : 7|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ Rolling_Counter_0x245 : 11|4@0+ (1,0) [0|14] "" VCU_BA,XGW_BA
+  SG_ BMS_ProbeNumMaxCellTemp : 21|6@0+ (1,0) [0|63] "" VCU_BA,XGW_BA
+  SG_ BMS_MinCellTemp : 31|8@0+ (1,-40) [-40|215] "°C" VCU_BA,XGW_BA
+  SG_ BMS_ProbeNumMinCellTemp : 37|6@0+ (1,0) [0|63] "" VCU_BA,XGW_BA
+  SG_ BMS_PackTemp : 47|8@0+ (1,-40) [-40|215] "°C" VCU_BA,XGW_BA
+  SG_ BMS_MaxCellTemp : 55|8@0+ (1,-40) [-40|215] "°C" VCU_BA,XGW_BA
+  SG_ BMS_MaxMinDiffCellTemp : 63|8@0+ (1,-40) [-40|215] "°C" VCU_BA,XGW_BA
+
+BO_ 584 BMS_VCU_THMReq: 8 BMS
+  SG_ CHSKM_BMS_VCU_THMReq : 7|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ ALV_BMS_VCU_THMReq : 11|4@0+ (1,0) [0|14] "" VCU_BA,XGW_BA
+  SG_ BMS_FlowRate_Req : 23|8@0+ (1,0) [0|50] "l/min" VCU_BA,XGW_BA
+  SG_ BMS_CoolPwrDemand : 31|12@0+ (0.1,0) [0|10] "kW" VCU_BA,XGW_BA
+  SG_ BMS_HeatPwrDemand : 35|12@0+ (0.1,0) [0|10] "kW" VCU_BA,XGW_BA
+  SG_ BMS_VCU_PTCOnOff_Req : 48|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ BMS_VCU_ValveOnOff_Req : 49|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ BMS_PreHeatCoolReq : 51|2@0+ (1,0) [0|3] "" VCU_BA,XGW_BA
+
+BO_ 585 BMS_CoolntInletOutletTmp: 8 BMS
+  SG_ CHSKM_BMS_CoolntInletOutletTmp : 7|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ ALV_BMS_CoolntInletOutletTmp : 11|4@0+ (1,0) [0|14] "" VCU_BA,XGW_BA
+  SG_ BMS_CoolantInletTemp : 23|8@0+ (1,-40) [-40|215] "°C" VCU_BA,XGW_BA
+  SG_ BMS_CoolantOutletTemp : 31|8@0+ (1,-40) [-40|215] "°C" VCU_BA,XGW_BA
+  SG_ BMS_BDUTemp1 : 39|8@0+ (1,-40) [-40|215] "°C" XGW_BA
+  SG_ BMS_BDUTemp2 : 47|8@0+ (1,-40) [-40|215] "°C" XGW_BA
+
+BO_ 714 IC_SENSOR: 8 XGW_BA
+  SG_ CHKSM_IC_SENSOR : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ ALV_IC_SENSOR : 11|4@0+ (1,0) [0|14] "" BMS
+  SG_ MHU_STAT_AmbientTempRaw : 23|8@0+ (0.5,-40) [-40|85] "°C" BMS
+  SG_ MHU_STAT_FuelLevel : 31|8@0+ (1,0) [0|100] "l" BMS
+  SG_ MHU_STAT_AmbientTemp : 39|8@0+ (0.5,-40) [-40|85] "Degree C" BMS
+  SG_ MHU_STAT_CoolantLevelStatus : 47|2@0+ (1,0) [0|3] "-" BMS
+
+BO_ 715 IC_TEMP: 8 XGW_BA
+  SG_ TEMP_EX : 7|8@0+ (0.5,-40) [-40|85] "°C" BMS
+  SG_ TEMP_EX_UNFILT : 15|8@0+ (0.5,-40) [-40|85] "°C" BMS
+
+BO_ 760 MHU_DATE_TIME: 8 XGW_BA
+  SG_ DISP_HR : 7|8@0+ (1,0) [0|23] "h" BMS
+  SG_ DISP_MN : 15|8@0+ (1,0) [0|59] "min" BMS
+  SG_ DISP_SEC : 23|8@0+ (1,0) [0|59] "s" BMS
+  SG_ DISP_DATE_DAY : 31|8@0+ (1,0) [1|31] "Day" BMS
+  SG_ DISP_DATE_MON : 35|4@0+ (1,0) [1|12] "Month" BMS
+  SG_ DISP_DATE_WDAY : 39|4@0+ (1,0) [0|15] "" BMS
+  SG_ DISP_DATE_YR : 47|16@0+ (1,0) [1|65534] "Year" BMS
+  SG_ ST_DISP_CTI_DATE : 63|4@0+ (1,0) [0|15] "" BMS
+
+BO_ 770 CCU_TEMP_PRESSURE: 6 XGW_BA
+  SG_ CHKSM_CCU_TEMP_PRESSURE : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ ALV_CCU_TEMP_PRESSURE : 11|4@0+ (1,0) [0|14] "" BMS
+  SG_ CCU_Pressure_AC : 23|6@0+ (1,0) [0|62] "bar" BMS
+  SG_ CCU_InteriorTemp : 31|8@0+ (0.5,-40) [-40|85] "Degree C" BMS
+  SG_ CCU_TempEx_AC : 39|8@0+ (0.5,-40) [-40|85] "Degree C" BMS
+  SG_ CCU_EvaporatorTemp : 47|8@0+ (0.5,-40) [-40|85] "Degree C" BMS
+
+BO_ 773 BMS_Insulation: 8 BMS
+  SG_ CHSKM_BMS_Insulation : 7|8@0+ (1,0) [0|255] "" VCU_BA
+  SG_ ALV_BMS_Insulation : 11|4@0+ (1,0) [0|14] "" VCU_BA
+  SG_ BMS_VCU_Insulation_Mon_Sts : 15|1@0+ (1,0) [0|1] "" VCU_BA
+  SG_ BMS_PackInsuRes : 23|16@0+ (1,0) [0|60000] "kOhm" VCU_BA
+
+BO_ 775 BMS_Sensor_Start_Stop_0x307: 8 BMS
+  SG_ Checksum_0x307 : 7|8@0+ (1,0) [0|255] "" Sensor
+  SG_ Rolling_Counter_0x307 : 11|4@0+ (1,0) [0|14] "" Sensor
+  SG_ BMS_Start_Stop_DM13 : 17|2@0+ (1,0) [0|3] "" Sensor
+
+BO_ 816 BMS_HistData: 8 BMS
+  SG_ Checksum_0x330 : 7|8@0+ (1,0) [0|255] "" VCU_BA
+  SG_ Rolling_Counter_0x330 : 11|4@0+ (1,0) [0|14] "" VCU_BA
+  SG_ BMS_ContactorAging : 23|8@0+ (1,0) [0|100] "%" VCU_BA
+
+BO_ 818 BMS_PackInfo: 8 BMS
+ SG_ Checksum_0x332 : 7|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA,XGW_Info
+ SG_ Rolling_Counter_0x332 : 11|4@0+ (1,0) [0|14] "" VCU_BA,XGW_BA,XGW_Info
+ SG_ BMS_PackCNom : 23|16@0+ (0.1,0) [0|6553.5] "kWh" VCU_BA,XGW_BA,XGW_Info
+ SG_ BMS_PackTemp_0x332 : 39|8@0+ (1,-40) [-40|215] "Degree C" VCU_BA,XGW_BA,XGW_Info
+  
+BO_ 819 BMS_ECU_Info_1: 8 BMS
+ SG_ BMS_SwVers_Type : 7|8@0+ (1,0) [0|255] ""  Vector__XXX
+ SG_ BMS_SwVersS_phase : 15|8@0+ (1,0) [0|255] ""  Vector__XXX
+ SG_ BMS_swVers_version : 47|8@0+ (1,0) [0|255] ""  Vector__XXX
+
+BO_ 820 BMS_Fault_Level_Status_Overall: 8 BMS
+ SG_ BMS_ErrorCategory_CAT0 : 24|1@0+ (1,0) [0|1] ""  Vector__XXX
+ SG_ BMS_ErrorCategory_CAT1 : 25|1@0+ (1,0) [0|1] ""  Vector__XXX
+ SG_ BMS_ErrorCategory_CAT2 : 26|1@0+ (1,0) [0|1] ""  Vector__XXX
+ SG_ BMS_ErrorCategory_CAT3 : 27|1@0+ (1,0) [0|1] ""  Vector__XXX
+ SG_ BMS_ErrorCategory_CAT4 : 28|1@0+ (1,0) [0|1] ""  Vector__XXX
+ SG_ BMS_ErrorCategory_CAT5 : 29|1@0+ (1,0) [0|1] ""  Vector__XXX
+ SG_ BMS_ErrorCategory_CAT6 : 30|1@0+ (1,0) [0|1] ""  Vector__XXX
+ SG_ BMS_ErrorCategory_CAT7 : 31|1@0+ (1,0) [0|1] ""  Vector__XXX
+ SG_ BMS_ErrorCategory_CAT8 : 32|1@0+ (1,0) [0|1] ""  Vector__XXX
+
+BO_ 885 BMS_Relay: 8 BMS
+  SG_ Checksum_0x375 : 7|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ Rolling_Counter_0x375 : 11|4@0+ (1,0) [0|14] "" VCU_BA,XGW_BA
+  SG_ BMS_PreChgRelay_ERR : 12|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ BMS_TotalNegRelay_ERR : 13|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ BMS_MainPosRelay_ERR : 14|1@0+ (1,0) [0|1] "" VCU_BA,XGW_BA
+  SG_ BMS_MainPosRelay_STS : 18|3@0+ (1,0) [0|7] "" VCU_BA,XGW_BA
+  SG_ BMS_PreChgRelay_STS : 21|3@0+ (1,0) [0|7] "" VCU_BA,XGW_BA
+  SG_ BMS_TotalNegRelay_STS : 26|3@0+ (1,0) [0|7] "" VCU_BA,XGW_BA
+
+BO_ 896 BCM_VEHICLE_IDENT_NUMBER: 8 XGW_BA
+  SG_ VIN_Byte1 : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ VIN_Byte2 : 15|8@0+ (1,0) [0|255] "" BMS
+  SG_ VIN_Byte3 : 23|8@0+ (1,0) [0|255] "" BMS
+  SG_ VIN_Byte4 : 31|8@0+ (1,0) [0|255] "" BMS
+  SG_ VIN_Byte5 : 39|8@0+ (1,0) [0|255] "" BMS
+  SG_ VIN_Byte6 : 47|8@0+ (1,0) [0|255] "" BMS
+  SG_ VIN_Byte7 : 55|8@0+ (1,0) [0|255] "" BMS
+
+BO_ 993 VCU_HMI_Info: 8 XGW_BA
+  SG_ CRC_VCU_HMI_Info : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ ALIV_VCU_HMI_Info : 11|4@0+ (1,0) [0|14] "" BMS
+  SG_ VCU_MHU_Ack_TargetSOC : 39|7@0+ (1,0) [10|100] "%" BMS
+
+BO_ 1074 MHU_FOTA_STATUS: 8 XGW_BA
+  SG_ MHU_FOTA_Checksum : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ MHU_FOTA_Alive_Counter : 11|4@0+ (1,0) [0|14] "" BMS
+  SG_ MHU_FOTA_State : 15|4@0+ (1,0) [0|14] "-" BMS
+  SG_ MHU_FOTA_Error_Code : 23|8@0+ (1,0) [0|255] "-" BMS
+
+BO_ 1109 BMS_ERROR: 8 BMS
+  SG_ Checksum_0x455 : 7|8@0+ (1,0) [0|255] "" VCU_BA
+  SG_ Rolling_Counter_0x455 : 11|4@0+ (1,0) [0|14] "" VCU_BA
+  SG_ BMS_CellLowVol_ERR : 17|2@0+ (1,0) [0|3] "" VCU_BA
+  SG_ BMS_HVIL_Err : 19|2@0+ (1,0) [0|3] "" VCU_BA
+  SG_ BMS_PackInsu_ERR : 21|2@0+ (1,0) [0|3] "" VCU_BA
+  SG_ BMS_CellVoltDiff_ERR : 23|2@0+ (1,0) [0|3] "" VCU_BA
+  SG_ BMS_ProbeTempDiff_ERR : 25|2@0+ (1,0) [0|3] "" VCU_BA
+  SG_ BMS_PackHighVol_ERR : 27|2@0+ (1,0) [0|3] "" VCU_BA
+  SG_ BMS_PackLowVol_ERR : 29|2@0+ (1,0) [0|3] "" VCU_BA
+  SG_ BMS_CellHighVol_ERR : 31|2@0+ (1,0) [0|3] "" VCU_BA
+  SG_ BMS_ProbeHighTemp_ERR : 33|2@0+ (1,0) [0|3] "" VCU_BA
+  SG_ BMS_FuseStatus_ERR : 35|2@0+ (1,0) [0|1] "" VCU_BA
+  SG_ BMS_PackOverCurr_ERR : 37|2@0+ (1,0) [0|3] "" VCU_BA
+  SG_ BMS_ProbeLowTemp_ERR : 39|2@0+ (1,0) [0|3] "" VCU_BA
+  
+BO_ 1120 VCU_LIN_Data_A: 8 VCU_BA
+ SG_ TWV1_N_Position : 7|16@0+ (0.1,0) [0|100] "%"  DUMMY_ECU
+ SG_ TWV1_St_Feedback : 23|16@0+ (1,0) [0|15] ""  DUMMY_ECU
+ SG_ TWV2_N_Position : 39|16@0+ (0.1,0) [0|100] ""  DUMMY_ECU
+ SG_ TWV2_St_Feedback : 55|16@0+ (1,0) [0|0] ""  DUMMY_ECU
+
+BO_ 1121 VCU_LIN_Data_B: 8 VCU_BA
+ SG_ TMM_EXV_PositionRequest : 7|16@0+ (1,0) [0|500] "" Vector__XXX
+ SG_ EXV_CurrentPosition : 23|16@0+ (1,0) [0|500] ""  DUMMY_ECU
+ SG_ CLMTWV1_N_TWVPosReq : 39|16@0+ (0.1,0) [0|100] ""  DUMMY_ECU
+ SG_ CLMTWV2_N_TWVPosReq : 55|16@0+ (0.1,0) [0|100] ""  DUMMY_ECU
+
+BO_ 1122 VCU_LIN_Data_C: 8 VCU_BA
+ SG_ HV_PTC_heating_rq : 7|7@0+ (1,0) [0|100] ""  DUMMY_ECU
+ SG_ HV_PTC_InternalPCBTemp : 15|8@0+ (1,-50) [-50|204] ""  DUMMY_ECU
+ SG_ HV_PTC_InternalWaterTemp1 : 23|8@0+ (1,-50) [-50|204] ""  DUMMY_ECU
+ SG_ EAC_CompElecPwr : 31|8@0+ (40,0) [0|10200] ""  DUMMY_ECU
+ SG_ EAC_CompElecCurr : 39|8@0+ (0.2,0) [0|51] ""  DUMMY_ECU
+ SG_ EAC_CompIGBTTemp : 47|8@0+ (1,-40) [-40|215] ""  DUMMY_ECU
+ SG_ ECM_TargetPosReq_1 : 55|8@0+ (1,0) [0|0] ""  DUMMY_ECU
+
+BO_ 1123 VCU_LIN_Data_D: 8 VCU_BA
+ SG_ CompSpdReq : 7|14@0+ (1,0) [0|16383] ""  DUMMY_ECU
+ SG_ AGM_1_ActualPosition : 23|8@0+ (1,0) [0|0] ""  DUMMY_ECU
+
+BO_ 1171 BMS_WarnMsg: 8 BMS
+  SG_ CHSKM_BMS_WarnMsg : 7|8@0+ (1,0) [0|255] "" XGW_BA
+  SG_ ALV_BMS_WarnMsg : 11|4@0+ (1,0) [0|14] "" XGW_BA
+  SG_ BMS_PackTempSts : 13|2@0+ (1,0) [0|3] "" XGW_BA
+  SG_ BMS_ThermalRunaway : 14|1@0+ (1,0) [0|1] "" XGW_BA
+  SG_ BMS_BatteryReplacement : 15|1@0+ (1,0) [0|1] "" XGW_BA
+  SG_ BMS_Warning_PowerDegrade : 16|1@0+ (1,0) [0|1] "" XGW_BA
+  SG_ BMS_Warning_DeltaSoC : 17|1@0+ (1,0) [0|1] "" XGW_BA
+  SG_ BMS_Warning_HVILSts : 18|1@0+ (1,0) [0|1] "" XGW_BA
+  SG_ BMS_Warning_Isolation : 19|1@0+ (1,0) [0|1] "" XGW_BA
+  SG_ BMS_Warning_CoolantLeakage : 20|1@0+ (1,0) [0|1] "" XGW_BA
+  SG_ BMS_MalfunctionSts : 21|1@0+ (1,0) [0|1] "" XGW_BA
+  SG_ BMS_LowBattery : 23|2@0+ (1,0) [0|3] "" XGW_BA
+  SG_ BMS_Warning_DeltaTemperature : 31|8@0+ (1,0) [0|255] "" XGW_BA
+  SG_ BMS_Warning_BDUTemperatureSts : 39|8@0+ (1,0) [0|255] "" XGW_BA
+  SG_ BMS_Reserved_signal3 : 47|8@0+ (1,0) [0|255] "" XGW_BA
+  SG_ BMS_Reserved_signal4 : 55|8@0+ (1,0) [0|255] "" XGW_BA
+  SG_ BMS_Reserved_signal5 : 63|8@0+ (1,0) [0|255] "" XGW_BA
+
+BO_ 1282 XGW_NM: 8 XGW_BA
+  SG_ XGW_srcNodeID : 7|8@0+ (1,0) [0|255] "" BMS,VCU_BA
+  SG_ XGW_CtrlBitVector : 15|8@0+ (1,0) [0|255] "" BMS,VCU_BA
+  SG_ XGW_usrData0 : 23|8@0+ (1,0) [0|255] "" BMS,VCU_BA
+  SG_ XGW_usrData1 : 31|8@0+ (1,0) [0|255] "" BMS,VCU_BA
+  SG_ XGW_usrData2 : 39|8@0+ (1,0) [0|255] "" BMS,VCU_BA
+  SG_ XGW_usrData3 : 47|8@0+ (1,0) [0|255] "" BMS,VCU_BA
+  SG_ XGW_usrData4 : 55|8@0+ (1,0) [0|255] "" BMS,VCU_BA
+  SG_ XGW_usrData5 : 63|8@0+ (1,0) [0|255] "" BMS,VCU_BA
+
+BO_ 1299 BMS_NM: 8 BMS
+  SG_ BMS_srcNodeID : 7|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ BMS_CtrlBitVector : 15|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ BMS_usrData0 : 23|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ BMS_usrData1 : 31|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ BMS_usrData2 : 39|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ BMS_usrData3 : 47|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ BMS_usrData4 : 55|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+  SG_ BMS_usrData5 : 63|8@0+ (1,0) [0|255] "" VCU_BA,XGW_BA
+
+BO_ 1555 BMS_DiagResp: 8 BMS
+  SG_ BMS_DiagRespData0 : 7|8@0+ (1,0) [0|255] "" XGW_BA
+  SG_ BMS_DiagRespData1 : 15|8@0+ (1,0) [0|255] "" XGW_BA
+  SG_ BMS_DiagRespData2 : 23|8@0+ (1,0) [0|255] "" XGW_BA
+  SG_ BMS_DiagRespData3 : 31|8@0+ (1,0) [0|255] "" XGW_BA
+  SG_ BMS_DiagRespData4 : 39|8@0+ (1,0) [0|255] "" XGW_BA
+  SG_ BMS_DiagRespData5 : 47|8@0+ (1,0) [0|255] "" XGW_BA
+  SG_ BMS_DiagRespData6 : 55|8@0+ (1,0) [0|255] "" XGW_BA
+  SG_ BMS_DiagRespData7 : 63|8@0+ (1,0) [0|255] "-" XGW_BA
+
+BO_ 1683 BMS_DiagReq: 8 XGW_BA
+  SG_ BMS_DiagReqData0 : 7|8@0+ (1,0) [0|255] "" BMS
+  SG_ BMS_DiagReqData1 : 15|8@0+ (1,0) [0|255] "" BMS
+  SG_ BMS_DiagReqData2 : 23|8@0+ (1,0) [0|255] "" BMS
+  SG_ BMS_DiagReqData3 : 31|8@0+ (1,0) [0|255] "-" BMS
+  SG_ BMS_DiagReqData4 : 39|8@0+ (1,0) [0|255] "-" BMS
+  SG_ BMS_DiagReqData5 : 47|8@0+ (1,0) [0|255] "-" BMS
+  SG_ BMS_DiagReqData6 : 55|8@0+ (1,0) [0|255] "" BMS
+  SG_ BMS_DiagReqData7 : 63|8@0+ (1,0) [0|255] "" BMS
+
+BO_ 1775 DIAG_Req_All_CAN: 8 XGW_BA
+  SG_ DiagReqAllCANData0 : 7|8@0+ (1,0) [0|255] "-" BMS
+  SG_ DiagReqAllCANData1 : 15|8@0+ (1,0) [0|255] "" BMS
+  SG_ DiagReqAllCANData2 : 23|8@0+ (1,0) [0|255] "-" BMS
+  SG_ DiagReqAllCANData3 : 31|8@0+ (1,0) [0|255] "-" BMS
+  SG_ DiagReqAllCANData4 : 39|8@0+ (1,0) [0|255] "" BMS
+  SG_ DiagReqAllCANData5 : 47|8@0+ (1,0) [0|255] "" BMS
+  SG_ DiagReqAllCANData6 : 55|8@0+ (1,0) [0|255] "" BMS
+  SG_ DiagReqAllCANData7 : 63|8@0+ (1,0) [0|255] "" BMS
+
+BO_ 1791 DIAG_Req_All_Ecu: 8 XGW_BA
+  SG_ DiagReqAllEcuData0 : 7|8@0+ (1,0) [0|255] "-" BMS
+  SG_ DiagReqAllEcuData1 : 15|8@0+ (1,0) [0|255] "" BMS
+  SG_ DiagReqAllEcuData2 : 23|8@0+ (1,0) [0|255] "" BMS
+  SG_ DiagReqAllEcuData3 : 31|8@0+ (1,0) [0|255] "" BMS
+  SG_ DiagReqAllEcuData4 : 39|8@0+ (1,0) [0|255] "-" BMS
+  SG_ DiagReqAllEcuData5 : 47|8@0+ (1,0) [0|255] "" BMS
+  SG_ DiagReqAllEcuData6 : 55|8@0+ (1,0) [0|255] "" BMS
+  SG_ DiagReqAllEcuData7 : 63|8@0+ (1,0) [0|255] "" BMS
+
+BO_ 1825 SEED_CAN_Req12_VCU_BA: 8 VCU_BA
+  SG_ SEED_CAN_Req12 : 7|64@0+ (1,0) [0|1.84467440737096E+019] "" BMS
+
+BO_ 1849 SEED_CAN_Req24_BMS: 8 BMS
+  SG_ SEED_CAN_Req24 : 7|64@0+ (1,0) [0|1.84467440737096E+019] "" VCU_BA
+
+BO_ 1939 BMS_XCPTx: 8 BMS
+  SG_ BMS_XCPTxData : 7|64@0+ (1,0) [0|0] "" XGW_BA
+
+BO_ 1986 BMS_XCPRx: 8 XGW_BA
+  SG_ BMS_XCPRxData : 7|64@0+ (1,0) [0|0] "" BMS
+
+BO_ 2015 Diag_Request_ECU: 8 XGW_BA
+  SG_ Diag_Request_ECU_Data0 : 7|8@0+ (1,0) [0|255] "" BMS,VCU_BA
+  SG_ Diag_Request_ECU_Data1 : 15|8@0+ (1,0) [0|255] "-" BMS,VCU_BA
+  SG_ Diag_Request_ECU_Data2 : 23|8@0+ (1,0) [0|255] "-" BMS,VCU_BA
+  SG_ Diag_Request_ECU_Data3 : 31|8@0+ (1,0) [0|255] "" BMS,VCU_BA
+  SG_ Diag_Request_ECU_Data4 : 39|8@0+ (1,0) [0|255] "-" BMS,VCU_BA
+  SG_ Diag_Request_ECU_Data5 : 47|8@0+ (1,0) [0|255] "" BMS,VCU_BA
+  SG_ Diag_Request_ECU_Data6 : 55|8@0+ (1,0) [0|255] "-" BMS,VCU_BA
+  SG_ Diag_Request_ECU_Data7 : 63|8@0+ (1,0) [0|255] "" BMS,VCU_BA
+
+
+CM_ "This dbc file for FRS build"; 
+CM_ BU_ BMS "Battery Management System"; 
+CM_ BU_ Sensor "Sensor"; 
+CM_ BU_ VCU_BA "Vehicle Control Unit"; 
+CM_ BU_ XGW_BA "Gateway"; 
+CM_ BO_ 133 "ACM Message for crash details"; 
+CM_ BO_ 266 "Low Voltage Battery"; 
+CM_ BO_ 274 "Clamp status for BEV vehicle"; 
+CM_ BO_ 291 "VCU ACCharging Info."; 
+CM_ BO_ 292 "VCU DCCharging Info."; 
+CM_ BO_ 293 "BMS Allow Discharge Current"; 
+CM_ BO_ 294 "BMS Allow Charge Current"; 
+CM_ BO_ 357 "Charging connection "; 
+CM_ BO_ 372 "BMS CurMeas"; 
+CM_ BO_ 374 "BMS high voltage measurement"; 
+CM_ BO_ 375 "BMS high voltage measurement 2"; 
+CM_ BO_ 409 "VCU Status 1"; 
+CM_ BO_ 417 "Vehicle speed"; 
+CM_ BO_ 504 "MCU OutPut FR"; 
+CM_ BO_ 505 "MCU OutPut RR"; 
+CM_ BO_ 517 "BMS detail voltage 1"; 
+CM_ BO_ 518 "BMS detail voltage 2"; 
+CM_ BO_ 521 "BMS PowerCont"; 
+CM_ BO_ 524 "IC ODO"; 
+CM_ BO_ 533 "BMS status"; 
+CM_ BO_ 534 "BMS Charging profile"; 
+CM_ BO_ 535 "The information VCU send to BMS"; 
+CM_ BO_ 537 "VCU Control"; 
+CM_ BO_ 544 "VCU temperature information"; 
+CM_ BO_ 549 "BMS Fault Management"; 
+CM_ BO_ 550 "BMS QM Management"; 
+CM_ BO_ 581 "BMS Temperature"; 
+CM_ BO_ 584 "BMS thermal request"; 
+CM_ BO_ 585 "BMS Coolant water temperature"; 
+CM_ BO_ 714 "Tester control BMS"; 
+CM_ BO_ 715 "IC_TEMP"; 
+CM_ BO_ 760 "MHU Date Time"; 
+CM_ BO_ 770 "CCU temprature and pressure"; 
+CM_ BO_ 773 "BMS Insulation"; 
+CM_ BO_ 816 "Aging condition of contactor"; 
+CM_ BO_ 818  "BMS Pack information ";
+CM_ SG_ 818 Checksum_0x332 "Checksum";
+CM_ SG_ 818 Rolling_Counter_0x332 "Rolling Counter";
+CM_ SG_ 818 BMS_PackCNom "Nominal capacity of the battery pack";
+CM_ SG_ 818 BMS_PackTemp_0x332 "Pack Temperature ";
+CM_ BO_ 885 "BMS Relay"; 
+CM_ BO_ 896 "BCM vehicle identifier number"; 
+CM_ BO_ 993 "VCU_HMI_Info."; 
+CM_ BO_ 1074 "MHU_FOTA_STATUS"; 
+CM_ BO_ 1109 "BMS Error"; 
+CM_ BO_ 1171 "BMS Warning message"; 
+CM_ BO_ 1282 "XGW Network Management"; 
+CM_ BO_ 1299 "BMS Network Management"; 
+CM_ BO_ 1555 "BMS Diagnostic Responde"; 
+CM_ BO_ 1683 "BMS Diagnostic Request"; 
+CM_ BO_ 1775 "Diagnostic Request for all CAN"; 
+CM_ BO_ 1791 "Diagnostic Request for all ECUs"; 
+CM_ BO_ 1825 "SEED_CAN_Req24"; 
+CM_ BO_ 1849 "SEED_CAN_Req24"; 
+CM_ BO_ 1939 "BMS XCP TX message"; 
+CM_ BO_ 1986 "BMS XCPRx"; 
+CM_ BO_ 2015 "Diagnostic Request for all ECUs"; 
+CM_ SG_ 133 CHKSM_CRASH_Sts "Checksum"; 
+CM_ SG_ 133 ALV_CRASH_Sts "Alive Counter"; 
+CM_ SG_ 133 ACM_Crash_Sts "Crash status"; 
+CM_ SG_ 133 ACM_Airbag_Deployment_Status "Signal to indicate if airbag pretensioner pyrofuse is deployed"; 
+CM_ SG_ 133 ACM_Crash_Intensity "Indicate crash intensity level"; 
+CM_ SG_ 133 ACM_Front_Crash "Output information for direction of crash"; 
+CM_ SG_ 133 ACM_DriverSide_Crash "Output information for direction of crash"; 
+CM_ SG_ 133 ACM_PassSide_Crash "Output information for direction of crash"; 
+CM_ SG_ 133 ACM_Rear_Crash "Output information for direction of crash"; 
+CM_ SG_ 133 ACM_Rollover_Crash "Output information for direction of crash"; 
+CM_ SG_ 266 CHKSM_BCM_VOLTAGE "Checksum"; 
+CM_ SG_ 266 ALIVE_BCM_VOLTAGE "Alive counter"; 
+CM_ SG_ 266 UBatt "Battery Voltage"; 
+CM_ SG_ 266 LV_Batt_Temp "Low voltage Battery Temperature"; 
+CM_ SG_ 266 LV_SOC "State Of charge for Low Voltage Battery"; 
+CM_ SG_ 266 LV_Batt_Current "Current of Low Voltage Battery"; 
+CM_ SG_ 274 CHKSM_BCM_CLAMP_STAT "Checksum"; 
+CM_ SG_ 274 ALIVE_BCM_CLAMP_STAT "Alive counter"; 
+CM_ SG_ 274 RemoteFunctionState "0x1(remote function) will be sent after PreRemoteStart=0x1 first time in ignition OFF state, and this signal will be kept 0x1 until SESAM exit remote state."; 
+CM_ SG_ 274 STAT_BLS "Signal represent plausibility of both HW Inputs for brake light switch."; 
+CM_ SG_ 274 STAT_CL_50_L "Logical clamp status"; 
+CM_ SG_ 274 Clamp50AdviceRemoteStart "Engine Start announcement (Clamp 50) for remote start"; 
+CM_ SG_ 274 Clamp50AdviceESS "Engine Start announcement (Clamp 50) for ESS"; 
+CM_ SG_ 274 STAT_CL_R_L "Logical clamp status"; 
+CM_ SG_ 274 STAT_CL_15_1_L "Logical clamp status"; 
+CM_ SG_ 274 STAT_CL_15_1_DME_L "Logical clamp status"; 
+CM_ SG_ 274 FobId "Information of FOB ID."; 
+CM_ SG_ 274 STAT_Terminal "Represent the status of physical terminal"; 
+CM_ SG_ 274 STAT_CL30_C_BEV "Logical clamp status"; 
+CM_ SG_ 274 BCM_Clamp_Transport "BCM_Clamp_Transport"; 
+CM_ SG_ 291 CHKSM_ACChargingInfo "Checksum"; 
+CM_ SG_ 291 ALIVE_ACChargingInfo "Alive counter"; 
+CM_ SG_ 291 ACCharging_MaxChargingPower "Max  Power of AC Charging gun."; 
+CM_ SG_ 291 CurrentACChargingPower "Nominal power from AC charnge gun"; 
+CM_ SG_ 291 ACCharging_MaxCurrent "Max current of AC Charging gun"; 
+CM_ SG_ 292 CHKSM_DCChargingInfo "Checksum"; 
+CM_ SG_ 292 ALIVE_DCChargingInfo "Alive counter"; 
+CM_ SG_ 292 DCCharging_MaxChargingPower "Max power from the DC charging gun"; 
+CM_ SG_ 292 CurrentDCChargingPower "Nominal power output from DC charge gun"; 
+CM_ SG_ 292 DCCharging_MaxCurrent "Max current from the DC charging gun"; 
+CM_ SG_ 293 Checksum_0x125 "Checksum"; 
+CM_ SG_ 293 Rolling_Counter_0x125 "Rolling Counter"; 
+CM_ SG_ 293 BMS_AllowDischgCurr "Instantaneous maximum allowable discharge current of battery"; 
+CM_ SG_ 293 BMS_AllowDischgCurrPeak "Instantaneous maximum allowable discharge current of battery for 30 seconds "; 
+CM_ SG_ 293 SECCAN_BMS_AllowDischargeCurr "Secret portion from Secure CAN algorithm"; 
+CM_ SG_ 294 Checksum_0x126 "Checksum"; 
+CM_ SG_ 294 Rolling_Counter_0x126 "Rolling Counter"; 
+CM_ SG_ 294 BMS_AllowChgCurr "Continuous maximum allowable charge current of battery "; 
+CM_ SG_ 294 BMS_AllowChgCurrPeak "Instantaneous maximum allowable charge current of battery for 30 seconds "; 
+CM_ SG_ 294 SECCAN_BMS_AllowChargeCurr "Secret portion from Secure CAN algorithm"; 
+CM_ SG_ 357 CHSKM_VCU_ChargingConnection "Checksum"; 
+CM_ SG_ 357 ALV_VCU_ChargingConnection "Alive Counter"; 
+CM_ SG_ 357 VCU_AcChgGunIn "Slow Charge Gun Insert Status "; 
+CM_ SG_ 357 VCU_DCChgGunIn "Connection status of DC Fast charging Gun"; 
+CM_ SG_ 372 CHSKM_BMS_CurMeas "Checksum"; 
+CM_ SG_ 372 ALV_BMS_CurMeas "Alive Counter"; 
+CM_ SG_ 372 BMS_StartOfMeasument_STS "Synchronize signals indicate start of cell/pack voltage measument"; 
+CM_ SG_ 372 BMS_PackCur_MEAS "Battery Pack Total Current"; 
+CM_ SG_ 374 Checksum_0x176 "Checksum"; 
+CM_ SG_ 374 Rolling_Counter_0x176 "Rolling Counter"; 
+CM_ SG_ 374 BMS_HVPackVol_MEAS "Pack Voltage"; 
+CM_ SG_ 374 BMS_HVLinkVol_MEAS "Link Voltage"; 
+CM_ SG_ 375 Checksum_0x177 "Checksum"; 
+CM_ SG_ 375 Rolling_Counter_0x177 "Rolling Counter"; 
+CM_ SG_ 375 BMS_HVBusVol_MEAS "BUS Voltage, it is informative"; 
+CM_ SG_ 375 BMS_HVFuseVol_MEAS "Measure voltage after fuse to identify the fuse is blown or not"; 
+CM_ SG_ 409 CHSKM_VCU_Sts1 "Checksum"; 
+CM_ SG_ 409 ALV_VCU_Sts1 "Alive Counter"; 
+CM_ SG_ 409 VCU_BMS_HVOnOff_REQ "BMS decides whether to close or disconnect the primary and negative relays by judging this command"; 
+CM_ SG_ 417 CHSKM_V_VEH "Checksum"; 
+CM_ SG_ 417 ALIV_V_VEH "Alive counter"; 
+CM_ SG_ 417 V_VEH_COG "Vehicle speed for powertrain"; 
+CM_ SG_ 417 DVCO_VEH "Driving condition"; 
+CM_ SG_ 417 QU_V_VEH_COG "Vehicle speed valid"; 
+CM_ SG_ 504 CHKSM_EDS_OutPut_FR "Check sum"; 
+CM_ SG_ 504 ALV_EDS_OutPut_FR "Alive Counter"; 
+CM_ SG_ 504 EDS_Work_STS_FR "EDS Work status "; 
+CM_ SG_ 504 EDS_Spd_FR "Current motor speed"; 
+CM_ SG_ 504 EDS_output_trqValid_FR "Indicate the valid flag of current motor torque"; 
+CM_ SG_ 504 EDS_MotorDriveSts_FR "The drive state of EDS"; 
+CM_ SG_ 504 EDS_powoff_req_FR "If there is a serious failure in the running process of EDS, the high voltage of VCU will be requested "; 
+CM_ SG_ 504 EDS_SpdValid_FR "Indicate the valid flag of current motor speed"; 
+CM_ SG_ 504 EDS_output_trq_FR "Actual output torque of current EDS"; 
+CM_ SG_ 504 EDS_VCU_6SO_flag_FWD "Indicate the valid flag of current front motor 6SO possible"; 
+CM_ SG_ 505 CHKSM_EDS_OutPut_RR "Check sum"; 
+CM_ SG_ 505 ALV_EDS_OutPut_RR "Alive Counter"; 
+CM_ SG_ 505 EDS_Work_STS_RR "Rear EDS Work status "; 
+CM_ SG_ 505 EDS_Spd_RR "current rear motor speed"; 
+CM_ SG_ 505 EDS_output_trqValid_RR "Indicate the valid flag of current rear motor torque"; 
+CM_ SG_ 505 EDS_MotorDriveSts_RR "The drive state of rear EDS"; 
+CM_ SG_ 505 EDS_powoff_req_RR " If there is a serious failure in the running process of rear EDS, the high voltage of VCU will be requested "; 
+CM_ SG_ 505 EDS_SpdValid_RR "Indicate the valid flag of current rear motor speed"; 
+CM_ SG_ 505 EDS_output_trq_RR "Actual output torque of current Rear motor "; 
+CM_ SG_ 505 EDS_VCU_6SO_flag_RWD "Indicate the valid flag of current rear motor 6SO possible"; 
+CM_ SG_ 517 Checksum_0x205 "Checksum"; 
+CM_ SG_ 517 Rolling_Counter_0x205 "Rolling Counter"; 
+CM_ SG_ 517 BMS_CellNumMinCellVol "Cell Number of Min Cell Voltage "; 
+CM_ SG_ 517 BMS_CellNumMaxCellVol "Cell Number of Max Cell Voltage "; 
+CM_ SG_ 517 BMS_MinCellVol "Min Cell Voltage "; 
+CM_ SG_ 517 BMS_MaxCellVol "Max Cell Voltage "; 
+CM_ SG_ 518 Checksum_0x206 "Checksum"; 
+CM_ SG_ 518 Rolling_Counter_0x206 "Rolling Counter"; 
+CM_ SG_ 518 BMS_MaxMinDiffCellVol "max and min cell voltage differences"; 
+CM_ SG_ 518 SECCAN_BMS_VolMeas2 "Secret portion from Secure CAN algorithm"; 
+CM_ SG_ 521 Checksum_0x209 "Checksum"; 
+CM_ SG_ 521 Rolling_Counter_0x209 "Rolling Counter"; 
+CM_ SG_ 521 BMS_MaxDischgPwr_ALW "Allow Max Discharge Power accepted"; 
+CM_ SG_ 521 BMS_MaxChgPwr_ALW "Allow Max Regenerative Power accepted."; 
+CM_ SG_ 521 BMS_MaxDischgPwr_Peak "Allow Max Discharge Power accepted in 30s"; 
+CM_ SG_ 521 BMS_MaxChgPwr_Peak "Allow Max Regenerative Power accepted in 30s."; 
+CM_ SG_ 524 CHKSM_IC_ODO "Checksum"; 
+CM_ SG_ 524 ALIV_IC_ODO "Alive Counter"; 
+CM_ SG_ 524 MHU_Odometer_IC "Odometer information.";  
+CM_ SG_ 532 Checksum_0x214 "Checksum"; 
+CM_ SG_ 532 Rolling_Counter_0x214 "Rolling Counter"; 
+CM_ SG_ 532 BMS_Display_SOC "Display SOC "; 
+CM_ SG_ 533 Checksum_0x215 "Checksum"; 
+CM_ SG_ 533 Rolling_Counter_0x215 "Rolling Counter"; 
+CM_ SG_ 533 BMS_BatBalance_ERR "Battery Balance Error indicates Balancing switch is short or open"; 
+CM_ SG_ 533 BMS_Balance_STS "BMS Balance Status "; 
+CM_ SG_ 533 BMS_IGN_Sts "the ignition signal status (on/off)"; 
+CM_ SG_ 533 BMS_HWCrash_Sts "Battery Pack Hardware Crash signal Status"; 
+CM_ SG_ 533 BMS_HVIL_STS "The HVIL state of BMS"; 
+CM_ SG_ 533 BMS_HVOnOff_STS "Status of the High Voltage"; 
+CM_ SG_ 533 BMS_ERR_LEV "BMS requesting VCU to operate at the limited operating strategy (LOS)"; 
+CM_ SG_ 533 BMS_SocActual_EST "Actual SOC "; 
+CM_ SG_ 533 BMS_Sys_STS "BMS_Status(Self-test after BMS wake-up) BMS VCU"; 
+CM_ SG_ 533 BMS_ISU_Status "Pack Insulation Status"; 
+CM_ SG_ 533 BMS_SOH "BMS State Of Health "; 
+CM_ SG_ 533 BMS_SOE "BMS State Of Enegy "; 
+CM_ SG_ 533 BMS_HV_Sts "HV Status"; 
+CM_ SG_ 534 Checksum_0x216 "Checksum"; 
+CM_ SG_ 534 Rolling_Counter_0x216 "Rolling Counter"; 
+CM_ SG_ 534 BMS_RemainChargeTime "Remain Charge Time send to other ECU (XGW - IPC)"; 
+CM_ SG_ 534 BMS_ChgVoltage_REQ "Charge Voltage Request"; 
+CM_ SG_ 534 BMS_ChgCurrent_REQ "Charge Current Request"; 
+CM_ SG_ 535 CHSKM_VCU_BMS_Information "Checksum"; 
+CM_ SG_ 535 ALIV_VCU_BMS_Information "Rolling Counter"; 
+CM_ SG_ 535 VCU_DCChargeRelayP "DC charge positive relay request status"; 
+CM_ SG_ 535 VCU_DCChargeRelayN "DC charge negative relay request status"; 
+CM_ SG_ 535 VCU_BMS_Insulation_Mon_Req "CAN Message to turn ON/OFF the insulation resistance measurement Mainly for charging the insulation resistance measurement is turned off"; 
+CM_ SG_ 537 CHSKM_VCU_PTControl "Checksum"; 
+CM_ SG_ 537 ALV_VCU_PTControl "Alive Counter"; 
+CM_ SG_ 537 VCU_ChargeAllow "The flag of VCU allows BMS charging"; 
+CM_ SG_ 544 CHSKM_VCU_BMS_Thermal_FB "Checksum"; 
+CM_ SG_ 544 ALIV_VCU_BMS_Thermal_FB "Rolling Counter"; 
+CM_ SG_ 544 VCU_BMS_PTCOnOff_Sts "VCU sends the status of the PTC Heater"; 
+CM_ SG_ 544 VCU_BMS_ValveOnOff_Sts "VCU sends the status of the valve"; 
+CM_ SG_ 544 VCU_BMS_PumpFB "VCU sends the PUMP feedback"; 
+CM_ SG_ 549 Checksum_0x225 "Checksum"; 
+CM_ SG_ 549 Rolling_Counter_0x225 "Rolling Counter"; 
+CM_ SG_ 549 CDM_bAcvCanComStblMon "Monitored flag indicating active stable CAN communication."; 
+CM_ SG_ 549 FRMo_bErrHvbatStReqExtMon "Collective error flag indicating HV battery state request E2E fault."; 
+CM_ SG_ 549 FRMo_bErrChrgnAllwdExtMon "Collective error flag indicating charging allowed E2E fault."; 
+CM_ SG_ 549 FRMo_bErrVehCrashStExtMon "Collective error flag indicating vehicle crash state E2E fault."; 
+CM_ SG_ 549 CDM_bErrComctnLossCanMon "Error flag indicating total loss of CAN communication fault"; 
+CM_ SG_ 549 CTCMon_bErrCtctrSopcMon "Error flag indicating contactor switch-off path test fault."; 
+CM_ SG_ 549 CTCMon_bInvldCtctrHisdIFbMon "Error flag indicating high-side feedback current invalidity."; 
+CM_ SG_ 549 CTCMon_bInvldCtctrLosdUFbMon "Error flag indicating low-side feedback voltage invalidity."; 
+CM_ SG_ 549 CTM_bErrCellTDifMaxMon "Error flag indicating maximum cell temperature difference fault."; 
+CM_ SG_ 549 CTM_bErrCellTMaxMon "Error flag indicating maximum cell temperature limit fault."; 
+CM_ SG_ 549 CTM_bErrCellTMinMon "Error flag indicating minimum cell temperature limit fault."; 
+CM_ SG_ 549 CTM_bErrThrwyPredMon "Error flag indicating thermal runaway fault."; 
+CM_ SG_ 549 CUM_bErrCellUDifMaxMon "Error flag indicating maximum cell voltage difference fault."; 
+CM_ SG_ 549 CUM_bErrCellUMaxMon "Error flag indicating cell overvoltage fault."; 
+CM_ SG_ 549 CUM_bErrCellUMinMon "Error flag indicating cell undervoltage fault."; 
+CM_ SG_ 549 CUM_bErrCellUProtnMaxNvMon "Non-volatile error flag indicating cell overvoltage protection limit fault."; 
+CM_ SG_ 549 CUM_bErrCellUProtnMinNvMon "Non-volatile error flag indicating cell undervoltage protection limit fault."; 
+CM_ SG_ 549 CUM_bErrPackUImplyMon "Error flag indicating pack voltage implausibility."; 
+CM_ SG_ 549 EHPMon_bRdyHvilMon "Ready flag indicating operational HVIL circuit."; 
+CM_ SG_ 549 EHPMon_bErrWlddNegNvMon "Non-volatile error flag indicating welded negative contactor fault."; 
+CM_ SG_ 549 EHPMon_bErrWlddPosNvMon "Non-volatile error flag indicating welded positive contactor fault."; 
+CM_ SG_ 549 EHPMon_bErrWlddPrechNvMon "Non-volatile error flag indicating welded precharge contactor fault."; 
+CM_ SG_ 549 EHPMon_bErrHvilMon "Error flag indicating HVIL open line fault."; 
+CM_ SG_ 549 EHPMon_bErrHvilShoMon "Error flag indicating HVIL invalidity (ScG/ScB) fault."; 
+CM_ SG_ 549 EHPMon_bErrPackIslnRNvMon "Non-volatile error flag indicating pack level isolation resistance fault."; 
+CM_ SG_ 549 EHPMon_bErrVehCrashNvMon "Non-volatile error flag indicating vehicle crash fault."; 
+CM_ SG_ 549 EHPMon_bErrVehIslnRNvMon "Non-volatile error flag indicating vehicle level isolation resistance fault."; 
+CM_ SG_ 549 FRMo_bErrMemStorgNvMon "Error flag indicating storage fault in the non-volatile memory."; 
+CM_ SG_ 549 L1IM_bErrClmp30MaxMonInp "Error flag indicating Level 1 KL30 overvoltage fault."; 
+CM_ SG_ 549 L1IM_bErrClmp30MinMonInp "Error flag indicating Level 1 KL30 undervoltage fault."; 
+CM_ SG_ 549 L1IM_bErrCtctrDtrtMonInp "Error flag indicating Level 1 contactor deterioration"; 
+CM_ SG_ 549 L1IM_bErrUActImplyMonInp "Error flag indicating Level 1 high voltage implausibility."; 
+CM_ SG_ 549 MCCM_bAcvMdulCtlrStsMon "Active flag indicating operational module controller status."; 
+CM_ SG_ 549 MCCM_bErrLntecSngFltMon "Error flag indicating single-point safety mechanism fault of the Multi-Stack Battery Monitor."; 
+CM_ SG_ 549 MCCM_bErrLntecLtntFltMon "Error flag indicating latent safety mechanism fault of the Multi-Stack Battery Monitor."; 
+CM_ SG_ 549 MCCM_bErrMdulCellSnsrCfgMon "Error flag indicating module/cell/temperature sensor configuration fault."; 
+CM_ SG_ 549 MCCM_bErrMdulCtlrComMon "Error flag indicating module controller communication status fault."; 
+CM_ SG_ 549 MCCM_bErrSnsrTEltlMon "Error flag indicating multiple temperature sensor in a module fault."; 
+CM_ SG_ 549 MCCM_bWarnSnsrTEltlMon "Error flag indicating single temperature sensor in a module fault."; 
+CM_ SG_ 549 PCM_bRdySnsrIMon "Ready flag indicating operational current sensors."; 
+CM_ SG_ 549 PCM_bErrPackEFlowMaxLimMon "Error flag indicating energy flow limit fault."; 
+CM_ SG_ 549 PCM_bErrPackIChDchaMaxLimMon "Error flag indicating pack current charging/discharging limit fault."; 
+CM_ SG_ 549 PCM_bErrSnsrIImplyMon "Error flag indicating current sensor implausibility fault."; 
+CM_ SG_ 549 FRMo_bErrSnsrI1ExtMon "Collective error flag indicating current sensor 1 (CAN-based shunt sensor) E2E fault."; 
+CM_ SG_ 549 PCM_bInvldSnsrI1Mon "Error flag indicating current sensor 1 invalidity fault."; 
+CM_ SG_ 549 PCM_bInvldSnsrI2Mon "Error flag indicating current sensor 2 invalidity fault."; 
+CM_ SG_ 549 FRMo_bErrSopcLvl3Mon "Error flag indicating Level 3 switch-off path test fault. "; 
+CM_ SG_ 549 BMS_FRMo_Reserved_1 "Fault monitor signal"; 
+CM_ SG_ 549 BMS_FRMo_Reserved_2 "Fault monitor signal"; 
+CM_ SG_ 549 BMS_FRMo_Reserved_3 "Fault monitor signal"; 
+CM_ SG_ 549 BMS_FRMo_Reserved_4 "Fault monitor signal"; 
+CM_ SG_ 549 BMS_FRMo_Reserved_5 "Fault monitor signal"; 
+CM_ SG_ 550 Checksum_0x226 "Checksum"; 
+CM_ SG_ 550 Rolling_Counter_0x226 "Rolling Counter"; 
+CM_ SG_ 550 BMS_QMMo_Reserved_0 "QM fault monitoring signals"; 
+CM_ SG_ 550 BMS_QMMo_Reserved_1 "QM fault monitoring signals"; 
+CM_ SG_ 550 BMS_QMMo_Reserved_2 "QM fault monitoring signals"; 
+CM_ SG_ 550 BMS_QMMo_Reserved_3 "QM fault monitoring signals"; 
+CM_ SG_ 550 BMS_QMMo_Reserved_4 "QM fault monitoring signals"; 
+CM_ SG_ 550 BMS_QMMo_Reserved_5 "QM fault monitoring signals"; 
+CM_ SG_ 550 BMS_QMMo_Reserved_6 "QM fault monitoring signals"; 
+CM_ SG_ 550 BMS_QMMo_Reserved_7 "QM fault monitoring signals"; 
+CM_ SG_ 550 BMS_QMMo_Reserved_8 "QM fault monitoring signals"; 
+CM_ SG_ 550 BMS_QMMo_Reserved_9 "QM fault monitoring signals"; 
+CM_ SG_ 550 BMS_QMMo_Reserved_10 "QM fault monitoring signals"; 
+CM_ SG_ 550 BMS_QMMo_Reserved_11 "QM fault monitoring signals"; 
+CM_ SG_ 550 CDEM_ErrDisp_0 "The error display array stores the recently active errors IDs. If a new error occurs the oldest error ID will be removed.";
+CM_ SG_ 550 CDEM_ErrDisp_1 "The error display array stores the recently active errors IDs. If a new error occurs the oldest error ID will be removed.";
+CM_ SG_ 581 Checksum_0x245 "Checksum"; 
+CM_ SG_ 581 Rolling_Counter_0x245 "Rolling Counter"; 
+CM_ SG_ 581 BMS_ProbeNumMaxCellTemp "Probe Number of Max Cell Temperature "; 
+CM_ SG_ 581 BMS_MinCellTemp "Min Cell Temperature "; 
+CM_ SG_ 581 BMS_ProbeNumMinCellTemp "Probe Number of Min Cell Temperature "; 
+CM_ SG_ 581 BMS_PackTemp "Pack Temperature "; 
+CM_ SG_ 581 BMS_MaxCellTemp "Max Cell Temperature "; 
+CM_ SG_ 581 BMS_MaxMinDiffCellTemp "max and min cell temperature differences "; 
+
+CM_ SG_ 584 CHSKM_BMS_VCU_THMReq "Check sum"; 
+CM_ SG_ 584 ALV_BMS_VCU_THMReq "Alive counter"; 
+CM_ SG_ 584 BMS_FlowRate_Req "Flow rate required"; 
+CM_ SG_ 584 BMS_CoolPwrDemand "requesting the cooling power required fro the battery pack"; 
+CM_ SG_ 584 BMS_HeatPwrDemand "requesting the heating power required fro the battery pack"; 
+CM_ SG_ 584 BMS_VCU_PTCOnOff_Req "PTC Heater turn on and off request"; 
+CM_ SG_ 584 BMS_VCU_ValveOnOff_Req "requesting VCU to turn on and off the valve"; 
+CM_ SG_ 584 BMS_PreHeatCoolReq "Battery pack precondition information"; 
+CM_ SG_ 585 CHSKM_BMS_CoolntInletOutletTmp "Check sum"; 
+CM_ SG_ 585 ALV_BMS_CoolntInletOutletTmp "Alive counter"; 
+CM_ SG_ 585 BMS_CoolantInletTemp "Temperature of Battery Coolant Inlet"; 
+CM_ SG_ 585 BMS_CoolantOutletTemp "Temperature of Battery Coolant Outlet"; 
+CM_ SG_ 585 BMS_BDUTemp1 "BDU Temperature "; 
+CM_ SG_ 585 BMS_BDUTemp2 "BDU Temperature "; 
+CM_ SG_ 714 CHKSM_IC_SENSOR "Checksum"; 
+CM_ SG_ 714 ALV_IC_SENSOR "Alive Counter"; 
+CM_ SG_ 714 MHU_STAT_AmbientTempRaw "Ambient Temperature Raw"; 
+CM_ SG_ 714 MHU_STAT_FuelLevel "Fuel Level 3 to 63 l  (only for ICE)"; 
+CM_ SG_ 714 MHU_STAT_AmbientTemp "Ambient Temperature filtered"; 
+CM_ SG_ 714 MHU_STAT_CoolantLevelStatus "Low level coolant indicator"; 
+CM_ SG_ 715 TEMP_EX "n.a."; 
+CM_ SG_ 715 TEMP_EX_UNFILT "Outsude temp raw"; 
+CM_ SG_ 760 DISP_HR "The signal / parameter indicates the current hour."; 
+CM_ SG_ 760 DISP_MN "The signal / parameter indicates the current minute."; 
+CM_ SG_ 760 DISP_SEC "The signal / parameter indicates the current second."; 
+CM_ SG_ 760 DISP_DATE_DAY "The signal / parameter indicates the current day."; 
+CM_ SG_ 760 DISP_DATE_MON "The signal / parameter indicates the current month."; 
+CM_ SG_ 760 DISP_DATE_WDAY "The signal   parameter indicates the current day of the week."; 
+CM_ SG_ 760 DISP_DATE_YR "The signal / parameter indicates the current year."; 
+CM_ SG_ 760 ST_DISP_CTI_DATE "The signal / parameter indicates the state of the switch summer winter time."; 
+CM_ SG_ 770 CHKSM_CCU_TEMP_PRESSURE "Checksum"; 
+CM_ SG_ 770 ALV_CCU_TEMP_PRESSURE "Alive Counter"; 
+CM_ SG_ 770 CCU_Pressure_AC "The compressor line pressure."; 
+CM_ SG_ 770 CCU_InteriorTemp "CCU interiour  temperature. Invalid = 251-255"; 
+CM_ SG_ 770 CCU_TempEx_AC "Outside temperature calculated by CCU"; 
+CM_ SG_ 770 CCU_EvaporatorTemp "Actual evaporator temperature of the HVAC unit. Invalid = 251-255"; 
+CM_ SG_ 773 CHSKM_BMS_Insulation "Checksum"; 
+CM_ SG_ 773 ALV_BMS_Insulation "Rolling Counter"; 
+CM_ SG_ 773 BMS_VCU_Insulation_Mon_Sts "Feedback for the Insulation Monitoring signal "; 
+CM_ SG_ 773 BMS_PackInsuRes "Minimum value of BCU_PosInsuRes and BCU_NegInsuRes"; 
+CM_ SG_ 816 Checksum_0x330 "Checksum"; 
+CM_ SG_ 816 Rolling_Counter_0x330 "Rolling Counter"; 
+CM_ SG_ 816 BMS_ContactorAging "Aging condition of contactor - PreCharge Realy - Positive Contactor - Negative Contactor"; 
+CM_ SG_ 819 BMS_SwVers_Type "BMS software scheme number";
+CM_ SG_ 819 BMS_SwVersS_phase "BMS software version number";
+CM_ SG_ 819 BMS_swVers_version "BMS version number";
+CM_ SG_ 820 BMS_ErrorCategory_CAT0 "Escalation level of an error";
+CM_ SG_ 820 BMS_ErrorCategory_CAT1 "Escalation level of an error";
+CM_ SG_ 820 BMS_ErrorCategory_CAT2 "Escalation level of an error";
+CM_ SG_ 820 BMS_ErrorCategory_CAT3 "Escalation level of an error";
+CM_ SG_ 820 BMS_ErrorCategory_CAT4 "Escalation level of an error";
+CM_ SG_ 820 BMS_ErrorCategory_CAT5 "Escalation level of an error";
+CM_ SG_ 820 BMS_ErrorCategory_CAT6 "Escalation level of an error";
+CM_ SG_ 820 BMS_ErrorCategory_CAT7 "Escalation level of an error";
+CM_ SG_ 820 BMS_ErrorCategory_CAT8 "Escalation level of an error";
+CM_ SG_ 885 Checksum_0x375 "Checksum"; 
+CM_ SG_ 885 Rolling_Counter_0x375 "Rolling Counter"; 
+CM_ SG_ 885 BMS_PreChgRelay_ERR "Precahrge relay is not working properly "; 
+CM_ SG_ 885 BMS_TotalNegRelay_ERR "Main Negative Relay Error "; 
+CM_ SG_ 885 BMS_MainPosRelay_ERR "Main Position Relay Error "; 
+CM_ SG_ 885 BMS_MainPosRelay_STS "Main Positive Relay Status "; 
+CM_ SG_ 885 BMS_PreChgRelay_STS "PreCharge Relay Status "; 
+CM_ SG_ 885 BMS_TotalNegRelay_STS "Main Negative Relay Status "; 
+CM_ SG_ 896 VIN_Byte1 "This signal contains the seventh last digit of the chassis number. (The individual digits are encoded in ASCII characters.)
+Bit 0: LSB, Bit 7: MSB"; 
+CM_ SG_ 896 VIN_Byte2 "This signal contains the sixth last digit of the chassis number. (The individual digits are encoded in ASCII characters.)
+Bit 0: LSB, Bit 7: MSB"; 
+CM_ SG_ 896 VIN_Byte3 "This signal contains the fifth last digit of the chassis number. (The individual digits are encoded in ASCII characters.)
+Bit 0: LSB, Bit 7: MSB"; 
+CM_ SG_ 896 VIN_Byte4 "This signal contains the fourth last digit of the chassis number. (The individual digits are encoded in ASCII characters.)
+Bit 0: LSB, Bit 7: MSB"; 
+CM_ SG_ 896 VIN_Byte5 "This signal contains the third last digit of the chassis number. (The individual digits are encoded in ASCII characters.)
+Bit 0: LSB, Bit 7: MSB"; 
+CM_ SG_ 896 VIN_Byte6 "This signal contains the penultimate digit of the chassis number. (The individual digits are encoded in ASCII characters.)
+Bit 0: LSB, Bit 7: MSB"; 
+CM_ SG_ 896 VIN_Byte7 "This signal contains the last digit of the chassis number. (The individual digits are encoded in ASCII characters.)
+Bit 0: LSB, Bit 7: MSB"; 
+CM_ SG_ 993 CRC_VCU_HMI_Info "Checksum"; 
+CM_ SG_ 993 ALIV_VCU_HMI_Info "Alive counter"; 
+CM_ SG_ 993 VCU_MHU_Ack_TargetSOC "Target SOC acknowledged by VCU base on request from MHU"; 
+CM_ SG_ 1074 MHU_FOTA_Checksum "FOTA global status message checksum"; 
+CM_ SG_ 1074 MHU_FOTA_Alive_Counter "FOTA global status message alive counter"; 
+CM_ SG_ 1074 MHU_FOTA_State "FOTA global status"; 
+CM_ SG_ 1074 MHU_FOTA_Error_Code "FOTA Error Code"; 
+CM_ SG_ 1109 Checksum_0x455 "Checksum"; 
+CM_ SG_ 1109 Rolling_Counter_0x455 "Rolling Counter"; 
+CM_ SG_ 1109 BMS_CellLowVol_ERR "under voltage of the cell is detected"; 
+CM_ SG_ 1109 BMS_HVIL_Err "High Voltage Interlock loop circuit error"; 
+CM_ SG_ 1109 BMS_PackInsu_ERR "Insulation check lines have problems, short to ground or short to bat"; 
+CM_ SG_ 1109 BMS_CellVoltDiff_ERR "max and min cell voltage difference is too large"; 
+CM_ SG_ 1109 BMS_ProbeTempDiff_ERR "The difference in temperture between max and min is beyound the permissable limit"; 
+CM_ SG_ 1109 BMS_PackHighVol_ERR "Pack voltage is higher than the permittable values"; 
+CM_ SG_ 1109 BMS_PackLowVol_ERR "Pack voltage is lower than the permittable values"; 
+CM_ SG_ 1109 BMS_CellHighVol_ERR "Over voltage of the cell is detected"; 
+CM_ SG_ 1109 BMS_ProbeHighTemp_ERR "Over temperature of the cell is detected"; 
+CM_ SG_ 1109 BMS_FuseStatus_ERR "Fuse and Pyro fuse blowup status"; 
+CM_ SG_ 1109 BMS_PackOverCurr_ERR "When the over current is detected during charging and discharging for the given period of time, then the BMS_Packovercurr_err will set "; 
+CM_ SG_ 1109 BMS_ProbeLowTemp_ERR "Under Temperature of the cell is detected "; 
+CM_ SG_ 1120 TWV1_N_Position "TWV1_N_Position";
+CM_ SG_ 1120 TWV1_St_Feedback "TWV1_St_Feedback";
+CM_ SG_ 1171 CHSKM_BMS_WarnMsg "Checksum"; 
+CM_ SG_ 1171 ALV_BMS_WarnMsg "Alive Counter"; 
+CM_ SG_ 1171 BMS_PackTempSts "Pack temperature warning"; 
+CM_ SG_ 1171 BMS_ThermalRunaway "Thermal runaway warning"; 
+CM_ SG_ 1171 BMS_BatteryReplacement "Separate signal to indicate the battery replacement information(Battery replacement MHU)"; 
+CM_ SG_ 1171 BMS_Warning_PowerDegrade "Pack Power Degrade: Battery is cold & limited capacity, please charge"; 
+CM_ SG_ 1171 BMS_Warning_DeltaSoC "EV Battery Delta SOC is high, range reduction in vehicle will be absorbed"; 
+CM_ SG_ 1171 BMS_Warning_HVILSts "HVIL warning signal"; 
+CM_ SG_ 1171 BMS_Warning_Isolation "Coolant Leakage warning"; 
+CM_ SG_ 1171 BMS_Warning_CoolantLeakage "Coolant Leakage warning"; 
+CM_ SG_ 1171 BMS_MalfunctionSts "Malfunction status of battery for MHU display"; 
+CM_ SG_ 1171 BMS_LowBattery "Low Battery Warning"; 
+CM_ SG_ 1171 BMS_Warning_DeltaTemperature "Delta temperature warning signal"; 
+CM_ SG_ 1171 BMS_Warning_BDUTemperatureSts "BDU temperature warning signal"; 
+CM_ SG_ 1171 BMS_Reserved_signal3 "Warning Message Flag, Component owner, Supplier align and define for this signal"; 
+CM_ SG_ 1171 BMS_Reserved_signal4 "Warning Message Flag, Component owner, Supplier align and define for this signal"; 
+CM_ SG_ 1171 BMS_Reserved_signal5 "Warning Message Flag, Component owner, Supplier align and define for this signal"; 
+CM_ SG_ 1282 XGW_srcNodeID "Network Management Signal"; 
+CM_ SG_ 1282 XGW_CtrlBitVector "Network Management Signal"; 
+CM_ SG_ 1282 XGW_usrData0 "Network Management Signal"; 
+CM_ SG_ 1282 XGW_usrData1 "Network Management Signal"; 
+CM_ SG_ 1282 XGW_usrData2 "Network Management Signal"; 
+CM_ SG_ 1282 XGW_usrData3 "Network Management Signal"; 
+CM_ SG_ 1282 XGW_usrData4 "Network Management Signal"; 
+CM_ SG_ 1282 XGW_usrData5 "Network Management Signal"; 
+CM_ SG_ 1299 BMS_srcNodeID "Network Management Signal"; 
+CM_ SG_ 1299 BMS_CtrlBitVector "Network Management Signal"; 
+CM_ SG_ 1299 BMS_usrData0 "Network Management Signal"; 
+CM_ SG_ 1299 BMS_usrData1 "Network Management Signal"; 
+CM_ SG_ 1299 BMS_usrData2 "Network Management Signal"; 
+CM_ SG_ 1299 BMS_usrData3 "Network Management Signal"; 
+CM_ SG_ 1299 BMS_usrData4 "Network Management Signal"; 
+CM_ SG_ 1299 BMS_usrData5 "Network Management Signal"; 
+CM_ SG_ 1555 BMS_DiagRespData0 "Diagnostic signal Data response"; 
+CM_ SG_ 1555 BMS_DiagRespData1 "Diagnostic signal Data response"; 
+CM_ SG_ 1555 BMS_DiagRespData2 "Diagnostic signal Data response"; 
+CM_ SG_ 1555 BMS_DiagRespData3 "Diagnostic signal Data response"; 
+CM_ SG_ 1555 BMS_DiagRespData4 "Diagnostic signal Data response"; 
+CM_ SG_ 1555 BMS_DiagRespData5 "Diagnostic signal Data response"; 
+CM_ SG_ 1555 BMS_DiagRespData6 "Diagnostic signal Data response"; 
+CM_ SG_ 1555 BMS_DiagRespData7 "Remote Diagnostic signal Data response"; 
+CM_ SG_ 1683 BMS_DiagReqData0 "Diagnostic signal Data request"; 
+CM_ SG_ 1683 BMS_DiagReqData1 "Diagnostic signal Data request"; 
+CM_ SG_ 1683 BMS_DiagReqData2 "Diagnostic signal Data request"; 
+CM_ SG_ 1683 BMS_DiagReqData3 "Remote Diagnostic signal Data request"; 
+CM_ SG_ 1683 BMS_DiagReqData4 "Remote Diagnostic signal Data request"; 
+CM_ SG_ 1683 BMS_DiagReqData5 "Remote Diagnostic signal Data request"; 
+CM_ SG_ 1683 BMS_DiagReqData6 "Diagnostic signal Data request"; 
+CM_ SG_ 1683 BMS_DiagReqData7 "Diagnostic signal Data request"; 
+CM_ SG_ 1775 DiagReqAllCANData0 "Diagnostic message Request all CAN"; 
+CM_ SG_ 1775 DiagReqAllCANData1 "Diagnostic message Request all CAN"; 
+CM_ SG_ 1775 DiagReqAllCANData2 "Diagnostic message Request all CAN"; 
+CM_ SG_ 1775 DiagReqAllCANData3 "Diagnostic message Request all CAN"; 
+CM_ SG_ 1775 DiagReqAllCANData4 "Diagnostic message Request all CAN"; 
+CM_ SG_ 1775 DiagReqAllCANData5 "Diagnostic message Request all CAN"; 
+CM_ SG_ 1775 DiagReqAllCANData6 "Diagnostic message Request all CAN"; 
+CM_ SG_ 1775 DiagReqAllCANData7 "Diagnostic message Request all CAN"; 
+CM_ SG_ 1791 DiagReqAllEcuData0 "Diagnostic message all ECUs"; 
+CM_ SG_ 1791 DiagReqAllEcuData1 "Diagnostic message all ECUs"; 
+CM_ SG_ 1791 DiagReqAllEcuData2 "Diagnostic message all ECUs"; 
+CM_ SG_ 1791 DiagReqAllEcuData3 "Diagnostic message all ECUs"; 
+CM_ SG_ 1791 DiagReqAllEcuData4 "Diagnostic message all ECUs"; 
+CM_ SG_ 1791 DiagReqAllEcuData5 "Diagnostic message all ECUs"; 
+CM_ SG_ 1791 DiagReqAllEcuData6 "Diagnostic message all ECUs"; 
+CM_ SG_ 1791 DiagReqAllEcuData7 "Diagnostic message all ECUs"; 
+CM_ SG_ 1825 SEED_CAN_Req12 "Secret portion from Secure CAN algorithm"; 
+CM_ SG_ 1849 SEED_CAN_Req24 "Secret portion from Secure CAN algorithm"; 
+CM_ SG_ 1939 BMS_XCPTxData "XCP TX signal"; 
+CM_ SG_ 1986 BMS_XCPRxData "XCP RX signal"; 
+CM_ SG_ 2015 Diag_Request_ECU_Data0 "Diagnostic message all ECUs"; 
+CM_ SG_ 2015 Diag_Request_ECU_Data1 "Diagnostic message all ECUs"; 
+CM_ SG_ 2015 Diag_Request_ECU_Data2 "Diagnostic message all ECUs"; 
+CM_ SG_ 2015 Diag_Request_ECU_Data3 "Diagnostic message all ECUs"; 
+CM_ SG_ 2015 Diag_Request_ECU_Data4 "Diagnostic message all ECUs"; 
+CM_ SG_ 2015 Diag_Request_ECU_Data5 "Diagnostic message all ECUs"; 
+CM_ SG_ 2015 Diag_Request_ECU_Data6 "Diagnostic message all ECUs"; 
+CM_ SG_ 2015 Diag_Request_ECU_Data7 "Diagnostic message all ECUs"; 
+
+BA_DEF_ BO_  "GenMsgSendType" ENUM "Cyclic","NotUsed","NotUsed","NotUsed","NotUsed","NotUsed","NotUsed","IfActive","NoMsgSendType","NotUsed";
+BA_DEF_ BO_  "GenMsgILSupport" ENUM "No","Yes";
+BA_DEF_ BO_  "DiagResponse" ENUM "No","Yes";
+BA_DEF_ BO_  "DiagRequest" ENUM "No","Yes";
+BA_DEF_ BO_  "NmAsrMessage" ENUM "No","Yes";
+BA_DEF_ BO_  "DiagState" ENUM "No","Yes";
+BA_DEF_ BO_  "DiagUudtResponse" ENUM "False","True";
+BA_DEF_ BO_  "GenMsgStartDelayTime" INT 0 65535;
+BA_DEF_ BO_  "GenMsgDelayTime" INT 0 0;
+BA_DEF_ BO_  "GenMsgNrOfRepetition" INT 0 0;
+BA_DEF_ BO_  "GenMsgCycleTimeFast" INT 0 0;
+BA_DEF_ BO_  "GenMsgCycleTime" INT 0 0;
+BA_DEF_ BU_  "NmStationAddress" HEX 0 0;
+BA_DEF_ BU_  "Address" HEX 0 255;
+BA_DEF_ BU_  "TpSTMin" INT 0 255;
+BA_DEF_ BU_  "ILUsed" ENUM "No","Yes";
+BA_DEF_ BU_  "NmAsrNode" ENUM "No","Yes";
+BA_DEF_ BU_  "NmAsrNodeIdentifier" HEX 0 255;
+BA_DEF_ BU_  "NmAsrCanMsgCycleOffset" INT 0 65535;
+BA_DEF_ BU_  "NmAsrCanMsgReducedTime" INT 320 640;
+BA_DEF_ BU_  "Version" STRING;
+BA_DEF_ SG_  "GenSigSendType" ENUM "Cyclic","OnWrite","OnWriteWithRepetition","OnChange","OnChangeWithRepetition","IfActive","IfActiveWithRepetition","NoSigSendType","NotUsed","NotUsed","NotUsed","NotUsed","NotUsed";
+BA_DEF_ SG_  "InvalidValue" STRING;
+BA_DEF_ SG_  "GenSigStartValue" INT 0 0;
+BA_DEF_ SG_  "GenSigTimeoutTime_ALL" INT 0 65535;
+BA_DEF_  "DBName" STRING;
+BA_DEF_  "NmAsrBaseAddress" HEX 0 2047;
+BA_DEF_  "NmAsrMessageCount" INT 1 256;
+BA_DEF_  "NmAsrTimeoutTime" INT 0 65535;
+BA_DEF_  "NmAsrWaitBusSleepTime" INT 0 65535;
+BA_DEF_  "NmAsrRepeatMessageTime" INT 0 65535;
+BA_DEF_  "NmAsrCanMsgCycleTime" INT 0 65535;
+BA_DEF_  "Baudrate" INT 0 1000000;
+BA_DEF_  "BusType" STRING;
+BA_DEF_  "NmType" STRING;
+BA_DEF_  "Manufacturer" STRING;
+BA_DEF_ BU_  "ECU" STRING;
+
+
+
+BA_DEF_DEF_  "Address" 0;
+BA_DEF_DEF_  "Baudrate" 500000;
+BA_DEF_DEF_  "DiagRequest" "No";
+BA_DEF_DEF_  "DiagResponse" "No";
+BA_DEF_DEF_  "DiagState" "No";
+BA_DEF_DEF_  "DiagUudtResponse" "False";
+BA_DEF_DEF_  "ECU" "";
+BA_DEF_DEF_  "GenMsgCycleTime" 0;
+BA_DEF_DEF_  "GenMsgCycleTimeFast" 0;
+BA_DEF_DEF_  "GenMsgDelayTime" 0;
+BA_DEF_DEF_  "GenMsgILSupport" "Yes";
+BA_DEF_DEF_  "GenMsgNrOfRepetition" 0;
+BA_DEF_DEF_  "GenMsgSendType" "NoMsgSendType";
+BA_DEF_DEF_  "GenMsgStartDelayTime" 0;
+BA_DEF_DEF_  "GenSigSendType" "Cyclic";
+BA_DEF_DEF_  "GenSigStartValue" 0;
+BA_DEF_DEF_  "GenSigTimeoutTime_ALL" 0;
+BA_DEF_DEF_  "ILUsed" "Yes";
+BA_DEF_DEF_  "Manufacturer" "VinFast";
+BA_DEF_DEF_  "NmAsrBaseAddress" 1280;
+BA_DEF_DEF_  "NmAsrCanMsgCycleOffset" 0;
+BA_DEF_DEF_  "NmAsrCanMsgCycleTime" 640;
+BA_DEF_DEF_  "NmAsrCanMsgReducedTime" 320;
+BA_DEF_DEF_  "NmAsrMessage" "No";
+BA_DEF_DEF_  "NmAsrMessageCount" 128;
+BA_DEF_DEF_  "NmAsrNode" "Yes";
+BA_DEF_DEF_  "NmAsrNodeIdentifier" 0;
+BA_DEF_DEF_  "NmAsrRepeatMessageTime" 3200;
+BA_DEF_DEF_  "NmAsrTimeoutTime" 2000;
+BA_DEF_DEF_  "NmAsrWaitBusSleepTime" 1500;
+BA_DEF_DEF_  "NmStationAddress" 0;
+BA_DEF_DEF_  "TpSTMin" 20;
+
+BA_ "Baudrate" 500000;
+BA_ "BusType" "CAN";
+BA_ "DBName" "BA";
+BA_ "Manufacturer" "VinFast";
+BA_ "NmType" "NmAsr";
+BA_ "ECU" BU_ BMS "BA_CAN_BMS";
+BA_ "NmAsrCanMsgCycleOffset" BU_ BMS 95;
+BA_ "NmAsrCanMsgReducedTime" BU_ BMS 320;
+BA_ "NmAsrNodeIdentifier" BU_ BMS 19;
+BA_ "NmStationAddress" BU_ BMS 19;
+BA_ "ECU" BU_ DUMMY_ECU "DUMMY_ECU";
+BA_ "ECU" BU_ Sensor "Sensor";
+BA_ "NmAsrNodeIdentifier" BU_ Sensor 45;
+BA_ "NmStationAddress" BU_ Sensor 45;
+BA_ "ECU" BU_ VCU_BA "BA_CAN_VCU";
+BA_ "NmAsrCanMsgCycleOffset" BU_ VCU_BA 220;
+BA_ "NmAsrCanMsgReducedTime" BU_ VCU_BA 430;
+BA_ "NmAsrNodeIdentifier" BU_ VCU_BA 44;
+BA_ "NmStationAddress" BU_ VCU_BA 44;
+BA_ "ECU" BU_ XGW_BA "XGW_BaCAN";
+BA_ "NmAsrCanMsgCycleOffset" BU_ XGW_BA 10;
+BA_ "NmAsrCanMsgReducedTime" BU_ XGW_BA 325;
+BA_ "NmAsrNodeIdentifier" BU_ XGW_BA 2;
+BA_ "NmStationAddress" BU_ XGW_BA 2;
+BA_ "DiagRequest" BO_ 133 0;
+BA_ "DiagResponse" BO_ 133 0;
+BA_ "DiagState" BO_ 133 0;
+BA_ "GenMsgCycleTime" BO_ 133 20;
+BA_ "GenMsgCycleTimeFast" BO_ 133 0;
+BA_ "GenMsgILSupport" BO_ 133 0;
+BA_ "GenMsgNrOfRepetition" BO_ 133 0;
+BA_ "GenMsgSendType" BO_ 133 0;
+BA_ "NmAsrMessage" BO_ 133 0;
+BA_ "DiagRequest" BO_ 266 0;
+BA_ "DiagResponse" BO_ 266 0;
+BA_ "DiagState" BO_ 266 0;
+BA_ "GenMsgCycleTime" BO_ 266 500;
+BA_ "GenMsgCycleTimeFast" BO_ 266 0;
+BA_ "GenMsgILSupport" BO_ 266 1;
+BA_ "GenMsgNrOfRepetition" BO_ 266 0;
+BA_ "GenMsgSendType" BO_ 266 0;
+BA_ "NmAsrMessage" BO_ 266 0;
+BA_ "DiagRequest" BO_ 274 0;
+BA_ "DiagResponse" BO_ 274 0;
+BA_ "DiagState" BO_ 274 0;
+BA_ "GenMsgCycleTime" BO_ 274 100;
+BA_ "GenMsgCycleTimeFast" BO_ 274 20;
+BA_ "GenMsgILSupport" BO_ 274 0;
+BA_ "GenMsgNrOfRepetition" BO_ 274 3;
+BA_ "GenMsgSendType" BO_ 274 0;
+BA_ "NmAsrMessage" BO_ 274 0;
+BA_ "GenMsgCycleTime" BO_ 291 500;
+BA_ "GenMsgSendType" BO_ 291 0;
+BA_ "GenMsgCycleTime" BO_ 292 500;
+BA_ "GenMsgSendType" BO_ 292 0;
+BA_ "DiagRequest" BO_ 293 0;
+BA_ "DiagResponse" BO_ 293 0;
+BA_ "DiagState" BO_ 293 0;
+BA_ "GenMsgCycleTime" BO_ 293 20;
+BA_ "GenMsgCycleTimeFast" BO_ 293 0;
+BA_ "GenMsgILSupport" BO_ 293 0;
+BA_ "GenMsgNrOfRepetition" BO_ 293 0;
+BA_ "GenMsgSendType" BO_ 293 0;
+BA_ "NmAsrMessage" BO_ 293 0;
+BA_ "DiagRequest" BO_ 294 0;
+BA_ "DiagResponse" BO_ 294 0;
+BA_ "DiagState" BO_ 294 0;
+BA_ "GenMsgCycleTime" BO_ 294 20;
+BA_ "GenMsgCycleTimeFast" BO_ 294 0;
+BA_ "GenMsgILSupport" BO_ 294 0;
+BA_ "GenMsgNrOfRepetition" BO_ 294 0;
+BA_ "GenMsgSendType" BO_ 294 0;
+BA_ "NmAsrMessage" BO_ 294 0;
+BA_ "DiagRequest" BO_ 357 0;
+BA_ "DiagResponse" BO_ 357 0;
+BA_ "DiagState" BO_ 357 0;
+BA_ "GenMsgCycleTime" BO_ 357 20;
+BA_ "GenMsgCycleTimeFast" BO_ 357 0;
+BA_ "GenMsgILSupport" BO_ 357 0;
+BA_ "GenMsgNrOfRepetition" BO_ 357 0;
+BA_ "GenMsgSendType" BO_ 357 0;
+BA_ "NmAsrMessage" BO_ 357 0;
+BA_ "DiagRequest" BO_ 372 0;
+BA_ "DiagResponse" BO_ 372 0;
+BA_ "DiagState" BO_ 372 0;
+BA_ "GenMsgCycleTime" BO_ 372 20;
+BA_ "GenMsgCycleTimeFast" BO_ 372 0;
+BA_ "GenMsgILSupport" BO_ 372 0;
+BA_ "GenMsgNrOfRepetition" BO_ 372 0;
+BA_ "GenMsgSendType" BO_ 372 0;
+BA_ "NmAsrMessage" BO_ 372 0;
+BA_ "DiagRequest" BO_ 374 0;
+BA_ "DiagResponse" BO_ 374 0;
+BA_ "DiagState" BO_ 374 0;
+BA_ "GenMsgCycleTime" BO_ 374 50;
+BA_ "GenMsgCycleTimeFast" BO_ 374 0;
+BA_ "GenMsgILSupport" BO_ 374 0;
+BA_ "GenMsgNrOfRepetition" BO_ 374 0;
+BA_ "GenMsgSendType" BO_ 374 0;
+BA_ "NmAsrMessage" BO_ 374 0;
+BA_ "DiagRequest" BO_ 375 0;
+BA_ "DiagResponse" BO_ 375 0;
+BA_ "DiagState" BO_ 375 0;
+BA_ "GenMsgCycleTime" BO_ 375 50;
+BA_ "GenMsgCycleTimeFast" BO_ 375 0;
+BA_ "GenMsgILSupport" BO_ 375 0;
+BA_ "GenMsgNrOfRepetition" BO_ 375 0;
+BA_ "GenMsgSendType" BO_ 375 0;
+BA_ "NmAsrMessage" BO_ 375 0;
+BA_ "DiagRequest" BO_ 409 0;
+BA_ "DiagResponse" BO_ 409 0;
+BA_ "DiagState" BO_ 409 0;
+BA_ "GenMsgCycleTime" BO_ 409 50;
+BA_ "GenMsgCycleTimeFast" BO_ 409 0;
+BA_ "GenMsgILSupport" BO_ 409 0;
+BA_ "GenMsgNrOfRepetition" BO_ 409 0;
+BA_ "GenMsgSendType" BO_ 409 0;
+BA_ "NmAsrMessage" BO_ 409 0;
+BA_ "DiagRequest" BO_ 417 0;
+BA_ "DiagResponse" BO_ 417 0;
+BA_ "DiagState" BO_ 417 0;
+BA_ "GenMsgCycleTime" BO_ 417 20;
+BA_ "GenMsgCycleTimeFast" BO_ 417 0;
+BA_ "GenMsgILSupport" BO_ 417 0;
+BA_ "GenMsgNrOfRepetition" BO_ 417 0;
+BA_ "GenMsgSendType" BO_ 417 0;
+BA_ "NmAsrMessage" BO_ 417 0;
+BA_ "DiagRequest" BO_ 504 0;
+BA_ "DiagResponse" BO_ 504 0;
+BA_ "DiagState" BO_ 504 0;
+BA_ "GenMsgCycleTime" BO_ 504 20;
+BA_ "GenMsgCycleTimeFast" BO_ 504 0;
+BA_ "GenMsgILSupport" BO_ 504 1;
+BA_ "GenMsgNrOfRepetition" BO_ 504 0;
+BA_ "GenMsgSendType" BO_ 504 0;
+BA_ "NmAsrMessage" BO_ 504 0;
+BA_ "DiagRequest" BO_ 505 0;
+BA_ "DiagResponse" BO_ 505 0;
+BA_ "DiagState" BO_ 505 0;
+BA_ "GenMsgCycleTime" BO_ 505 20;
+BA_ "GenMsgCycleTimeFast" BO_ 505 0;
+BA_ "GenMsgILSupport" BO_ 505 1;
+BA_ "GenMsgNrOfRepetition" BO_ 505 0;
+BA_ "GenMsgSendType" BO_ 505 0;
+BA_ "NmAsrMessage" BO_ 505 0;
+BA_ "DiagRequest" BO_ 517 0;
+BA_ "DiagResponse" BO_ 517 0;
+BA_ "DiagState" BO_ 517 0;
+BA_ "GenMsgCycleTime" BO_ 517 20;
+BA_ "GenMsgCycleTimeFast" BO_ 517 0;
+BA_ "GenMsgILSupport" BO_ 517 1;
+BA_ "GenMsgNrOfRepetition" BO_ 517 0;
+BA_ "GenMsgSendType" BO_ 517 0;
+BA_ "NmAsrMessage" BO_ 517 0;
+BA_ "DiagRequest" BO_ 518 0;
+BA_ "DiagResponse" BO_ 518 0;
+BA_ "DiagState" BO_ 518 0;
+BA_ "GenMsgCycleTime" BO_ 518 20;
+BA_ "GenMsgCycleTimeFast" BO_ 518 0;
+BA_ "GenMsgILSupport" BO_ 518 0;
+BA_ "GenMsgNrOfRepetition" BO_ 518 0;
+BA_ "GenMsgSendType" BO_ 518 0;
+BA_ "NmAsrMessage" BO_ 518 0;
+BA_ "DiagRequest" BO_ 521 0;
+BA_ "DiagResponse" BO_ 521 0;
+BA_ "DiagState" BO_ 521 0;
+BA_ "GenMsgCycleTime" BO_ 521 20;
+BA_ "GenMsgCycleTimeFast" BO_ 521 0;
+BA_ "GenMsgILSupport" BO_ 521 0;
+BA_ "GenMsgNrOfRepetition" BO_ 521 0;
+BA_ "GenMsgSendType" BO_ 521 0;
+BA_ "NmAsrMessage" BO_ 521 0;
+BA_ "DiagRequest" BO_ 524 0;
+BA_ "DiagResponse" BO_ 524 0;
+BA_ "DiagState" BO_ 524 0;
+BA_ "GenMsgCycleTime" BO_ 524 100;
+BA_ "GenMsgCycleTimeFast" BO_ 524 0;
+BA_ "GenMsgILSupport" BO_ 524 0;
+BA_ "GenMsgNrOfRepetition" BO_ 524 0;
+BA_ "GenMsgSendType" BO_ 524 0;
+BA_ "NmAsrMessage" BO_ 524 0;
+BA_ "GenMsgCycleTime" BO_ 532 50;
+BA_ "GenMsgSendType" BO_ 532 0;
+BA_ "DiagRequest" BO_ 533 0;
+BA_ "DiagResponse" BO_ 533 0;
+BA_ "DiagState" BO_ 533 0;
+BA_ "GenMsgCycleTime" BO_ 533 50;
+BA_ "GenMsgCycleTimeFast" BO_ 533 0;
+BA_ "GenMsgILSupport" BO_ 533 0;
+BA_ "GenMsgNrOfRepetition" BO_ 533 0;
+BA_ "GenMsgSendType" BO_ 533 0;
+BA_ "NmAsrMessage" BO_ 533 0;
+BA_ "DiagRequest" BO_ 534 0;
+BA_ "DiagResponse" BO_ 534 0;
+BA_ "DiagState" BO_ 534 0;
+BA_ "GenMsgCycleTime" BO_ 534 50;
+BA_ "GenMsgCycleTimeFast" BO_ 534 0;
+BA_ "GenMsgILSupport" BO_ 534 0;
+BA_ "GenMsgNrOfRepetition" BO_ 534 0;
+BA_ "GenMsgSendType" BO_ 534 0;
+BA_ "NmAsrMessage" BO_ 534 0;
+BA_ "DiagRequest" BO_ 535 0;
+BA_ "DiagResponse" BO_ 535 0;
+BA_ "DiagState" BO_ 535 0;
+BA_ "GenMsgCycleTime" BO_ 535 100;
+BA_ "GenMsgCycleTimeFast" BO_ 535 0;
+BA_ "GenMsgILSupport" BO_ 535 0;
+BA_ "GenMsgNrOfRepetition" BO_ 535 0;
+BA_ "GenMsgSendType" BO_ 535 0;
+BA_ "NmAsrMessage" BO_ 535 0;
+BA_ "DiagRequest" BO_ 537 0;
+BA_ "DiagResponse" BO_ 537 0;
+BA_ "DiagState" BO_ 537 0;
+BA_ "GenMsgCycleTime" BO_ 537 20;
+BA_ "GenMsgCycleTimeFast" BO_ 537 0;
+BA_ "GenMsgILSupport" BO_ 537 0;
+BA_ "GenMsgNrOfRepetition" BO_ 537 0;
+BA_ "GenMsgSendType" BO_ 537 0;
+BA_ "NmAsrMessage" BO_ 537 0;
+BA_ "GenMsgSendType" BO_ 526 0;
+BA_ "GenMsgCycleTime" BO_ 526 1000;
+BA_ "DiagRequest" BO_ 544 0;
+BA_ "DiagResponse" BO_ 544 0;
+BA_ "DiagState" BO_ 544 0;
+BA_ "GenMsgCycleTime" BO_ 544 100;
+BA_ "GenMsgCycleTimeFast" BO_ 544 0;
+BA_ "GenMsgILSupport" BO_ 544 0;
+BA_ "GenMsgNrOfRepetition" BO_ 544 0;
+BA_ "GenMsgSendType" BO_ 544 0;
+BA_ "NmAsrMessage" BO_ 544 0;
+BA_ "DiagRequest" BO_ 549 0;
+BA_ "DiagResponse" BO_ 549 0;
+BA_ "DiagState" BO_ 549 0;
+BA_ "GenMsgCycleTime" BO_ 549 100;
+BA_ "GenMsgCycleTimeFast" BO_ 549 0;
+BA_ "GenMsgILSupport" BO_ 549 1;
+BA_ "GenMsgNrOfRepetition" BO_ 549 0;
+BA_ "GenMsgSendType" BO_ 549 0;
+BA_ "NmAsrMessage" BO_ 549 0;
+BA_ "DiagRequest" BO_ 550 0;
+BA_ "DiagResponse" BO_ 550 0;
+BA_ "DiagState" BO_ 550 0;
+BA_ "GenMsgCycleTime" BO_ 550 100;
+BA_ "GenMsgCycleTimeFast" BO_ 550 0;
+BA_ "GenMsgILSupport" BO_ 550 0;
+BA_ "GenMsgNrOfRepetition" BO_ 550 0;
+BA_ "GenMsgSendType" BO_ 550 0;
+BA_ "NmAsrMessage" BO_ 550 0;
+BA_ "DiagRequest" BO_ 581 0;
+BA_ "DiagResponse" BO_ 581 0;
+BA_ "DiagState" BO_ 581 0;
+BA_ "GenMsgCycleTime" BO_ 581 20;
+BA_ "GenMsgCycleTimeFast" BO_ 581 0;
+BA_ "GenMsgILSupport" BO_ 581 0;
+BA_ "GenMsgNrOfRepetition" BO_ 581 0;
+BA_ "GenMsgSendType" BO_ 581 0;
+BA_ "NmAsrMessage" BO_ 581 0;
+BA_ "DiagRequest" BO_ 584 0;
+BA_ "DiagResponse" BO_ 584 0;
+BA_ "DiagState" BO_ 584 0;
+BA_ "GenMsgCycleTime" BO_ 584 100;
+BA_ "GenMsgCycleTimeFast" BO_ 584 0;
+BA_ "GenMsgILSupport" BO_ 584 0;
+BA_ "GenMsgNrOfRepetition" BO_ 584 0;
+BA_ "GenMsgSendType" BO_ 584 0;
+BA_ "NmAsrMessage" BO_ 584 0;
+BA_ "DiagRequest" BO_ 585 0;
+BA_ "DiagResponse" BO_ 585 0;
+BA_ "DiagState" BO_ 585 0;
+BA_ "GenMsgCycleTime" BO_ 585 100;
+BA_ "GenMsgCycleTimeFast" BO_ 585 0;
+BA_ "GenMsgILSupport" BO_ 585 0;
+BA_ "GenMsgNrOfRepetition" BO_ 585 0;
+BA_ "GenMsgSendType" BO_ 585 0;
+BA_ "NmAsrMessage" BO_ 585 0;
+BA_ "DiagRequest" BO_ 714 0;
+BA_ "DiagResponse" BO_ 714 0;
+BA_ "DiagState" BO_ 714 0;
+BA_ "GenMsgCycleTime" BO_ 714 100;
+BA_ "GenMsgCycleTimeFast" BO_ 714 0;
+BA_ "GenMsgILSupport" BO_ 714 0;
+BA_ "GenMsgNrOfRepetition" BO_ 714 0;
+BA_ "GenMsgSendType" BO_ 714 0;
+BA_ "NmAsrMessage" BO_ 714 0;
+BA_ "DiagRequest" BO_ 715 0;
+BA_ "DiagResponse" BO_ 715 0;
+BA_ "DiagState" BO_ 715 0;
+BA_ "GenMsgCycleTime" BO_ 715 100;
+BA_ "GenMsgCycleTimeFast" BO_ 715 0;
+BA_ "GenMsgILSupport" BO_ 715 1;
+BA_ "GenMsgNrOfRepetition" BO_ 715 0;
+BA_ "GenMsgSendType" BO_ 715 0;
+BA_ "NmAsrMessage" BO_ 715 0;
+BA_ "DiagRequest" BO_ 760 0;
+BA_ "DiagResponse" BO_ 760 0;
+BA_ "DiagState" BO_ 760 0;
+BA_ "GenMsgCycleTime" BO_ 760 1000;
+BA_ "GenMsgCycleTimeFast" BO_ 760 0;
+BA_ "GenMsgILSupport" BO_ 760 0;
+BA_ "GenMsgNrOfRepetition" BO_ 760 0;
+BA_ "GenMsgSendType" BO_ 760 0;
+BA_ "NmAsrMessage" BO_ 760 0;
+BA_ "DiagRequest" BO_ 770 0;
+BA_ "DiagResponse" BO_ 770 0;
+BA_ "DiagState" BO_ 770 0;
+BA_ "GenMsgCycleTime" BO_ 770 1000;
+BA_ "GenMsgCycleTimeFast" BO_ 770 0;
+BA_ "GenMsgILSupport" BO_ 770 1;
+BA_ "GenMsgNrOfRepetition" BO_ 770 0;
+BA_ "GenMsgSendType" BO_ 770 0;
+BA_ "NmAsrMessage" BO_ 770 0;
+BA_ "DiagRequest" BO_ 773 0;
+BA_ "DiagResponse" BO_ 773 0;
+BA_ "DiagState" BO_ 773 0;
+BA_ "GenMsgCycleTime" BO_ 773 100;
+BA_ "GenMsgCycleTimeFast" BO_ 773 0;
+BA_ "GenMsgILSupport" BO_ 773 0;
+BA_ "GenMsgNrOfRepetition" BO_ 773 0;
+BA_ "GenMsgSendType" BO_ 773 0;
+BA_ "NmAsrMessage" BO_ 773 0;
+BA_ "DiagRequest" BO_ 775 0;
+BA_ "DiagResponse" BO_ 775 0;
+BA_ "DiagState" BO_ 775 0;
+BA_ "GenMsgCycleTime" BO_ 775 200;
+BA_ "GenMsgSendType" BO_ 775 0;
+BA_ "DiagRequest" BO_ 816 0;
+BA_ "DiagResponse" BO_ 816 0;
+BA_ "DiagState" BO_ 816 0;
+BA_ "GenMsgCycleTime" BO_ 816 100;
+BA_ "GenMsgCycleTimeFast" BO_ 816 0;
+BA_ "GenMsgILSupport" BO_ 816 0;
+BA_ "GenMsgNrOfRepetition" BO_ 816 0;
+BA_ "GenMsgSendType" BO_ 816 0;
+BA_ "NmAsrMessage" BO_ 816 0;
+BA_ "GenMsgSendType" BO_ 818 0;
+BA_ "GenMsgCycleTime" BO_ 818 100;
+BA_ "GenMsgCycleTimeFast" BO_ 818 0;
+BA_ "GenMsgStartDelayTime" BO_ 818 0;
+BA_ "GenMsgDelayTime" BO_ 818 0;
+BA_ "GenMsgNrOfRepetition" BO_ 818 0;
+BA_ "NmAsrMessage" BO_ 818 0;
+BA_ "DiagRequest" BO_ 818 0;
+BA_ "DiagResponse" BO_ 818 0;
+BA_ "DiagState" BO_ 818 0;
+BA_ "GenMsgILSupport" BO_ 818 1;
+BA_ "GenMsgSendType" BO_ 819 0;
+BA_ "GenMsgCycleTime" BO_ 819 1000;
+BA_ "GenMsgSendType" BO_ 820 0;
+BA_ "GenMsgCycleTime" BO_ 820 100;
+BA_ "DiagRequest" BO_ 885 0;
+BA_ "DiagResponse" BO_ 885 0;
+BA_ "DiagState" BO_ 885 0;
+BA_ "GenMsgCycleTime" BO_ 885 50;
+BA_ "GenMsgCycleTimeFast" BO_ 885 0;
+BA_ "GenMsgILSupport" BO_ 885 0;
+BA_ "GenMsgNrOfRepetition" BO_ 885 0;
+BA_ "GenMsgSendType" BO_ 885 0;
+BA_ "NmAsrMessage" BO_ 885 0;
+BA_ "DiagRequest" BO_ 896 0;
+BA_ "DiagResponse" BO_ 896 0;
+BA_ "DiagState" BO_ 896 0;
+BA_ "GenMsgCycleTime" BO_ 896 1000;
+BA_ "GenMsgCycleTimeFast" BO_ 896 0;
+BA_ "GenMsgILSupport" BO_ 896 1;
+BA_ "GenMsgNrOfRepetition" BO_ 896 0;
+BA_ "GenMsgSendType" BO_ 896 0;
+BA_ "NmAsrMessage" BO_ 896 0;
+BA_ "DiagState" BO_ 993 0;
+BA_ "DiagUudtResponse" BO_ 993 0;
+BA_ "GenMsgCycleTime" BO_ 993 100;
+BA_ "GenMsgCycleTimeFast" BO_ 993 0;
+BA_ "GenMsgILSupport" BO_ 993 1;
+BA_ "GenMsgNrOfRepetition" BO_ 993 0;
+BA_ "GenMsgSendType" BO_ 993 0;
+BA_ "NmAsrMessage" BO_ 993 0;
+BA_ "DiagRequest" BO_ 1074 0;
+BA_ "DiagResponse" BO_ 1074 0;
+BA_ "DiagState" BO_ 1074 0;
+BA_ "GenMsgCycleTime" BO_ 1074 500;
+BA_ "GenMsgCycleTimeFast" BO_ 1074 0;
+BA_ "GenMsgILSupport" BO_ 1074 0;
+BA_ "GenMsgNrOfRepetition" BO_ 1074 0;
+BA_ "GenMsgSendType" BO_ 1074 0;
+BA_ "NmAsrMessage" BO_ 1074 0;
+BA_ "DiagRequest" BO_ 1109 0;
+BA_ "DiagResponse" BO_ 1109 0;
+BA_ "DiagState" BO_ 1109 0;
+BA_ "GenMsgSendType" BO_ 1120 0;
+BA_ "GenMsgCycleTime" BO_ 1120 500;
+BA_ "GenMsgSendType" BO_ 1121 0;
+BA_ "GenMsgCycleTime" BO_ 1121 500;
+BA_ "GenMsgSendType" BO_ 1122 0;
+BA_ "GenMsgCycleTime" BO_ 1122 500;
+BA_ "GenMsgSendType" BO_ 1123 0;
+BA_ "GenMsgCycleTime" BO_ 1123 500;
+BA_ "GenMsgCycleTime" BO_ 1109 100;
+BA_ "GenMsgCycleTimeFast" BO_ 1109 0;
+BA_ "GenMsgILSupport" BO_ 1109 0;
+BA_ "GenMsgNrOfRepetition" BO_ 1109 0;
+BA_ "GenMsgSendType" BO_ 1109 0;
+BA_ "NmAsrMessage" BO_ 1109 0;
+BA_ "DiagRequest" BO_ 1171 0;
+BA_ "DiagResponse" BO_ 1171 0;
+BA_ "DiagState" BO_ 1171 0;
+BA_ "GenMsgCycleTime" BO_ 1171 1000;
+BA_ "GenMsgCycleTimeFast" BO_ 1171 100;
+BA_ "GenMsgILSupport" BO_ 1171 1;
+BA_ "GenMsgNrOfRepetition" BO_ 1171 2;
+BA_ "GenMsgSendType" BO_ 1171 0;
+BA_ "NmAsrMessage" BO_ 1171 0;
+BA_ "DiagRequest" BO_ 1282 0;
+BA_ "DiagResponse" BO_ 1282 0;
+BA_ "DiagState" BO_ 1282 0;
+BA_ "GenMsgCycleTime" BO_ 1282 640;
+BA_ "GenMsgCycleTimeFast" BO_ 1282 0;
+BA_ "GenMsgILSupport" BO_ 1282 0;
+BA_ "GenMsgNrOfRepetition" BO_ 1282 0;
+BA_ "GenMsgSendType" BO_ 1282 0;
+BA_ "NmAsrMessage" BO_ 1282 1;
+BA_ "DiagRequest" BO_ 1299 0;
+BA_ "DiagResponse" BO_ 1299 0;
+BA_ "DiagState" BO_ 1299 0;
+BA_ "GenMsgCycleTime" BO_ 1299 640;
+BA_ "GenMsgCycleTimeFast" BO_ 1299 0;
+BA_ "GenMsgILSupport" BO_ 1299 0;
+BA_ "GenMsgNrOfRepetition" BO_ 1299 0;
+BA_ "GenMsgSendType" BO_ 1299 0;
+BA_ "NmAsrMessage" BO_ 1299 1;
+BA_ "DiagRequest" BO_ 1555 0;
+BA_ "DiagResponse" BO_ 1555 1;
+BA_ "DiagState" BO_ 1555 0;
+BA_ "GenMsgCycleTime" BO_ 1555 0;
+BA_ "GenMsgCycleTimeFast" BO_ 1555 0;
+BA_ "GenMsgILSupport" BO_ 1555 0;
+BA_ "GenMsgNrOfRepetition" BO_ 1555 0;
+BA_ "GenMsgStartDelayTime" BO_ 1555 0;
+BA_ "NmAsrMessage" BO_ 1555 0;
+BA_ "DiagRequest" BO_ 1683 1;
+BA_ "DiagResponse" BO_ 1683 0;
+BA_ "DiagState" BO_ 1683 0;
+BA_ "GenMsgCycleTime" BO_ 1683 0;
+BA_ "GenMsgCycleTimeFast" BO_ 1683 0;
+BA_ "GenMsgILSupport" BO_ 1683 0;
+BA_ "GenMsgNrOfRepetition" BO_ 1683 0;
+BA_ "GenMsgStartDelayTime" BO_ 1683 0;
+BA_ "NmAsrMessage" BO_ 1683 0;
+BA_ "DiagRequest" BO_ 1775 1;
+BA_ "DiagResponse" BO_ 1775 0;
+BA_ "DiagState" BO_ 1775 0;
+BA_ "GenMsgCycleTime" BO_ 1775 0;
+BA_ "GenMsgCycleTimeFast" BO_ 1775 0;
+BA_ "GenMsgILSupport" BO_ 1775 0;
+BA_ "GenMsgNrOfRepetition" BO_ 1775 0;
+BA_ "GenMsgStartDelayTime" BO_ 1775 0;
+BA_ "NmAsrMessage" BO_ 1775 0;
+BA_ "DiagRequest" BO_ 1791 1;
+BA_ "DiagResponse" BO_ 1791 0;
+BA_ "DiagState" BO_ 1791 0;
+BA_ "GenMsgCycleTime" BO_ 1791 0;
+BA_ "GenMsgCycleTimeFast" BO_ 1791 0;
+BA_ "GenMsgILSupport" BO_ 1791 0;
+BA_ "GenMsgNrOfRepetition" BO_ 1791 0;
+BA_ "GenMsgStartDelayTime" BO_ 1791 0;
+BA_ "NmAsrMessage" BO_ 1791 0;
+BA_ "DiagRequest" BO_ 1825 0;
+BA_ "DiagResponse" BO_ 1825 0;
+BA_ "DiagState" BO_ 1825 0;
+BA_ "GenMsgCycleTime" BO_ 1825 0;
+BA_ "GenMsgCycleTimeFast" BO_ 1825 0;
+BA_ "GenMsgILSupport" BO_ 1825 1;
+BA_ "GenMsgNrOfRepetition" BO_ 1825 0;
+BA_ "GenMsgStartDelayTime" BO_ 1825 0;
+BA_ "NmAsrMessage" BO_ 1825 0;
+BA_ "DiagRequest" BO_ 1849 0;
+BA_ "DiagResponse" BO_ 1849 0;
+BA_ "DiagState" BO_ 1849 0;
+BA_ "GenMsgCycleTime" BO_ 1849 0;
+BA_ "GenMsgCycleTimeFast" BO_ 1849 0;
+BA_ "GenMsgILSupport" BO_ 1849 1;
+BA_ "GenMsgNrOfRepetition" BO_ 1849 0;
+BA_ "GenMsgStartDelayTime" BO_ 1849 0;
+BA_ "NmAsrMessage" BO_ 1849 0;
+BA_ "DiagRequest" BO_ 1939 0;
+BA_ "DiagResponse" BO_ 1939 0;
+BA_ "DiagState" BO_ 1939 0;
+BA_ "GenMsgCycleTimeFast" BO_ 1939 0;
+BA_ "GenMsgILSupport" BO_ 1939 0;
+BA_ "GenMsgNrOfRepetition" BO_ 1939 0;
+BA_ "GenMsgStartDelayTime" BO_ 1939 0;
+BA_ "NmAsrMessage" BO_ 1939 0;
+BA_ "DiagRequest" BO_ 1986 1;
+BA_ "DiagResponse" BO_ 1986 0;
+BA_ "DiagState" BO_ 1986 0;
+BA_ "GenMsgCycleTimeFast" BO_ 1986 0;
+BA_ "GenMsgILSupport" BO_ 1986 0;
+BA_ "GenMsgNrOfRepetition" BO_ 1986 0;
+BA_ "GenMsgStartDelayTime" BO_ 1986 0;
+BA_ "NmAsrMessage" BO_ 1986 0;
+BA_ "DiagRequest" BO_ 2015 1;
+BA_ "DiagResponse" BO_ 2015 0;
+BA_ "DiagState" BO_ 2015 0;
+BA_ "GenMsgCycleTime" BO_ 2015 0;
+BA_ "GenMsgCycleTimeFast" BO_ 2015 0;
+BA_ "GenMsgILSupport" BO_ 2015 1;
+BA_ "GenMsgNrOfRepetition" BO_ 2015 0;
+BA_ "GenMsgStartDelayTime" BO_ 2015 0;
+BA_ "NmAsrMessage" BO_ 2015 0;
+BA_ "GenSigSendType" SG_ 133 CHKSM_CRASH_Sts 0;
+BA_ "GenSigStartValue" SG_ 133 CHKSM_CRASH_Sts 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 133 CHKSM_CRASH_Sts 200;
+BA_ "InvalidValue" SG_ 133 CHKSM_CRASH_Sts "null";
+BA_ "GenSigSendType" SG_ 133 ALV_CRASH_Sts 0;
+BA_ "GenSigStartValue" SG_ 133 ALV_CRASH_Sts 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 133 ALV_CRASH_Sts 200;
+BA_ "InvalidValue" SG_ 133 ALV_CRASH_Sts "Fh";
+BA_ "GenSigSendType" SG_ 133 ACM_Crash_Sts 0;
+BA_ "GenSigStartValue" SG_ 133 ACM_Crash_Sts 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 133 ACM_Crash_Sts 200;
+BA_ "InvalidValue" SG_ 133 ACM_Crash_Sts "3h";
+BA_ "GenSigSendType" SG_ 133 ACM_Airbag_Deployment_Status 0;
+BA_ "GenSigStartValue" SG_ 133 ACM_Airbag_Deployment_Status 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 133 ACM_Airbag_Deployment_Status 200;
+BA_ "InvalidValue" SG_ 133 ACM_Airbag_Deployment_Status "3h";
+BA_ "GenSigSendType" SG_ 133 ACM_Crash_Intensity 0;
+BA_ "GenSigStartValue" SG_ 133 ACM_Crash_Intensity 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 133 ACM_Crash_Intensity 200;
+BA_ "InvalidValue" SG_ 133 ACM_Crash_Intensity "7h";
+BA_ "GenSigSendType" SG_ 133 ACM_Front_Crash 0;
+BA_ "GenSigStartValue" SG_ 133 ACM_Front_Crash 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 133 ACM_Front_Crash 200;
+BA_ "InvalidValue" SG_ 133 ACM_Front_Crash "3h";
+BA_ "GenSigSendType" SG_ 133 ACM_DriverSide_Crash 0;
+BA_ "GenSigStartValue" SG_ 133 ACM_DriverSide_Crash 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 133 ACM_DriverSide_Crash 200;
+BA_ "InvalidValue" SG_ 133 ACM_DriverSide_Crash "3h";
+BA_ "GenSigSendType" SG_ 133 ACM_PassSide_Crash 0;
+BA_ "GenSigStartValue" SG_ 133 ACM_PassSide_Crash 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 133 ACM_PassSide_Crash 200;
+BA_ "InvalidValue" SG_ 133 ACM_PassSide_Crash "3h";
+BA_ "GenSigSendType" SG_ 133 ACM_Rear_Crash 0;
+BA_ "GenSigStartValue" SG_ 133 ACM_Rear_Crash 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 133 ACM_Rear_Crash 200;
+BA_ "InvalidValue" SG_ 133 ACM_Rear_Crash "3h";
+BA_ "GenSigSendType" SG_ 133 ACM_Rollover_Crash 0;
+BA_ "GenSigStartValue" SG_ 133 ACM_Rollover_Crash 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 133 ACM_Rollover_Crash 200;
+BA_ "InvalidValue" SG_ 133 ACM_Rollover_Crash "3h";
+BA_ "GenSigSendType" SG_ 266 CHKSM_BCM_VOLTAGE 0;
+BA_ "GenSigStartValue" SG_ 266 CHKSM_BCM_VOLTAGE 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 266 CHKSM_BCM_VOLTAGE 2500;
+BA_ "InvalidValue" SG_ 266 CHKSM_BCM_VOLTAGE "null";
+BA_ "GenSigSendType" SG_ 266 ALIVE_BCM_VOLTAGE 0;
+BA_ "GenSigStartValue" SG_ 266 ALIVE_BCM_VOLTAGE 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 266 ALIVE_BCM_VOLTAGE 2500;
+BA_ "InvalidValue" SG_ 266 ALIVE_BCM_VOLTAGE "Fh";
+BA_ "GenSigStartValue" SG_ 266 UBatt 9205;
+BA_ "GenSigTimeoutTime_ALL" SG_ 266 UBatt 2500;
+BA_ "GenSigTimeoutTime_ALL" SG_ 266 UBatt 2500;
+BA_ "GenSigTimeoutTime_ALL" SG_ 266 UBatt 2500;
+BA_ "GenSigTimeoutTime_ALL" SG_ 266 UBatt 2500;
+BA_ "InvalidValue" SG_ 266 UBatt "3FFFh";
+BA_ "GenSigSendType" SG_ 266 LV_Batt_Temp 0;
+BA_ "GenSigStartValue" SG_ 266 LV_Batt_Temp 40;
+BA_ "GenSigTimeoutTime_ALL" SG_ 266 LV_Batt_Temp 2500;
+BA_ "InvalidValue" SG_ 266 LV_Batt_Temp "FFh";
+BA_ "GenSigSendType" SG_ 266 LV_SOC 0;
+BA_ "GenSigStartValue" SG_ 266 LV_SOC 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 266 LV_SOC 2500;
+BA_ "InvalidValue" SG_ 266 LV_SOC "FFh";
+BA_ "GenSigSendType" SG_ 266 LV_Batt_Current 0;
+BA_ "GenSigStartValue" SG_ 266 LV_Batt_Current 49152;
+BA_ "GenSigTimeoutTime_ALL" SG_ 266 LV_Batt_Current 2500;
+BA_ "InvalidValue" SG_ 266 LV_Batt_Current "FFFFh";
+BA_ "GenSigSendType" SG_ 274 CHKSM_BCM_CLAMP_STAT 0;
+BA_ "GenSigStartValue" SG_ 274 CHKSM_BCM_CLAMP_STAT 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 274 CHKSM_BCM_CLAMP_STAT 500;
+BA_ "InvalidValue" SG_ 274 CHKSM_BCM_CLAMP_STAT "null";
+BA_ "GenSigSendType" SG_ 274 ALIVE_BCM_CLAMP_STAT 0;
+BA_ "GenSigStartValue" SG_ 274 ALIVE_BCM_CLAMP_STAT 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 274 ALIVE_BCM_CLAMP_STAT 500;
+BA_ "InvalidValue" SG_ 274 ALIVE_BCM_CLAMP_STAT "Fh";
+BA_ "GenSigSendType" SG_ 274 RemoteFunctionState 4;
+BA_ "GenSigStartValue" SG_ 274 RemoteFunctionState 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 274 RemoteFunctionState 500;
+BA_ "InvalidValue" SG_ 274 RemoteFunctionState "3h";
+BA_ "GenSigSendType" SG_ 274 STAT_BLS 0;
+BA_ "GenSigStartValue" SG_ 274 STAT_BLS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 274 STAT_BLS 500;
+BA_ "InvalidValue" SG_ 274 STAT_BLS "3h";
+BA_ "GenSigSendType" SG_ 274 STAT_CL_50_L 0;
+BA_ "GenSigStartValue" SG_ 274 STAT_CL_50_L 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 274 STAT_CL_50_L 500;
+BA_ "InvalidValue" SG_ 274 STAT_CL_50_L "3h";
+BA_ "GenSigSendType" SG_ 274 Clamp50AdviceRemoteStart 4;
+BA_ "GenSigStartValue" SG_ 274 Clamp50AdviceRemoteStart 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 274 Clamp50AdviceRemoteStart 500;
+BA_ "InvalidValue" SG_ 274 Clamp50AdviceRemoteStart "3h";
+BA_ "GenSigSendType" SG_ 274 Clamp50AdviceESS 4;
+BA_ "GenSigStartValue" SG_ 274 Clamp50AdviceESS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 274 Clamp50AdviceESS 500;
+BA_ "InvalidValue" SG_ 274 Clamp50AdviceESS "3h";
+BA_ "GenSigSendType" SG_ 274 STAT_CL_R_L 0;
+BA_ "GenSigStartValue" SG_ 274 STAT_CL_R_L 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 274 STAT_CL_R_L 500;
+BA_ "InvalidValue" SG_ 274 STAT_CL_R_L "3h";
+BA_ "GenSigSendType" SG_ 274 STAT_CL_15_1_L 0;
+BA_ "GenSigStartValue" SG_ 274 STAT_CL_15_1_L 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 274 STAT_CL_15_1_L 500;
+BA_ "InvalidValue" SG_ 274 STAT_CL_15_1_L "3h";
+BA_ "GenSigSendType" SG_ 274 STAT_CL_15_1_DME_L 0;
+BA_ "GenSigStartValue" SG_ 274 STAT_CL_15_1_DME_L 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 274 STAT_CL_15_1_DME_L 500;
+BA_ "InvalidValue" SG_ 274 STAT_CL_15_1_DME_L "3h";
+BA_ "GenSigSendType" SG_ 274 FobId 0;
+BA_ "GenSigStartValue" SG_ 274 FobId 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 274 FobId 500;
+BA_ "InvalidValue" SG_ 274 FobId "3h";
+BA_ "GenSigSendType" SG_ 274 STAT_Terminal 0;
+BA_ "GenSigStartValue" SG_ 274 STAT_Terminal 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 274 STAT_Terminal 500;
+BA_ "InvalidValue" SG_ 274 STAT_Terminal "7h";
+BA_ "GenSigSendType" SG_ 274 STAT_CL30_C_BEV 0;
+BA_ "GenSigStartValue" SG_ 274 STAT_CL30_C_BEV 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 274 STAT_CL30_C_BEV 500;
+BA_ "InvalidValue" SG_ 274 STAT_CL30_C_BEV "7h";
+BA_ "GenSigSendType" SG_ 274 BCM_Clamp_Transport 0;
+BA_ "GenSigStartValue" SG_ 274 BCM_Clamp_Transport 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 274 BCM_Clamp_Transport 500;
+BA_ "InvalidValue" SG_ 274 BCM_Clamp_Transport "7h";
+BA_ "GenSigStartValue" SG_ 291 CHKSM_ACChargingInfo 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 291 CHKSM_ACChargingInfo 2500;
+BA_ "InvalidValue" SG_ 291 CHKSM_ACChargingInfo "FFh";
+BA_ "GenSigStartValue" SG_ 291 ALIVE_ACChargingInfo 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 291 ALIVE_ACChargingInfo 2500;
+BA_ "InvalidValue" SG_ 291 ALIVE_ACChargingInfo "Fh";
+BA_ "GenSigStartValue" SG_ 291 ACCharging_MaxChargingPower 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 291 ACCharging_MaxChargingPower 2500;
+BA_ "InvalidValue" SG_ 291 ACCharging_MaxChargingPower "3FFh";
+BA_ "GenSigStartValue" SG_ 291 CurrentACChargingPower 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 291 CurrentACChargingPower 2500;
+BA_ "InvalidValue" SG_ 291 CurrentACChargingPower "3FFh";
+BA_ "GenSigStartValue" SG_ 291 ACCharging_MaxCurrent 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 291 ACCharging_MaxCurrent 2500;
+BA_ "InvalidValue" SG_ 291 ACCharging_MaxCurrent "FFFFh";
+BA_ "GenSigStartValue" SG_ 292 CHKSM_DCChargingInfo 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 292 CHKSM_DCChargingInfo 2500;
+BA_ "InvalidValue" SG_ 292 CHKSM_DCChargingInfo "FFh";
+BA_ "GenSigStartValue" SG_ 292 ALIVE_DCChargingInfo 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 292 ALIVE_DCChargingInfo 2500;
+BA_ "InvalidValue" SG_ 292 ALIVE_DCChargingInfo "Fh";
+BA_ "GenSigStartValue" SG_ 292 DCCharging_MaxChargingPower 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 292 DCCharging_MaxChargingPower 2500;
+BA_ "InvalidValue" SG_ 292 DCCharging_MaxChargingPower "3FFh";
+BA_ "GenSigStartValue" SG_ 292 CurrentDCChargingPower 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 292 CurrentDCChargingPower 2500;
+BA_ "InvalidValue" SG_ 292 CurrentDCChargingPower "3FFh";
+BA_ "GenSigStartValue" SG_ 292 DCCharging_MaxCurrent 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 292 DCCharging_MaxCurrent 2500;
+BA_ "InvalidValue" SG_ 292 DCCharging_MaxCurrent "FFFFh";
+BA_ "GenSigSendType" SG_ 293 Checksum_0x125 0;
+BA_ "GenSigStartValue" SG_ 293 Checksum_0x125 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 293 Checksum_0x125 200;
+BA_ "InvalidValue" SG_ 293 Checksum_0x125 "null";
+BA_ "GenSigSendType" SG_ 293 Rolling_Counter_0x125 0;
+BA_ "GenSigStartValue" SG_ 293 Rolling_Counter_0x125 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 293 Rolling_Counter_0x125 200;
+BA_ "InvalidValue" SG_ 293 Rolling_Counter_0x125 "Fh";
+BA_ "GenSigSendType" SG_ 293 BMS_AllowDischgCurr 0;
+BA_ "GenSigStartValue" SG_ 293 BMS_AllowDischgCurr 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 293 BMS_AllowDischgCurr 200;
+BA_ "InvalidValue" SG_ 293 BMS_AllowDischgCurr "FFFFh";
+BA_ "GenSigSendType" SG_ 293 BMS_AllowDischgCurrPeak 0;
+BA_ "GenSigStartValue" SG_ 293 BMS_AllowDischgCurrPeak 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 293 BMS_AllowDischgCurrPeak 200;
+BA_ "InvalidValue" SG_ 293 BMS_AllowDischgCurrPeak "FFFFh";
+BA_ "GenSigSendType" SG_ 293 SECCAN_BMS_AllowDischargeCurr 0;
+BA_ "GenSigStartValue" SG_ 293 SECCAN_BMS_AllowDischargeCurr 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 293 SECCAN_BMS_AllowDischargeCurr 200;
+BA_ "InvalidValue" SG_ 293 SECCAN_BMS_AllowDischargeCurr "null";
+BA_ "GenSigSendType" SG_ 294 Checksum_0x126 0;
+BA_ "GenSigStartValue" SG_ 294 Checksum_0x126 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 294 Checksum_0x126 200;
+BA_ "InvalidValue" SG_ 294 Checksum_0x126 "null";
+BA_ "GenSigSendType" SG_ 294 Rolling_Counter_0x126 0;
+BA_ "GenSigStartValue" SG_ 294 Rolling_Counter_0x126 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 294 Rolling_Counter_0x126 200;
+BA_ "InvalidValue" SG_ 294 Rolling_Counter_0x126 "Fh";
+BA_ "GenSigSendType" SG_ 294 BMS_AllowChgCurr 0;
+BA_ "GenSigStartValue" SG_ 294 BMS_AllowChgCurr 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 294 BMS_AllowChgCurr 200;
+BA_ "InvalidValue" SG_ 294 BMS_AllowChgCurr "FFFFh";
+BA_ "GenSigSendType" SG_ 294 BMS_AllowChgCurrPeak 0;
+BA_ "GenSigStartValue" SG_ 294 BMS_AllowChgCurrPeak 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 294 BMS_AllowChgCurrPeak 200;
+BA_ "InvalidValue" SG_ 294 BMS_AllowChgCurrPeak "FFFFh";
+BA_ "GenSigStartValue" SG_ 294 SECCAN_BMS_AllowChargeCurr 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 294 SECCAN_BMS_AllowChargeCurr 200;
+BA_ "GenSigSendType" SG_ 357 CHSKM_VCU_ChargingConnection 0;
+BA_ "GenSigStartValue" SG_ 357 CHSKM_VCU_ChargingConnection 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 357 CHSKM_VCU_ChargingConnection 200;
+BA_ "InvalidValue" SG_ 357 CHSKM_VCU_ChargingConnection "null";
+BA_ "GenSigSendType" SG_ 357 ALV_VCU_ChargingConnection 0;
+BA_ "GenSigStartValue" SG_ 357 ALV_VCU_ChargingConnection 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 357 ALV_VCU_ChargingConnection 200;
+BA_ "InvalidValue" SG_ 357 ALV_VCU_ChargingConnection "Fh";
+BA_ "GenSigSendType" SG_ 357 VCU_AcChgGunIn 0;
+BA_ "GenSigStartValue" SG_ 357 VCU_AcChgGunIn 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 357 VCU_AcChgGunIn 500;
+BA_ "GenSigTimeoutTime_ALL" SG_ 357 VCU_AcChgGunIn 200;
+BA_ "InvalidValue" SG_ 357 VCU_AcChgGunIn "null";
+BA_ "GenSigSendType" SG_ 357 VCU_DCChgGunIn 0;
+BA_ "GenSigStartValue" SG_ 357 VCU_DCChgGunIn 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 357 VCU_DCChgGunIn 200;
+BA_ "GenSigTimeoutTime_ALL" SG_ 357 VCU_DCChgGunIn 500;
+BA_ "InvalidValue" SG_ 357 VCU_DCChgGunIn "null";
+BA_ "GenSigSendType" SG_ 372 CHSKM_BMS_CurMeas 0;
+BA_ "GenSigStartValue" SG_ 372 CHSKM_BMS_CurMeas 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 372 CHSKM_BMS_CurMeas 100;
+BA_ "InvalidValue" SG_ 372 CHSKM_BMS_CurMeas "null";
+BA_ "GenSigSendType" SG_ 372 ALV_BMS_CurMeas 0;
+BA_ "GenSigStartValue" SG_ 372 ALV_BMS_CurMeas 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 372 ALV_BMS_CurMeas 100;
+BA_ "InvalidValue" SG_ 372 ALV_BMS_CurMeas "Fh";
+BA_ "GenSigSendType" SG_ 372 BMS_StartOfMeasument_STS 0;
+BA_ "GenSigStartValue" SG_ 372 BMS_StartOfMeasument_STS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 372 BMS_StartOfMeasument_STS 200;
+BA_ "InvalidValue" SG_ 372 BMS_StartOfMeasument_STS "null";
+BA_ "GenSigSendType" SG_ 372 BMS_PackCur_MEAS 0;
+BA_ "GenSigStartValue" SG_ 372 BMS_PackCur_MEAS 32768;
+BA_ "GenSigTimeoutTime_ALL" SG_ 372 BMS_PackCur_MEAS 100;
+BA_ "GenSigTimeoutTime_ALL" SG_ 372 BMS_PackCur_MEAS 200;
+BA_ "GenSigTimeoutTime_ALL" SG_ 372 BMS_PackCur_MEAS 100;
+BA_ "InvalidValue" SG_ 372 BMS_PackCur_MEAS "FFFFh";
+BA_ "GenSigSendType" SG_ 374 Checksum_0x176 0;
+BA_ "GenSigStartValue" SG_ 374 Checksum_0x176 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 374 Checksum_0x176 200;
+BA_ "InvalidValue" SG_ 374 Checksum_0x176 "null";
+BA_ "GenSigSendType" SG_ 374 Rolling_Counter_0x176 0;
+BA_ "GenSigStartValue" SG_ 374 Rolling_Counter_0x176 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 374 Rolling_Counter_0x176 500;
+BA_ "GenSigTimeoutTime_ALL" SG_ 374 Rolling_Counter_0x176 200;
+BA_ "GenSigTimeoutTime_ALL" SG_ 374 Rolling_Counter_0x176 200;
+BA_ "InvalidValue" SG_ 374 Rolling_Counter_0x176 "Fh";
+BA_ "GenSigSendType" SG_ 374 BMS_HVPackVol_MEAS 0;
+BA_ "GenSigStartValue" SG_ 374 BMS_HVPackVol_MEAS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 374 BMS_HVPackVol_MEAS 200;
+BA_ "InvalidValue" SG_ 374 BMS_HVPackVol_MEAS "FFFFh";
+BA_ "GenSigSendType" SG_ 374 BMS_HVLinkVol_MEAS 0;
+BA_ "GenSigStartValue" SG_ 374 BMS_HVLinkVol_MEAS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 374 BMS_HVLinkVol_MEAS 500;
+BA_ "GenSigTimeoutTime_ALL" SG_ 374 BMS_HVLinkVol_MEAS 200;
+BA_ "GenSigTimeoutTime_ALL" SG_ 374 BMS_HVLinkVol_MEAS 200;
+BA_ "InvalidValue" SG_ 374 BMS_HVLinkVol_MEAS "FFFFh";
+BA_ "GenSigSendType" SG_ 375 Checksum_0x177 0;
+BA_ "GenSigStartValue" SG_ 375 Checksum_0x177 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 375 Checksum_0x177 200;
+BA_ "InvalidValue" SG_ 375 Checksum_0x177 "null";
+BA_ "GenSigSendType" SG_ 375 Rolling_Counter_0x177 0;
+BA_ "GenSigStartValue" SG_ 375 Rolling_Counter_0x177 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 375 Rolling_Counter_0x177 200;
+BA_ "InvalidValue" SG_ 375 Rolling_Counter_0x177 "Fh";
+BA_ "GenSigSendType" SG_ 375 BMS_HVBusVol_MEAS 0;
+BA_ "GenSigStartValue" SG_ 375 BMS_HVBusVol_MEAS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 375 BMS_HVBusVol_MEAS 200;
+BA_ "InvalidValue" SG_ 375 BMS_HVBusVol_MEAS "FFFFh";
+BA_ "GenSigSendType" SG_ 375 BMS_HVFuseVol_MEAS 0;
+BA_ "GenSigStartValue" SG_ 375 BMS_HVFuseVol_MEAS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 375 BMS_HVFuseVol_MEAS 200;
+BA_ "InvalidValue" SG_ 375 BMS_HVFuseVol_MEAS "FFFFh";
+BA_ "GenSigSendType" SG_ 409 CHSKM_VCU_Sts1 0;
+BA_ "GenSigStartValue" SG_ 409 CHSKM_VCU_Sts1 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 409 CHSKM_VCU_Sts1 500;
+BA_ "InvalidValue" SG_ 409 CHSKM_VCU_Sts1 "null";
+BA_ "GenSigSendType" SG_ 409 ALV_VCU_Sts1 0;
+BA_ "GenSigStartValue" SG_ 409 ALV_VCU_Sts1 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 409 ALV_VCU_Sts1 500;
+BA_ "InvalidValue" SG_ 409 ALV_VCU_Sts1 "Fh";
+BA_ "GenSigSendType" SG_ 409 VCU_BMS_HVOnOff_REQ 0;
+BA_ "GenSigStartValue" SG_ 409 VCU_BMS_HVOnOff_REQ 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 409 VCU_BMS_HVOnOff_REQ 500;
+BA_ "InvalidValue" SG_ 409 VCU_BMS_HVOnOff_REQ "null";
+BA_ "GenSigSendType" SG_ 417 CHSKM_V_VEH 0;
+BA_ "GenSigStartValue" SG_ 417 CHSKM_V_VEH 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 417 CHSKM_V_VEH 200;
+BA_ "InvalidValue" SG_ 417 CHSKM_V_VEH "null";
+BA_ "GenSigSendType" SG_ 417 ALIV_V_VEH 0;
+BA_ "GenSigStartValue" SG_ 417 ALIV_V_VEH 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 417 ALIV_V_VEH 200;
+BA_ "InvalidValue" SG_ 417 ALIV_V_VEH "Fh";
+BA_ "GenSigSendType" SG_ 417 V_VEH_COG 0;
+BA_ "GenSigStartValue" SG_ 417 V_VEH_COG 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 417 V_VEH_COG 200;
+BA_ "InvalidValue" SG_ 417 V_VEH_COG "FFFFh";
+BA_ "GenSigSendType" SG_ 417 DVCO_VEH 0;
+BA_ "GenSigStartValue" SG_ 417 DVCO_VEH 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 417 DVCO_VEH 200;
+BA_ "InvalidValue" SG_ 417 DVCO_VEH "7h";
+BA_ "GenSigSendType" SG_ 417 QU_V_VEH_COG 0;
+BA_ "GenSigStartValue" SG_ 417 QU_V_VEH_COG 8;
+BA_ "GenSigTimeoutTime_ALL" SG_ 417 QU_V_VEH_COG 200;
+BA_ "InvalidValue" SG_ 417 QU_V_VEH_COG "Fh";
+BA_ "GenSigSendType" SG_ 504 CHKSM_EDS_OutPut_FR 0;
+BA_ "GenSigStartValue" SG_ 504 CHKSM_EDS_OutPut_FR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 504 CHKSM_EDS_OutPut_FR 200;
+BA_ "InvalidValue" SG_ 504 CHKSM_EDS_OutPut_FR "null";
+BA_ "GenSigSendType" SG_ 504 ALV_EDS_OutPut_FR 0;
+BA_ "GenSigStartValue" SG_ 504 ALV_EDS_OutPut_FR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 504 ALV_EDS_OutPut_FR 400;
+BA_ "GenSigTimeoutTime_ALL" SG_ 504 ALV_EDS_OutPut_FR 200;
+BA_ "InvalidValue" SG_ 504 ALV_EDS_OutPut_FR "Fh";
+BA_ "GenSigSendType" SG_ 504 EDS_Work_STS_FR 0;
+BA_ "GenSigStartValue" SG_ 504 EDS_Work_STS_FR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 504 EDS_Work_STS_FR 200;
+BA_ "InvalidValue" SG_ 504 EDS_Work_STS_FR "Fh";
+BA_ "GenSigSendType" SG_ 504 EDS_Spd_FR 0;
+BA_ "GenSigStartValue" SG_ 504 EDS_Spd_FR 20000;
+BA_ "GenSigTimeoutTime_ALL" SG_ 504 EDS_Spd_FR 200;
+BA_ "InvalidValue" SG_ 504 EDS_Spd_FR "FFFFh";
+BA_ "GenSigSendType" SG_ 504 EDS_output_trqValid_FR 0;
+BA_ "GenSigStartValue" SG_ 504 EDS_output_trqValid_FR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 504 EDS_output_trqValid_FR 200;
+BA_ "InvalidValue" SG_ 504 EDS_output_trqValid_FR "null";
+BA_ "GenSigSendType" SG_ 504 EDS_MotorDriveSts_FR 0;
+BA_ "GenSigStartValue" SG_ 504 EDS_MotorDriveSts_FR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 504 EDS_MotorDriveSts_FR 200;
+BA_ "InvalidValue" SG_ 504 EDS_MotorDriveSts_FR "3h";
+BA_ "GenSigSendType" SG_ 504 EDS_powoff_req_FR 0;
+BA_ "GenSigStartValue" SG_ 504 EDS_powoff_req_FR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 504 EDS_powoff_req_FR 200;
+BA_ "InvalidValue" SG_ 504 EDS_powoff_req_FR "null";
+BA_ "GenSigSendType" SG_ 504 EDS_SpdValid_FR 0;
+BA_ "GenSigStartValue" SG_ 504 EDS_SpdValid_FR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 504 EDS_SpdValid_FR 200;
+BA_ "InvalidValue" SG_ 504 EDS_SpdValid_FR "null";
+BA_ "GenSigSendType" SG_ 504 EDS_output_trq_FR 0;
+BA_ "GenSigStartValue" SG_ 504 EDS_output_trq_FR 2000;
+BA_ "GenSigTimeoutTime_ALL" SG_ 504 EDS_output_trq_FR 200;
+BA_ "InvalidValue" SG_ 504 EDS_output_trq_FR "FFFFh";
+BA_ "GenSigSendType" SG_ 504 EDS_VCU_6SO_flag_FWD 0;
+BA_ "GenSigStartValue" SG_ 504 EDS_VCU_6SO_flag_FWD 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 504 EDS_VCU_6SO_flag_FWD 200;
+BA_ "InvalidValue" SG_ 504 EDS_VCU_6SO_flag_FWD "null";
+BA_ "GenSigSendType" SG_ 505 CHKSM_EDS_OutPut_RR 0;
+BA_ "GenSigStartValue" SG_ 505 CHKSM_EDS_OutPut_RR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 505 CHKSM_EDS_OutPut_RR 400;
+BA_ "InvalidValue" SG_ 505 CHKSM_EDS_OutPut_RR "null";
+BA_ "GenSigSendType" SG_ 505 ALV_EDS_OutPut_RR 0;
+BA_ "GenSigStartValue" SG_ 505 ALV_EDS_OutPut_RR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 505 ALV_EDS_OutPut_RR 200;
+BA_ "InvalidValue" SG_ 505 ALV_EDS_OutPut_RR "Fh";
+BA_ "GenSigSendType" SG_ 505 EDS_Work_STS_RR 0;
+BA_ "GenSigStartValue" SG_ 505 EDS_Work_STS_RR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 505 EDS_Work_STS_RR 400;
+BA_ "InvalidValue" SG_ 505 EDS_Work_STS_RR "Fh";
+BA_ "GenSigSendType" SG_ 505 EDS_Spd_RR 0;
+BA_ "GenSigStartValue" SG_ 505 EDS_Spd_RR 20000;
+BA_ "GenSigTimeoutTime_ALL" SG_ 505 EDS_Spd_RR 400;
+BA_ "InvalidValue" SG_ 505 EDS_Spd_RR "FFFFh";
+BA_ "GenSigSendType" SG_ 505 EDS_output_trqValid_RR 0;
+BA_ "GenSigStartValue" SG_ 505 EDS_output_trqValid_RR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 505 EDS_output_trqValid_RR 400;
+BA_ "InvalidValue" SG_ 505 EDS_output_trqValid_RR "null";
+BA_ "GenSigSendType" SG_ 505 EDS_MotorDriveSts_RR 0;
+BA_ "GenSigStartValue" SG_ 505 EDS_MotorDriveSts_RR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 505 EDS_MotorDriveSts_RR 200;
+BA_ "InvalidValue" SG_ 505 EDS_MotorDriveSts_RR "3h";
+BA_ "GenSigSendType" SG_ 505 EDS_powoff_req_RR 0;
+BA_ "GenSigStartValue" SG_ 505 EDS_powoff_req_RR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 505 EDS_powoff_req_RR 200;
+BA_ "InvalidValue" SG_ 505 EDS_powoff_req_RR "null";
+BA_ "GenSigSendType" SG_ 505 EDS_SpdValid_RR 0;
+BA_ "GenSigStartValue" SG_ 505 EDS_SpdValid_RR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 505 EDS_SpdValid_RR 200;
+BA_ "InvalidValue" SG_ 505 EDS_SpdValid_RR "null";
+BA_ "GenSigSendType" SG_ 505 EDS_output_trq_RR 0;
+BA_ "GenSigStartValue" SG_ 505 EDS_output_trq_RR 2000;
+BA_ "GenSigTimeoutTime_ALL" SG_ 505 EDS_output_trq_RR 200;
+BA_ "InvalidValue" SG_ 505 EDS_output_trq_RR "FFFFh";
+BA_ "GenSigSendType" SG_ 505 EDS_VCU_6SO_flag_RWD 0;
+BA_ "GenSigStartValue" SG_ 505 EDS_VCU_6SO_flag_RWD 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 505 EDS_VCU_6SO_flag_RWD 200;
+BA_ "InvalidValue" SG_ 505 EDS_VCU_6SO_flag_RWD "null";
+BA_ "GenSigSendType" SG_ 517 Checksum_0x205 0;
+BA_ "GenSigStartValue" SG_ 517 Checksum_0x205 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 517 Checksum_0x205 200;
+BA_ "InvalidValue" SG_ 517 Checksum_0x205 "null";
+BA_ "GenSigSendType" SG_ 517 Rolling_Counter_0x205 0;
+BA_ "GenSigStartValue" SG_ 517 Rolling_Counter_0x205 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 517 Rolling_Counter_0x205 200;
+BA_ "InvalidValue" SG_ 517 Rolling_Counter_0x205 "Fh";
+BA_ "GenSigSendType" SG_ 517 BMS_CellNumMinCellVol 0;
+BA_ "GenSigStartValue" SG_ 517 BMS_CellNumMinCellVol 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 517 BMS_CellNumMinCellVol 200;
+BA_ "InvalidValue" SG_ 517 BMS_CellNumMinCellVol "null";
+BA_ "GenSigSendType" SG_ 517 BMS_CellNumMaxCellVol 0;
+BA_ "GenSigStartValue" SG_ 517 BMS_CellNumMaxCellVol 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 517 BMS_CellNumMaxCellVol 200;
+BA_ "InvalidValue" SG_ 517 BMS_CellNumMaxCellVol "null";
+BA_ "GenSigSendType" SG_ 517 BMS_MinCellVol 0;
+BA_ "GenSigStartValue" SG_ 517 BMS_MinCellVol 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 517 BMS_MinCellVol 200;
+BA_ "InvalidValue" SG_ 517 BMS_MinCellVol "1FFFh";
+BA_ "GenSigSendType" SG_ 517 BMS_MaxCellVol 0;
+BA_ "GenSigStartValue" SG_ 517 BMS_MaxCellVol 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 517 BMS_MaxCellVol 200;
+BA_ "InvalidValue" SG_ 517 BMS_MaxCellVol "1FFFh";
+BA_ "GenSigSendType" SG_ 518 Checksum_0x206 0;
+BA_ "GenSigStartValue" SG_ 518 Checksum_0x206 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 518 Checksum_0x206 200;
+BA_ "InvalidValue" SG_ 518 Checksum_0x206 "null";
+BA_ "GenSigSendType" SG_ 518 Rolling_Counter_0x206 0;
+BA_ "GenSigStartValue" SG_ 518 Rolling_Counter_0x206 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 518 Rolling_Counter_0x206 200;
+BA_ "InvalidValue" SG_ 518 Rolling_Counter_0x206 "Fh";
+BA_ "GenSigSendType" SG_ 518 BMS_MaxMinDiffCellVol 0;
+BA_ "GenSigStartValue" SG_ 518 BMS_MaxMinDiffCellVol 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 518 BMS_MaxMinDiffCellVol 200;
+BA_ "InvalidValue" SG_ 518 BMS_MaxMinDiffCellVol "1FFFh";
+BA_ "GenSigSendType" SG_ 518 SECCAN_BMS_VolMeas2 0;
+BA_ "GenSigStartValue" SG_ 518 SECCAN_BMS_VolMeas2 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 518 SECCAN_BMS_VolMeas2 200;
+BA_ "InvalidValue" SG_ 518 SECCAN_BMS_VolMeas2 "null";
+BA_ "GenSigSendType" SG_ 521 Checksum_0x209 0;
+BA_ "GenSigStartValue" SG_ 521 Checksum_0x209 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 521 Checksum_0x209 200;
+BA_ "InvalidValue" SG_ 521 Checksum_0x209 "null";
+BA_ "GenSigSendType" SG_ 521 Rolling_Counter_0x209 0;
+BA_ "GenSigStartValue" SG_ 521 Rolling_Counter_0x209 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 521 Rolling_Counter_0x209 200;
+BA_ "InvalidValue" SG_ 521 Rolling_Counter_0x209 "Fh";
+BA_ "GenSigSendType" SG_ 521 BMS_MaxDischgPwr_ALW 0;
+BA_ "GenSigStartValue" SG_ 521 BMS_MaxDischgPwr_ALW 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 521 BMS_MaxDischgPwr_ALW 200;
+BA_ "InvalidValue" SG_ 521 BMS_MaxDischgPwr_ALW "FFFh";
+BA_ "GenSigSendType" SG_ 521 BMS_MaxChgPwr_ALW 0;
+BA_ "GenSigStartValue" SG_ 521 BMS_MaxChgPwr_ALW 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 521 BMS_MaxChgPwr_ALW 200;
+BA_ "InvalidValue" SG_ 521 BMS_MaxChgPwr_ALW "FFFh";
+BA_ "GenSigSendType" SG_ 521 BMS_MaxDischgPwr_Peak 0;
+BA_ "GenSigStartValue" SG_ 521 BMS_MaxDischgPwr_Peak 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 521 BMS_MaxDischgPwr_Peak 200;
+BA_ "InvalidValue" SG_ 521 BMS_MaxDischgPwr_Peak "FFFh";
+BA_ "GenSigSendType" SG_ 521 BMS_MaxChgPwr_Peak 0;
+BA_ "GenSigStartValue" SG_ 521 BMS_MaxChgPwr_Peak 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 521 BMS_MaxChgPwr_Peak 200;
+BA_ "InvalidValue" SG_ 521 BMS_MaxChgPwr_Peak "FFFh";
+BA_ "GenSigSendType" SG_ 524 CHKSM_IC_ODO 0;
+BA_ "GenSigStartValue" SG_ 524 CHKSM_IC_ODO 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 524 CHKSM_IC_ODO 500;
+BA_ "InvalidValue" SG_ 524 CHKSM_IC_ODO "null";
+BA_ "GenSigSendType" SG_ 524 ALIV_IC_ODO 0;
+BA_ "GenSigStartValue" SG_ 524 ALIV_IC_ODO 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 524 ALIV_IC_ODO 500;
+BA_ "InvalidValue" SG_ 524 ALIV_IC_ODO "Fh";
+BA_ "GenSigSendType" SG_ 524 MHU_Odometer_IC 0;
+BA_ "GenSigStartValue" SG_ 524 MHU_Odometer_IC 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 524 MHU_Odometer_IC 500;
+BA_ "InvalidValue" SG_ 524 MHU_Odometer_IC "FFFFFh";
+BA_ "GenSigStartValue" SG_ 532 Checksum_0x214 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 532 Checksum_0x214 500;
+BA_ "GenSigStartValue" SG_ 532 Rolling_Counter_0x214 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 532 Rolling_Counter_0x214 500;
+BA_ "InvalidValue" SG_ 532 Rolling_Counter_0x214 "Fh";
+BA_ "GenSigStartValue" SG_ 532 BMS_Display_SOC 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 532 BMS_Display_SOC 500;
+BA_ "InvalidValue" SG_ 532 BMS_Display_SOC "1023";
+BA_ "GenSigSendType" SG_ 533 Checksum_0x215 0;
+BA_ "GenSigStartValue" SG_ 533 Checksum_0x215 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 533 Checksum_0x215 500;
+BA_ "InvalidValue" SG_ 533 Checksum_0x215 "null";
+BA_ "GenSigSendType" SG_ 533 Rolling_Counter_0x215 0;
+BA_ "GenSigStartValue" SG_ 533 Rolling_Counter_0x215 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 533 Rolling_Counter_0x215 500;
+BA_ "InvalidValue" SG_ 533 Rolling_Counter_0x215 "Fh";
+BA_ "GenSigSendType" SG_ 533 BMS_BatBalance_ERR 0;
+BA_ "GenSigStartValue" SG_ 533 BMS_BatBalance_ERR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 533 BMS_BatBalance_ERR 500;
+BA_ "InvalidValue" SG_ 533 BMS_BatBalance_ERR "null";
+BA_ "GenSigSendType" SG_ 533 BMS_Balance_STS 0;
+BA_ "GenSigStartValue" SG_ 533 BMS_Balance_STS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 533 BMS_Balance_STS 500;
+BA_ "InvalidValue" SG_ 533 BMS_Balance_STS "null";
+BA_ "GenSigSendType" SG_ 533 BMS_IGN_Sts 0;
+BA_ "GenSigStartValue" SG_ 533 BMS_IGN_Sts 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 533 BMS_IGN_Sts 500;
+BA_ "InvalidValue" SG_ 533 BMS_IGN_Sts "null";
+BA_ "GenSigSendType" SG_ 533 BMS_HWCrash_Sts 0;
+BA_ "GenSigStartValue" SG_ 533 BMS_HWCrash_Sts 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 533 BMS_HWCrash_Sts 500;
+BA_ "InvalidValue" SG_ 533 BMS_HWCrash_Sts "null";
+BA_ "GenSigSendType" SG_ 533 BMS_HVIL_STS 0;
+BA_ "GenSigStartValue" SG_ 533 BMS_HVIL_STS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 533 BMS_HVIL_STS 500;
+BA_ "InvalidValue" SG_ 533 BMS_HVIL_STS "null";
+BA_ "GenSigSendType" SG_ 533 BMS_HVOnOff_STS 0;
+BA_ "GenSigStartValue" SG_ 533 BMS_HVOnOff_STS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 533 BMS_HVOnOff_STS 500;
+BA_ "InvalidValue" SG_ 533 BMS_HVOnOff_STS "null";
+BA_ "GenSigSendType" SG_ 533 BMS_ERR_LEV 0;
+BA_ "GenSigStartValue" SG_ 533 BMS_ERR_LEV 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 533 BMS_ERR_LEV 500;
+BA_ "InvalidValue" SG_ 533 BMS_ERR_LEV "null";
+BA_ "GenSigSendType" SG_ 533 BMS_SocActual_EST 0;
+BA_ "GenSigStartValue" SG_ 533 BMS_SocActual_EST 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 533 BMS_SocActual_EST 500;
+BA_ "InvalidValue" SG_ 533 BMS_SocActual_EST "3FFh";
+BA_ "GenSigSendType" SG_ 533 BMS_Sys_STS 0;
+BA_ "GenSigStartValue" SG_ 533 BMS_Sys_STS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 533 BMS_Sys_STS 500;
+BA_ "InvalidValue" SG_ 533 BMS_Sys_STS "8h";
+BA_ "GenSigSendType" SG_ 533 BMS_ISU_Status 0;
+BA_ "GenSigStartValue" SG_ 533 BMS_ISU_Status 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 533 BMS_ISU_Status 500;
+BA_ "InvalidValue" SG_ 533 BMS_ISU_Status "null";
+BA_ "GenSigSendType" SG_ 533 BMS_SOH 0;
+BA_ "GenSigStartValue" SG_ 533 BMS_SOH 54;
+BA_ "GenSigTimeoutTime_ALL" SG_ 533 BMS_SOH 500;
+BA_ "InvalidValue" SG_ 533 BMS_SOH "FFh";
+BA_ "GenSigSendType" SG_ 533 BMS_SOE 0;
+BA_ "GenSigStartValue" SG_ 533 BMS_SOE 54;
+BA_ "GenSigTimeoutTime_ALL" SG_ 533 BMS_SOE 500;
+BA_ "InvalidValue" SG_ 533 BMS_SOE "FFh";
+BA_ "GenSigSendType" SG_ 533 BMS_HV_Sts 0;
+BA_ "GenSigStartValue" SG_ 533 BMS_HV_Sts 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 533 BMS_HV_Sts 500;
+BA_ "GenSigSendType" SG_ 534 Checksum_0x216 0;
+BA_ "GenSigStartValue" SG_ 534 Checksum_0x216 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 534 Checksum_0x216 500;
+BA_ "InvalidValue" SG_ 534 Checksum_0x216 "null";
+BA_ "GenSigSendType" SG_ 534 Rolling_Counter_0x216 0;
+BA_ "GenSigStartValue" SG_ 534 Rolling_Counter_0x216 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 534 Rolling_Counter_0x216 500;
+BA_ "InvalidValue" SG_ 534 Rolling_Counter_0x216 "Fh";
+BA_ "GenSigSendType" SG_ 534 BMS_RemainChargeTime 0;
+BA_ "GenSigStartValue" SG_ 534 BMS_RemainChargeTime 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 534 BMS_RemainChargeTime 500;
+BA_ "InvalidValue" SG_ 534 BMS_RemainChargeTime "3FFh";
+BA_ "GenSigSendType" SG_ 534 BMS_ChgVoltage_REQ 0;
+BA_ "GenSigStartValue" SG_ 534 BMS_ChgVoltage_REQ 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 534 BMS_ChgVoltage_REQ 500;
+BA_ "InvalidValue" SG_ 534 BMS_ChgVoltage_REQ "3FFFh";
+BA_ "GenSigSendType" SG_ 534 BMS_ChgCurrent_REQ 0;
+BA_ "GenSigStartValue" SG_ 534 BMS_ChgCurrent_REQ 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 534 BMS_ChgCurrent_REQ 500;
+BA_ "InvalidValue" SG_ 534 BMS_ChgCurrent_REQ "FFFh";
+BA_ "GenSigSendType" SG_ 535 CHSKM_VCU_BMS_Information 0;
+BA_ "GenSigStartValue" SG_ 535 CHSKM_VCU_BMS_Information 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 535 CHSKM_VCU_BMS_Information 500;
+BA_ "InvalidValue" SG_ 535 CHSKM_VCU_BMS_Information "null";
+BA_ "GenSigSendType" SG_ 535 ALIV_VCU_BMS_Information 0;
+BA_ "GenSigStartValue" SG_ 535 ALIV_VCU_BMS_Information 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 535 ALIV_VCU_BMS_Information 500;
+BA_ "InvalidValue" SG_ 535 ALIV_VCU_BMS_Information "Fh";
+BA_ "GenSigSendType" SG_ 535 VCU_DCChargeRelayP 0;
+BA_ "GenSigStartValue" SG_ 535 VCU_DCChargeRelayP 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 535 VCU_DCChargeRelayP 500;
+BA_ "InvalidValue" SG_ 535 VCU_DCChargeRelayP "null";
+BA_ "GenSigSendType" SG_ 535 VCU_DCChargeRelayN 0;
+BA_ "GenSigStartValue" SG_ 535 VCU_DCChargeRelayN 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 535 VCU_DCChargeRelayN 500;
+BA_ "InvalidValue" SG_ 535 VCU_DCChargeRelayN "null";
+BA_ "GenSigSendType" SG_ 535 VCU_BMS_Insulation_Mon_Req 0;
+BA_ "GenSigStartValue" SG_ 535 VCU_BMS_Insulation_Mon_Req 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 535 VCU_BMS_Insulation_Mon_Req 500;
+BA_ "InvalidValue" SG_ 535 VCU_BMS_Insulation_Mon_Req "null";
+BA_ "GenSigSendType" SG_ 537 CHSKM_VCU_PTControl 0;
+BA_ "GenSigStartValue" SG_ 537 CHSKM_VCU_PTControl 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 537 CHSKM_VCU_PTControl 200;
+BA_ "InvalidValue" SG_ 537 CHSKM_VCU_PTControl "null";
+BA_ "GenSigSendType" SG_ 537 ALV_VCU_PTControl 0;
+BA_ "GenSigStartValue" SG_ 537 ALV_VCU_PTControl 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 537 ALV_VCU_PTControl 200;
+BA_ "InvalidValue" SG_ 537 ALV_VCU_PTControl "Fh";
+BA_ "GenSigSendType" SG_ 537 VCU_ChargeAllow 0;
+BA_ "GenSigStartValue" SG_ 537 VCU_ChargeAllow 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 537 VCU_ChargeAllow 200;
+BA_ "InvalidValue" SG_ 537 VCU_ChargeAllow "null";
+BA_ "GenSigTimeoutTime_ALL" SG_ 526 BMS_faultnumber 500;
+BA_ "GenSigStartValue" SG_ 526 BMS_faultnumber 0;
+BA_ "GenSigSendType" SG_ 544 CHSKM_VCU_BMS_Thermal_FB 0;
+BA_ "GenSigStartValue" SG_ 544 CHSKM_VCU_BMS_Thermal_FB 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 544 CHSKM_VCU_BMS_Thermal_FB 500;
+BA_ "InvalidValue" SG_ 544 CHSKM_VCU_BMS_Thermal_FB "null";
+BA_ "GenSigSendType" SG_ 544 ALIV_VCU_BMS_Thermal_FB 0;
+BA_ "GenSigStartValue" SG_ 544 ALIV_VCU_BMS_Thermal_FB 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 544 ALIV_VCU_BMS_Thermal_FB 500;
+BA_ "InvalidValue" SG_ 544 ALIV_VCU_BMS_Thermal_FB "Fh";
+BA_ "GenSigSendType" SG_ 544 VCU_BMS_PTCOnOff_Sts 0;
+BA_ "GenSigStartValue" SG_ 544 VCU_BMS_PTCOnOff_Sts 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 544 VCU_BMS_PTCOnOff_Sts 500;
+BA_ "InvalidValue" SG_ 544 VCU_BMS_PTCOnOff_Sts "null";
+BA_ "GenSigSendType" SG_ 544 VCU_BMS_ValveOnOff_Sts 0;
+BA_ "GenSigStartValue" SG_ 544 VCU_BMS_ValveOnOff_Sts 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 544 VCU_BMS_ValveOnOff_Sts 500;
+BA_ "InvalidValue" SG_ 544 VCU_BMS_ValveOnOff_Sts "null";
+BA_ "GenSigSendType" SG_ 544 VCU_BMS_PumpFB 0;
+BA_ "GenSigStartValue" SG_ 544 VCU_BMS_PumpFB 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 544 VCU_BMS_PumpFB 500;
+BA_ "InvalidValue" SG_ 544 VCU_BMS_PumpFB "null";
+BA_ "GenSigSendType" SG_ 549 Checksum_0x225 0;
+BA_ "GenSigStartValue" SG_ 549 Checksum_0x225 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 Checksum_0x225 200;
+BA_ "InvalidValue" SG_ 549 Checksum_0x225 "null";
+BA_ "GenSigSendType" SG_ 549 Rolling_Counter_0x225 0;
+BA_ "GenSigStartValue" SG_ 549 Rolling_Counter_0x225 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 Rolling_Counter_0x225 200;
+BA_ "InvalidValue" SG_ 549 Rolling_Counter_0x225 "Fh";
+BA_ "GenSigSendType" SG_ 549 CDM_bAcvCanComStblMon 0;
+BA_ "GenSigStartValue" SG_ 549 CDM_bAcvCanComStblMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 CDM_bAcvCanComStblMon 200;
+BA_ "InvalidValue" SG_ 549 CDM_bAcvCanComStblMon "null";
+BA_ "GenSigSendType" SG_ 549 FRMo_bErrHvbatStReqExtMon 0;
+BA_ "GenSigStartValue" SG_ 549 FRMo_bErrHvbatStReqExtMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 FRMo_bErrHvbatStReqExtMon 200;
+BA_ "InvalidValue" SG_ 549 FRMo_bErrHvbatStReqExtMon "null";
+BA_ "GenSigSendType" SG_ 549 FRMo_bErrChrgnAllwdExtMon 0;
+BA_ "GenSigStartValue" SG_ 549 FRMo_bErrChrgnAllwdExtMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 FRMo_bErrChrgnAllwdExtMon 200;
+BA_ "InvalidValue" SG_ 549 FRMo_bErrChrgnAllwdExtMon "null";
+BA_ "GenSigSendType" SG_ 549 FRMo_bErrVehCrashStExtMon 0;
+BA_ "GenSigStartValue" SG_ 549 FRMo_bErrVehCrashStExtMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 FRMo_bErrVehCrashStExtMon 200;
+BA_ "InvalidValue" SG_ 549 FRMo_bErrVehCrashStExtMon "null";
+BA_ "GenSigSendType" SG_ 549 CDM_bErrComctnLossCanMon 0;
+BA_ "GenSigStartValue" SG_ 549 CDM_bErrComctnLossCanMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 CDM_bErrComctnLossCanMon 200;
+BA_ "InvalidValue" SG_ 549 CDM_bErrComctnLossCanMon "null";
+BA_ "GenSigSendType" SG_ 549 CTCMon_bErrCtctrSopcMon 0;
+BA_ "GenSigStartValue" SG_ 549 CTCMon_bErrCtctrSopcMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 CTCMon_bErrCtctrSopcMon 200;
+BA_ "InvalidValue" SG_ 549 CTCMon_bErrCtctrSopcMon "null";
+BA_ "GenSigSendType" SG_ 549 CTCMon_bInvldCtctrHisdIFbMon 0;
+BA_ "GenSigStartValue" SG_ 549 CTCMon_bInvldCtctrHisdIFbMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 CTCMon_bInvldCtctrHisdIFbMon 200;
+BA_ "InvalidValue" SG_ 549 CTCMon_bInvldCtctrHisdIFbMon "null";
+BA_ "GenSigSendType" SG_ 549 CTCMon_bInvldCtctrLosdUFbMon 0;
+BA_ "GenSigStartValue" SG_ 549 CTCMon_bInvldCtctrLosdUFbMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 CTCMon_bInvldCtctrLosdUFbMon 200;
+BA_ "InvalidValue" SG_ 549 CTCMon_bInvldCtctrLosdUFbMon "null";
+BA_ "GenSigSendType" SG_ 549 CTM_bErrCellTDifMaxMon 0;
+BA_ "GenSigStartValue" SG_ 549 CTM_bErrCellTDifMaxMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 CTM_bErrCellTDifMaxMon 200;
+BA_ "InvalidValue" SG_ 549 CTM_bErrCellTDifMaxMon "null";
+BA_ "GenSigSendType" SG_ 549 CTM_bErrCellTMaxMon 0;
+BA_ "GenSigStartValue" SG_ 549 CTM_bErrCellTMaxMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 CTM_bErrCellTMaxMon 200;
+BA_ "InvalidValue" SG_ 549 CTM_bErrCellTMaxMon "null";
+BA_ "GenSigSendType" SG_ 549 CTM_bErrCellTMinMon 0;
+BA_ "GenSigStartValue" SG_ 549 CTM_bErrCellTMinMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 CTM_bErrCellTMinMon 200;
+BA_ "InvalidValue" SG_ 549 CTM_bErrCellTMinMon "null";
+BA_ "GenSigSendType" SG_ 549 CTM_bErrThrwyPredMon 0;
+BA_ "GenSigStartValue" SG_ 549 CTM_bErrThrwyPredMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 CTM_bErrThrwyPredMon 200;
+BA_ "InvalidValue" SG_ 549 CTM_bErrThrwyPredMon "null";
+BA_ "GenSigSendType" SG_ 549 CUM_bErrCellUDifMaxMon 0;
+BA_ "GenSigStartValue" SG_ 549 CUM_bErrCellUDifMaxMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 CUM_bErrCellUDifMaxMon 200;
+BA_ "InvalidValue" SG_ 549 CUM_bErrCellUDifMaxMon "null";
+BA_ "GenSigSendType" SG_ 549 CUM_bErrCellUMaxMon 0;
+BA_ "GenSigStartValue" SG_ 549 CUM_bErrCellUMaxMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 CUM_bErrCellUMaxMon 200;
+BA_ "InvalidValue" SG_ 549 CUM_bErrCellUMaxMon "null";
+BA_ "GenSigSendType" SG_ 549 CUM_bErrCellUMinMon 0;
+BA_ "GenSigStartValue" SG_ 549 CUM_bErrCellUMinMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 CUM_bErrCellUMinMon 200;
+BA_ "InvalidValue" SG_ 549 CUM_bErrCellUMinMon "null";
+BA_ "GenSigSendType" SG_ 549 CUM_bErrCellUProtnMaxNvMon 0;
+BA_ "GenSigStartValue" SG_ 549 CUM_bErrCellUProtnMaxNvMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 CUM_bErrCellUProtnMaxNvMon 200;
+BA_ "InvalidValue" SG_ 549 CUM_bErrCellUProtnMaxNvMon "null";
+BA_ "GenSigSendType" SG_ 549 CUM_bErrCellUProtnMinNvMon 0;
+BA_ "GenSigStartValue" SG_ 549 CUM_bErrCellUProtnMinNvMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 CUM_bErrCellUProtnMinNvMon 200;
+BA_ "InvalidValue" SG_ 549 CUM_bErrCellUProtnMinNvMon "null";
+BA_ "GenSigSendType" SG_ 549 CUM_bErrPackUImplyMon 0;
+BA_ "GenSigStartValue" SG_ 549 CUM_bErrPackUImplyMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 CUM_bErrPackUImplyMon 200;
+BA_ "InvalidValue" SG_ 549 CUM_bErrPackUImplyMon "null";
+BA_ "GenSigSendType" SG_ 549 EHPMon_bRdyHvilMon 0;
+BA_ "GenSigStartValue" SG_ 549 EHPMon_bRdyHvilMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 EHPMon_bRdyHvilMon 200;
+BA_ "InvalidValue" SG_ 549 EHPMon_bRdyHvilMon "null";
+BA_ "GenSigSendType" SG_ 549 EHPMon_bErrWlddNegNvMon 0;
+BA_ "GenSigStartValue" SG_ 549 EHPMon_bErrWlddNegNvMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 EHPMon_bErrWlddNegNvMon 200;
+BA_ "InvalidValue" SG_ 549 EHPMon_bErrWlddNegNvMon "null";
+BA_ "GenSigSendType" SG_ 549 EHPMon_bErrWlddPosNvMon 0;
+BA_ "GenSigStartValue" SG_ 549 EHPMon_bErrWlddPosNvMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 EHPMon_bErrWlddPosNvMon 200;
+BA_ "InvalidValue" SG_ 549 EHPMon_bErrWlddPosNvMon "null";
+BA_ "GenSigSendType" SG_ 549 EHPMon_bErrWlddPrechNvMon 0;
+BA_ "GenSigStartValue" SG_ 549 EHPMon_bErrWlddPrechNvMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 EHPMon_bErrWlddPrechNvMon 200;
+BA_ "InvalidValue" SG_ 549 EHPMon_bErrWlddPrechNvMon "null";
+BA_ "GenSigSendType" SG_ 549 EHPMon_bErrHvilMon 0;
+BA_ "GenSigStartValue" SG_ 549 EHPMon_bErrHvilMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 EHPMon_bErrHvilMon 200;
+BA_ "InvalidValue" SG_ 549 EHPMon_bErrHvilMon "null";
+BA_ "GenSigSendType" SG_ 549 EHPMon_bErrHvilShoMon 0;
+BA_ "GenSigStartValue" SG_ 549 EHPMon_bErrHvilShoMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 EHPMon_bErrHvilShoMon 200;
+BA_ "InvalidValue" SG_ 549 EHPMon_bErrHvilShoMon "null";
+BA_ "GenSigSendType" SG_ 549 EHPMon_bErrPackIslnRNvMon 0;
+BA_ "GenSigStartValue" SG_ 549 EHPMon_bErrPackIslnRNvMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 EHPMon_bErrPackIslnRNvMon 200;
+BA_ "InvalidValue" SG_ 549 EHPMon_bErrPackIslnRNvMon "null";
+BA_ "GenSigSendType" SG_ 549 EHPMon_bErrVehCrashNvMon 0;
+BA_ "GenSigStartValue" SG_ 549 EHPMon_bErrVehCrashNvMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 EHPMon_bErrVehCrashNvMon 200;
+BA_ "InvalidValue" SG_ 549 EHPMon_bErrVehCrashNvMon "null";
+BA_ "GenSigSendType" SG_ 549 EHPMon_bErrVehIslnRNvMon 0;
+BA_ "GenSigStartValue" SG_ 549 EHPMon_bErrVehIslnRNvMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 EHPMon_bErrVehIslnRNvMon 200;
+BA_ "InvalidValue" SG_ 549 EHPMon_bErrVehIslnRNvMon "null";
+BA_ "GenSigSendType" SG_ 549 FRMo_bErrMemStorgNvMon 0;
+BA_ "GenSigStartValue" SG_ 549 FRMo_bErrMemStorgNvMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 FRMo_bErrMemStorgNvMon 200;
+BA_ "InvalidValue" SG_ 549 FRMo_bErrMemStorgNvMon "null";
+BA_ "GenSigSendType" SG_ 549 L1IM_bErrClmp30MaxMonInp 0;
+BA_ "GenSigStartValue" SG_ 549 L1IM_bErrClmp30MaxMonInp 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 L1IM_bErrClmp30MaxMonInp 200;
+BA_ "InvalidValue" SG_ 549 L1IM_bErrClmp30MaxMonInp "null";
+BA_ "GenSigSendType" SG_ 549 L1IM_bErrClmp30MinMonInp 0;
+BA_ "GenSigStartValue" SG_ 549 L1IM_bErrClmp30MinMonInp 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 L1IM_bErrClmp30MinMonInp 200;
+BA_ "InvalidValue" SG_ 549 L1IM_bErrClmp30MinMonInp "null";
+BA_ "GenSigSendType" SG_ 549 L1IM_bErrCtctrDtrtMonInp 0;
+BA_ "GenSigStartValue" SG_ 549 L1IM_bErrCtctrDtrtMonInp 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 L1IM_bErrCtctrDtrtMonInp 200;
+BA_ "InvalidValue" SG_ 549 L1IM_bErrCtctrDtrtMonInp "null";
+BA_ "GenSigSendType" SG_ 549 L1IM_bErrUActImplyMonInp 0;
+BA_ "GenSigStartValue" SG_ 549 L1IM_bErrUActImplyMonInp 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 L1IM_bErrUActImplyMonInp 200;
+BA_ "InvalidValue" SG_ 549 L1IM_bErrUActImplyMonInp "null";
+BA_ "GenSigSendType" SG_ 549 MCCM_bAcvMdulCtlrStsMon 0;
+BA_ "GenSigStartValue" SG_ 549 MCCM_bAcvMdulCtlrStsMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 MCCM_bAcvMdulCtlrStsMon 200;
+BA_ "InvalidValue" SG_ 549 MCCM_bAcvMdulCtlrStsMon "null";
+BA_ "GenSigSendType" SG_ 549 MCCM_bErrLntecSngFltMon 0;
+BA_ "GenSigStartValue" SG_ 549 MCCM_bErrLntecSngFltMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 MCCM_bErrLntecSngFltMon 200;
+BA_ "InvalidValue" SG_ 549 MCCM_bErrLntecSngFltMon "null";
+BA_ "GenSigSendType" SG_ 549 MCCM_bErrLntecLtntFltMon 0;
+BA_ "GenSigStartValue" SG_ 549 MCCM_bErrLntecLtntFltMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 MCCM_bErrLntecLtntFltMon 200;
+BA_ "InvalidValue" SG_ 549 MCCM_bErrLntecLtntFltMon "null";
+BA_ "GenSigSendType" SG_ 549 MCCM_bErrMdulCellSnsrCfgMon 0;
+BA_ "GenSigStartValue" SG_ 549 MCCM_bErrMdulCellSnsrCfgMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 MCCM_bErrMdulCellSnsrCfgMon 200;
+BA_ "InvalidValue" SG_ 549 MCCM_bErrMdulCellSnsrCfgMon "null";
+BA_ "GenSigSendType" SG_ 549 MCCM_bErrMdulCtlrComMon 0;
+BA_ "GenSigStartValue" SG_ 549 MCCM_bErrMdulCtlrComMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 MCCM_bErrMdulCtlrComMon 200;
+BA_ "InvalidValue" SG_ 549 MCCM_bErrMdulCtlrComMon "null";
+BA_ "GenSigSendType" SG_ 549 MCCM_bErrSnsrTEltlMon 0;
+BA_ "GenSigStartValue" SG_ 549 MCCM_bErrSnsrTEltlMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 MCCM_bErrSnsrTEltlMon 200;
+BA_ "InvalidValue" SG_ 549 MCCM_bErrSnsrTEltlMon "null";
+BA_ "GenSigSendType" SG_ 549 MCCM_bWarnSnsrTEltlMon 0;
+BA_ "GenSigStartValue" SG_ 549 MCCM_bWarnSnsrTEltlMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 MCCM_bWarnSnsrTEltlMon 200;
+BA_ "InvalidValue" SG_ 549 MCCM_bWarnSnsrTEltlMon "null";
+BA_ "GenSigSendType" SG_ 549 PCM_bRdySnsrIMon 0;
+BA_ "GenSigStartValue" SG_ 549 PCM_bRdySnsrIMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 PCM_bRdySnsrIMon 200;
+BA_ "InvalidValue" SG_ 549 PCM_bRdySnsrIMon "null";
+BA_ "GenSigSendType" SG_ 549 PCM_bErrPackEFlowMaxLimMon 0;
+BA_ "GenSigStartValue" SG_ 549 PCM_bErrPackEFlowMaxLimMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 PCM_bErrPackEFlowMaxLimMon 200;
+BA_ "InvalidValue" SG_ 549 PCM_bErrPackEFlowMaxLimMon "null";
+BA_ "GenSigSendType" SG_ 549 PCM_bErrPackIChDchaMaxLimMon 0;
+BA_ "GenSigStartValue" SG_ 549 PCM_bErrPackIChDchaMaxLimMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 PCM_bErrPackIChDchaMaxLimMon 200;
+BA_ "InvalidValue" SG_ 549 PCM_bErrPackIChDchaMaxLimMon "null";
+BA_ "GenSigSendType" SG_ 549 PCM_bErrSnsrIImplyMon 0;
+BA_ "GenSigStartValue" SG_ 549 PCM_bErrSnsrIImplyMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 PCM_bErrSnsrIImplyMon 200;
+BA_ "InvalidValue" SG_ 549 PCM_bErrSnsrIImplyMon "null";
+BA_ "GenSigSendType" SG_ 549 FRMo_bErrSnsrI1ExtMon 0;
+BA_ "GenSigStartValue" SG_ 549 FRMo_bErrSnsrI1ExtMon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 FRMo_bErrSnsrI1ExtMon 200;
+BA_ "InvalidValue" SG_ 549 FRMo_bErrSnsrI1ExtMon "null";
+BA_ "GenSigSendType" SG_ 549 PCM_bInvldSnsrI1Mon 0;
+BA_ "GenSigStartValue" SG_ 549 PCM_bInvldSnsrI1Mon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 PCM_bInvldSnsrI1Mon 200;
+BA_ "InvalidValue" SG_ 549 PCM_bInvldSnsrI1Mon "null";
+BA_ "GenSigSendType" SG_ 549 PCM_bInvldSnsrI2Mon 0;
+BA_ "GenSigStartValue" SG_ 549 PCM_bInvldSnsrI2Mon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 PCM_bInvldSnsrI2Mon 200;
+BA_ "InvalidValue" SG_ 549 PCM_bInvldSnsrI2Mon "null";
+BA_ "GenSigSendType" SG_ 549 FRMo_bErrSopcLvl3Mon 0;
+BA_ "GenSigStartValue" SG_ 549 FRMo_bErrSopcLvl3Mon 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 FRMo_bErrSopcLvl3Mon 200;
+BA_ "InvalidValue" SG_ 549 FRMo_bErrSopcLvl3Mon "null";
+BA_ "GenSigSendType" SG_ 549 BMS_FRMo_Reserved_1 0;
+BA_ "GenSigStartValue" SG_ 549 BMS_FRMo_Reserved_1 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 BMS_FRMo_Reserved_1 200;
+BA_ "InvalidValue" SG_ 549 BMS_FRMo_Reserved_1 "null";
+BA_ "GenSigSendType" SG_ 549 BMS_FRMo_Reserved_2 0;
+BA_ "GenSigStartValue" SG_ 549 BMS_FRMo_Reserved_2 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 BMS_FRMo_Reserved_2 200;
+BA_ "InvalidValue" SG_ 549 BMS_FRMo_Reserved_2 "null";
+BA_ "GenSigSendType" SG_ 549 BMS_FRMo_Reserved_3 0;
+BA_ "GenSigStartValue" SG_ 549 BMS_FRMo_Reserved_3 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 BMS_FRMo_Reserved_3 200;
+BA_ "InvalidValue" SG_ 549 BMS_FRMo_Reserved_3 "null";
+BA_ "GenSigSendType" SG_ 549 BMS_FRMo_Reserved_4 0;
+BA_ "GenSigStartValue" SG_ 549 BMS_FRMo_Reserved_4 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 BMS_FRMo_Reserved_4 200;
+BA_ "InvalidValue" SG_ 549 BMS_FRMo_Reserved_4 "null";
+BA_ "GenSigSendType" SG_ 549 BMS_FRMo_Reserved_5 0;
+BA_ "GenSigStartValue" SG_ 549 BMS_FRMo_Reserved_5 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 549 BMS_FRMo_Reserved_5 200;
+BA_ "InvalidValue" SG_ 549 BMS_FRMo_Reserved_5 "null";
+BA_ "GenSigSendType" SG_ 550 Checksum_0x226 0;
+BA_ "GenSigStartValue" SG_ 550 Checksum_0x226 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 550 Checksum_0x226 200;
+BA_ "InvalidValue" SG_ 550 Checksum_0x226 "null";
+BA_ "GenSigSendType" SG_ 550 Rolling_Counter_0x226 0;
+BA_ "GenSigStartValue" SG_ 550 Rolling_Counter_0x226 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 550 Rolling_Counter_0x226 200;
+BA_ "InvalidValue" SG_ 550 Rolling_Counter_0x226 "Fh";
+BA_ "GenSigSendType" SG_ 550 BMS_QMMo_Reserved_0 0;
+BA_ "GenSigStartValue" SG_ 550 BMS_QMMo_Reserved_0 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 550 BMS_QMMo_Reserved_0 200;
+BA_ "InvalidValue" SG_ 550 BMS_QMMo_Reserved_0 "null";
+BA_ "GenSigSendType" SG_ 550 BMS_QMMo_Reserved_1 0;
+BA_ "GenSigStartValue" SG_ 550 BMS_QMMo_Reserved_1 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 550 BMS_QMMo_Reserved_1 200;
+BA_ "InvalidValue" SG_ 550 BMS_QMMo_Reserved_1 "null";
+BA_ "GenSigSendType" SG_ 550 BMS_QMMo_Reserved_2 0;
+BA_ "GenSigStartValue" SG_ 550 BMS_QMMo_Reserved_2 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 550 BMS_QMMo_Reserved_2 200;
+BA_ "InvalidValue" SG_ 550 BMS_QMMo_Reserved_2 "null";
+BA_ "GenSigSendType" SG_ 550 BMS_QMMo_Reserved_3 0;
+BA_ "GenSigStartValue" SG_ 550 BMS_QMMo_Reserved_3 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 550 BMS_QMMo_Reserved_3 200;
+BA_ "InvalidValue" SG_ 550 BMS_QMMo_Reserved_3 "null";
+BA_ "GenSigSendType" SG_ 550 BMS_QMMo_Reserved_4 0;
+BA_ "GenSigStartValue" SG_ 550 BMS_QMMo_Reserved_4 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 550 BMS_QMMo_Reserved_4 200;
+BA_ "InvalidValue" SG_ 550 BMS_QMMo_Reserved_4 "null";
+BA_ "GenSigSendType" SG_ 550 BMS_QMMo_Reserved_5 0;
+BA_ "GenSigStartValue" SG_ 550 BMS_QMMo_Reserved_5 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 550 BMS_QMMo_Reserved_5 200;
+BA_ "InvalidValue" SG_ 550 BMS_QMMo_Reserved_5 "null";
+BA_ "GenSigSendType" SG_ 550 BMS_QMMo_Reserved_6 0;
+BA_ "GenSigStartValue" SG_ 550 BMS_QMMo_Reserved_6 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 550 BMS_QMMo_Reserved_6 200;
+BA_ "InvalidValue" SG_ 550 BMS_QMMo_Reserved_6 "null";
+BA_ "GenSigSendType" SG_ 550 BMS_QMMo_Reserved_7 0;
+BA_ "GenSigStartValue" SG_ 550 BMS_QMMo_Reserved_7 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 550 BMS_QMMo_Reserved_7 200;
+BA_ "InvalidValue" SG_ 550 BMS_QMMo_Reserved_7 "null";
+BA_ "GenSigSendType" SG_ 550 BMS_QMMo_Reserved_8 0;
+BA_ "GenSigStartValue" SG_ 550 BMS_QMMo_Reserved_8 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 550 BMS_QMMo_Reserved_8 200;
+BA_ "InvalidValue" SG_ 550 BMS_QMMo_Reserved_8 "null";
+BA_ "GenSigSendType" SG_ 550 BMS_QMMo_Reserved_9 0;
+BA_ "GenSigStartValue" SG_ 550 BMS_QMMo_Reserved_9 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 550 BMS_QMMo_Reserved_9 200;
+BA_ "InvalidValue" SG_ 550 BMS_QMMo_Reserved_9 "null";
+BA_ "GenSigSendType" SG_ 550 BMS_QMMo_Reserved_10 0;
+BA_ "GenSigStartValue" SG_ 550 BMS_QMMo_Reserved_10 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 550 BMS_QMMo_Reserved_10 200;
+BA_ "InvalidValue" SG_ 550 BMS_QMMo_Reserved_10 "null";
+BA_ "GenSigSendType" SG_ 550 BMS_QMMo_Reserved_11 0;
+BA_ "GenSigStartValue" SG_ 550 BMS_QMMo_Reserved_11 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 550 BMS_QMMo_Reserved_11 200;
+BA_ "InvalidValue" SG_ 550 BMS_QMMo_Reserved_11 "null";
+BA_ "GenSigSendType" SG_ 550 CDEM_ErrDisp_0 0;
+BA_ "GenSigStartValue" SG_ 550 CDEM_ErrDisp_0 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 550 CDEM_ErrDisp_0 100;
+BA_ "InvalidValue" SG_ 550 CDEM_ErrDisp_0 "null";
+BA_ "GenSigSendType" SG_ 550 CDEM_ErrDisp_1 0;
+BA_ "GenSigStartValue" SG_ 550 CDEM_ErrDisp_1 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 550 CDEM_ErrDisp_1 100;
+BA_ "InvalidValue" SG_ 550 CDEM_ErrDisp_1 "null";
+BA_ "GenSigSendType" SG_ 581 Checksum_0x245 0;
+BA_ "GenSigStartValue" SG_ 581 Checksum_0x245 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 581 Checksum_0x245 200;
+BA_ "InvalidValue" SG_ 581 Checksum_0x245 "null";
+BA_ "GenSigSendType" SG_ 581 Rolling_Counter_0x245 0;
+BA_ "GenSigStartValue" SG_ 581 Rolling_Counter_0x245 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 581 Rolling_Counter_0x245 200;
+BA_ "InvalidValue" SG_ 581 Rolling_Counter_0x245 "Fh";
+BA_ "GenSigSendType" SG_ 581 BMS_ProbeNumMaxCellTemp 0;
+BA_ "GenSigStartValue" SG_ 581 BMS_ProbeNumMaxCellTemp 1;
+BA_ "GenSigTimeoutTime_ALL" SG_ 581 BMS_ProbeNumMaxCellTemp 200;
+BA_ "InvalidValue" SG_ 581 BMS_ProbeNumMaxCellTemp "null";
+BA_ "GenSigSendType" SG_ 581 BMS_MinCellTemp 0;
+BA_ "GenSigStartValue" SG_ 581 BMS_MinCellTemp 80;
+BA_ "GenSigTimeoutTime_ALL" SG_ 581 BMS_MinCellTemp 200;
+BA_ "InvalidValue" SG_ 581 BMS_MinCellTemp "FFh";
+BA_ "GenSigSendType" SG_ 581 BMS_ProbeNumMinCellTemp 0;
+BA_ "GenSigStartValue" SG_ 581 BMS_ProbeNumMinCellTemp 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 581 BMS_ProbeNumMinCellTemp 200;
+BA_ "InvalidValue" SG_ 581 BMS_ProbeNumMinCellTemp "null";
+BA_ "GenSigSendType" SG_ 581 BMS_PackTemp 0;
+BA_ "GenSigStartValue" SG_ 581 BMS_PackTemp 80;
+BA_ "GenSigTimeoutTime_ALL" SG_ 581 BMS_PackTemp 200;
+BA_ "InvalidValue" SG_ 581 BMS_PackTemp "FFh";
+BA_ "GenSigSendType" SG_ 581 BMS_MaxCellTemp 0;
+BA_ "GenSigStartValue" SG_ 581 BMS_MaxCellTemp 80;
+BA_ "GenSigTimeoutTime_ALL" SG_ 581 BMS_MaxCellTemp 200;
+BA_ "InvalidValue" SG_ 581 BMS_MaxCellTemp "FFh";
+BA_ "GenSigSendType" SG_ 581 BMS_MaxMinDiffCellTemp 0;
+BA_ "GenSigStartValue" SG_ 581 BMS_MaxMinDiffCellTemp 80;
+BA_ "GenSigTimeoutTime_ALL" SG_ 581 BMS_MaxMinDiffCellTemp 200;
+BA_ "InvalidValue" SG_ 581 BMS_MaxMinDiffCellTemp "FFh";
+BA_ "GenSigSendType" SG_ 584 CHSKM_BMS_VCU_THMReq 0;
+BA_ "GenSigStartValue" SG_ 584 CHSKM_BMS_VCU_THMReq 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 584 CHSKM_BMS_VCU_THMReq 500;
+BA_ "InvalidValue" SG_ 584 CHSKM_BMS_VCU_THMReq "null";
+BA_ "GenSigSendType" SG_ 584 ALV_BMS_VCU_THMReq 0;
+BA_ "GenSigStartValue" SG_ 584 ALV_BMS_VCU_THMReq 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 584 ALV_BMS_VCU_THMReq 500;
+BA_ "InvalidValue" SG_ 584 ALV_BMS_VCU_THMReq "Fh";
+BA_ "GenSigSendType" SG_ 584 BMS_FlowRate_Req 0;
+BA_ "GenSigStartValue" SG_ 584 BMS_FlowRate_Req 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 584 BMS_FlowRate_Req 500;
+BA_ "InvalidValue" SG_ 584 BMS_FlowRate_Req "FFh";
+BA_ "GenSigSendType" SG_ 584 BMS_CoolPwrDemand 0;
+BA_ "GenSigStartValue" SG_ 584 BMS_CoolPwrDemand 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 584 BMS_CoolPwrDemand 500;
+BA_ "InvalidValue" SG_ 584 BMS_CoolPwrDemand "FFFh";
+BA_ "GenSigSendType" SG_ 584 BMS_HeatPwrDemand 0;
+BA_ "GenSigStartValue" SG_ 584 BMS_HeatPwrDemand 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 584 BMS_HeatPwrDemand 500;
+BA_ "InvalidValue" SG_ 584 BMS_HeatPwrDemand "FFFh";
+BA_ "GenSigSendType" SG_ 584 BMS_VCU_PTCOnOff_Req 0;
+BA_ "GenSigStartValue" SG_ 584 BMS_VCU_PTCOnOff_Req 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 584 BMS_VCU_PTCOnOff_Req 500;
+BA_ "InvalidValue" SG_ 584 BMS_VCU_PTCOnOff_Req "null";
+BA_ "GenSigSendType" SG_ 584 BMS_VCU_ValveOnOff_Req 0;
+BA_ "GenSigStartValue" SG_ 584 BMS_VCU_ValveOnOff_Req 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 584 BMS_VCU_ValveOnOff_Req 500;
+BA_ "InvalidValue" SG_ 584 BMS_VCU_ValveOnOff_Req "null";
+BA_ "GenSigSendType" SG_ 584 BMS_PreHeatCoolReq 0;
+BA_ "GenSigStartValue" SG_ 584 BMS_PreHeatCoolReq 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 584 BMS_PreHeatCoolReq 500;
+BA_ "InvalidValue" SG_ 584 BMS_PreHeatCoolReq "3h";
+BA_ "GenSigSendType" SG_ 585 CHSKM_BMS_CoolntInletOutletTmp 0;
+BA_ "GenSigStartValue" SG_ 585 CHSKM_BMS_CoolntInletOutletTmp 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 585 CHSKM_BMS_CoolntInletOutletTmp 500;
+BA_ "InvalidValue" SG_ 585 CHSKM_BMS_CoolntInletOutletTmp "null";
+BA_ "GenSigSendType" SG_ 585 ALV_BMS_CoolntInletOutletTmp 0;
+BA_ "GenSigStartValue" SG_ 585 ALV_BMS_CoolntInletOutletTmp 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 585 ALV_BMS_CoolntInletOutletTmp 500;
+BA_ "InvalidValue" SG_ 585 ALV_BMS_CoolntInletOutletTmp "Fh";
+BA_ "GenSigSendType" SG_ 585 BMS_CoolantInletTemp 0;
+BA_ "GenSigStartValue" SG_ 585 BMS_CoolantInletTemp 80;
+BA_ "GenSigTimeoutTime_ALL" SG_ 585 BMS_CoolantInletTemp 500;
+BA_ "InvalidValue" SG_ 585 BMS_CoolantInletTemp "null";
+BA_ "GenSigSendType" SG_ 585 BMS_CoolantOutletTemp 0;
+BA_ "GenSigStartValue" SG_ 585 BMS_CoolantOutletTemp 80;
+BA_ "GenSigTimeoutTime_ALL" SG_ 585 BMS_CoolantOutletTemp 500;
+BA_ "InvalidValue" SG_ 585 BMS_CoolantOutletTemp "null";
+BA_ "GenSigStartValue" SG_ 585 BMS_BDUTemp1 80;
+BA_ "GenSigTimeoutTime_ALL" SG_ 585 BMS_BDUTemp1 500;
+BA_ "GenSigStartValue" SG_ 585 BMS_BDUTemp2 80;
+BA_ "GenSigTimeoutTime_ALL" SG_ 585 BMS_BDUTemp2 500;
+BA_ "GenSigSendType" SG_ 714 CHKSM_IC_SENSOR 0;
+BA_ "GenSigStartValue" SG_ 714 CHKSM_IC_SENSOR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 714 CHKSM_IC_SENSOR 500;
+BA_ "InvalidValue" SG_ 714 CHKSM_IC_SENSOR "null";
+BA_ "GenSigSendType" SG_ 714 ALV_IC_SENSOR 0;
+BA_ "GenSigStartValue" SG_ 714 ALV_IC_SENSOR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 714 ALV_IC_SENSOR 500;
+BA_ "InvalidValue" SG_ 714 ALV_IC_SENSOR "Fh";
+BA_ "GenSigSendType" SG_ 714 MHU_STAT_AmbientTempRaw 0;
+BA_ "GenSigStartValue" SG_ 714 MHU_STAT_AmbientTempRaw 80;
+BA_ "GenSigTimeoutTime_ALL" SG_ 714 MHU_STAT_AmbientTempRaw 500;
+BA_ "InvalidValue" SG_ 714 MHU_STAT_AmbientTempRaw "FFh";
+BA_ "GenSigSendType" SG_ 714 MHU_STAT_FuelLevel 0;
+BA_ "GenSigStartValue" SG_ 714 MHU_STAT_FuelLevel 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 714 MHU_STAT_FuelLevel 500;
+BA_ "InvalidValue" SG_ 714 MHU_STAT_FuelLevel "FFh";
+BA_ "GenSigSendType" SG_ 714 MHU_STAT_AmbientTemp 0;
+BA_ "GenSigStartValue" SG_ 714 MHU_STAT_AmbientTemp 80;
+BA_ "GenSigTimeoutTime_ALL" SG_ 714 MHU_STAT_AmbientTemp 500;
+BA_ "InvalidValue" SG_ 714 MHU_STAT_AmbientTemp "FFh";
+BA_ "GenSigSendType" SG_ 714 MHU_STAT_CoolantLevelStatus 0;
+BA_ "GenSigStartValue" SG_ 714 MHU_STAT_CoolantLevelStatus 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 714 MHU_STAT_CoolantLevelStatus 500;
+BA_ "InvalidValue" SG_ 714 MHU_STAT_CoolantLevelStatus "3h";
+BA_ "GenSigSendType" SG_ 715 TEMP_EX 0;
+BA_ "GenSigStartValue" SG_ 715 TEMP_EX 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 715 TEMP_EX 500;
+BA_ "InvalidValue" SG_ 715 TEMP_EX "FFh";
+BA_ "GenSigSendType" SG_ 715 TEMP_EX_UNFILT 0;
+BA_ "GenSigStartValue" SG_ 715 TEMP_EX_UNFILT 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 715 TEMP_EX_UNFILT 500;
+BA_ "InvalidValue" SG_ 715 TEMP_EX_UNFILT "FFh";
+BA_ "GenSigSendType" SG_ 760 DISP_HR 0;
+BA_ "GenSigStartValue" SG_ 760 DISP_HR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 760 DISP_HR 5000;
+BA_ "InvalidValue" SG_ 760 DISP_HR "FFh";
+BA_ "GenSigSendType" SG_ 760 DISP_MN 0;
+BA_ "GenSigStartValue" SG_ 760 DISP_MN 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 760 DISP_MN 5000;
+BA_ "InvalidValue" SG_ 760 DISP_MN "FFh";
+BA_ "GenSigSendType" SG_ 760 DISP_SEC 0;
+BA_ "GenSigStartValue" SG_ 760 DISP_SEC 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 760 DISP_SEC 5000;
+BA_ "InvalidValue" SG_ 760 DISP_SEC "FFh";
+BA_ "GenSigSendType" SG_ 760 DISP_DATE_DAY 0;
+BA_ "GenSigStartValue" SG_ 760 DISP_DATE_DAY 1;
+BA_ "GenSigTimeoutTime_ALL" SG_ 760 DISP_DATE_DAY 5000;
+BA_ "InvalidValue" SG_ 760 DISP_DATE_DAY "FFh";
+BA_ "GenSigSendType" SG_ 760 DISP_DATE_MON 0;
+BA_ "GenSigStartValue" SG_ 760 DISP_DATE_MON 1;
+BA_ "GenSigTimeoutTime_ALL" SG_ 760 DISP_DATE_MON 5000;
+BA_ "InvalidValue" SG_ 760 DISP_DATE_MON "Fh";
+BA_ "GenSigSendType" SG_ 760 DISP_DATE_WDAY 0;
+BA_ "GenSigStartValue" SG_ 760 DISP_DATE_WDAY 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 760 DISP_DATE_WDAY 5000;
+BA_ "InvalidValue" SG_ 760 DISP_DATE_WDAY "Fh";
+BA_ "GenSigSendType" SG_ 760 DISP_DATE_YR 0;
+BA_ "GenSigStartValue" SG_ 760 DISP_DATE_YR 1;
+BA_ "GenSigTimeoutTime_ALL" SG_ 760 DISP_DATE_YR 5000;
+BA_ "InvalidValue" SG_ 760 DISP_DATE_YR "FFFFh";
+BA_ "GenSigSendType" SG_ 760 ST_DISP_CTI_DATE 0;
+BA_ "GenSigStartValue" SG_ 760 ST_DISP_CTI_DATE 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 760 ST_DISP_CTI_DATE 5000;
+BA_ "InvalidValue" SG_ 760 ST_DISP_CTI_DATE "Fh";
+BA_ "GenSigSendType" SG_ 770 CHKSM_CCU_TEMP_PRESSURE 0;
+BA_ "GenSigStartValue" SG_ 770 CHKSM_CCU_TEMP_PRESSURE 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 770 CHKSM_CCU_TEMP_PRESSURE 5000;
+BA_ "InvalidValue" SG_ 770 CHKSM_CCU_TEMP_PRESSURE "null";
+BA_ "GenSigSendType" SG_ 770 ALV_CCU_TEMP_PRESSURE 0;
+BA_ "GenSigStartValue" SG_ 770 ALV_CCU_TEMP_PRESSURE 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 770 ALV_CCU_TEMP_PRESSURE 5000;
+BA_ "InvalidValue" SG_ 770 ALV_CCU_TEMP_PRESSURE "Fh";
+BA_ "GenSigSendType" SG_ 770 CCU_Pressure_AC 0;
+BA_ "GenSigStartValue" SG_ 770 CCU_Pressure_AC 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 770 CCU_Pressure_AC 5000;
+BA_ "InvalidValue" SG_ 770 CCU_Pressure_AC "3Fh";
+BA_ "GenSigSendType" SG_ 770 CCU_InteriorTemp 0;
+BA_ "GenSigStartValue" SG_ 770 CCU_InteriorTemp 80;
+BA_ "GenSigTimeoutTime_ALL" SG_ 770 CCU_InteriorTemp 5000;
+BA_ "InvalidValue" SG_ 770 CCU_InteriorTemp "FFh";
+BA_ "GenSigSendType" SG_ 770 CCU_TempEx_AC 0;
+BA_ "GenSigStartValue" SG_ 770 CCU_TempEx_AC 80;
+BA_ "GenSigTimeoutTime_ALL" SG_ 770 CCU_TempEx_AC 5000;
+BA_ "InvalidValue" SG_ 770 CCU_TempEx_AC "FFh";
+BA_ "GenSigSendType" SG_ 770 CCU_EvaporatorTemp 0;
+BA_ "GenSigStartValue" SG_ 770 CCU_EvaporatorTemp 80;
+BA_ "GenSigTimeoutTime_ALL" SG_ 770 CCU_EvaporatorTemp 5000;
+BA_ "InvalidValue" SG_ 770 CCU_EvaporatorTemp "FFh";
+BA_ "GenSigSendType" SG_ 773 CHSKM_BMS_Insulation 0;
+BA_ "GenSigStartValue" SG_ 773 CHSKM_BMS_Insulation 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 773 CHSKM_BMS_Insulation 500;
+BA_ "InvalidValue" SG_ 773 CHSKM_BMS_Insulation "null";
+BA_ "GenSigSendType" SG_ 773 ALV_BMS_Insulation 0;
+BA_ "GenSigStartValue" SG_ 773 ALV_BMS_Insulation 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 773 ALV_BMS_Insulation 500;
+BA_ "InvalidValue" SG_ 773 ALV_BMS_Insulation "Fh";
+BA_ "GenSigSendType" SG_ 773 BMS_VCU_Insulation_Mon_Sts 0;
+BA_ "GenSigStartValue" SG_ 773 BMS_VCU_Insulation_Mon_Sts 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 773 BMS_VCU_Insulation_Mon_Sts 500;
+BA_ "InvalidValue" SG_ 773 BMS_VCU_Insulation_Mon_Sts "null";
+BA_ "GenSigSendType" SG_ 773 BMS_PackInsuRes 0;
+BA_ "GenSigStartValue" SG_ 773 BMS_PackInsuRes 5535;
+BA_ "GenSigTimeoutTime_ALL" SG_ 773 BMS_PackInsuRes 500;
+BA_ "InvalidValue" SG_ 773 BMS_PackInsuRes "null";
+BA_ "GenSigStartValue" SG_ 775 Checksum_0x307 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 775 Checksum_0x307 1000;
+BA_ "GenSigStartValue" SG_ 775 Rolling_Counter_0x307 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 775 Rolling_Counter_0x307 1000;
+BA_ "GenSigStartValue" SG_ 775 BMS_Start_Stop_DM13 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 775 BMS_Start_Stop_DM13 1000;
+BA_ "GenSigSendType" SG_ 816 Checksum_0x330 0;
+BA_ "GenSigStartValue" SG_ 816 Checksum_0x330 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 816 Checksum_0x330 500;
+BA_ "InvalidValue" SG_ 816 Checksum_0x330 "null";
+BA_ "GenSigSendType" SG_ 816 Rolling_Counter_0x330 0;
+BA_ "GenSigStartValue" SG_ 816 Rolling_Counter_0x330 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 816 Rolling_Counter_0x330 500;
+BA_ "InvalidValue" SG_ 816 Rolling_Counter_0x330 "Fh";
+BA_ "GenSigSendType" SG_ 816 BMS_ContactorAging 0;
+BA_ "GenSigStartValue" SG_ 816 BMS_ContactorAging 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 816 BMS_ContactorAging 500;
+BA_ "InvalidValue" SG_ 816 BMS_ContactorAging "FFh";
+BA_ "GenSigSendType" SG_ 818 Checksum_0x332 0;
+BA_ "GenSigStartValue" SG_ 818 Checksum_0x332 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 818 Checksum_0x332 500;
+BA_ "InvalidValue" SG_ 818 Checksum_0x332 "null";
+BA_ "GenSigSendType" SG_ 818 Rolling_Counter_0x332 0;
+BA_ "GenSigStartValue" SG_ 818 Rolling_Counter_0x332 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 818 Rolling_Counter_0x332 500;
+BA_ "InvalidValue" SG_ 818 Rolling_Counter_0x332 "Fh";
+BA_ "GenSigSendType" SG_ 818 BMS_PackCNom 0;
+BA_ "GenSigStartValue" SG_ 818 BMS_PackCNom 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 818 BMS_PackCNom 500;
+BA_ "InvalidValue" SG_ 818 BMS_PackCNom "FFFFh";
+BA_ "GenSigSendType" SG_ 818 BMS_PackTemp_0x332 0;
+BA_ "GenSigStartValue" SG_ 818 BMS_PackTemp_0x332 80;
+BA_ "GenSigTimeoutTime_ALL" SG_ 818 BMS_PackTemp_0x332 500;
+BA_ "InvalidValue" SG_ 818 BMS_PackTemp_0x332 "FFh";
+BA_ "GenSigTimeoutTime_ALL" SG_ 819 BMS_SwVers_Type 5000;
+BA_ "GenSigStartValue" SG_ 819 BMS_SwVers_Type 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 819 BMS_SwVersS_phase 5000;
+BA_ "GenSigStartValue" SG_ 819 BMS_SwVersS_phase 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 819 BMS_swVers_version 5000;
+BA_ "GenSigStartValue" SG_ 819 BMS_swVers_version 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 820 BMS_ErrorCategory_CAT0 500;
+BA_ "GenSigStartValue" SG_ 820 BMS_ErrorCategory_CAT0 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 820 BMS_ErrorCategory_CAT1 500;
+BA_ "GenSigStartValue" SG_ 820 BMS_ErrorCategory_CAT1 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 820 BMS_ErrorCategory_CAT2 500;
+BA_ "GenSigStartValue" SG_ 820 BMS_ErrorCategory_CAT2 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 820 BMS_ErrorCategory_CAT3 500;
+BA_ "GenSigStartValue" SG_ 820 BMS_ErrorCategory_CAT3 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 820 BMS_ErrorCategory_CAT4 500;
+BA_ "GenSigStartValue" SG_ 820 BMS_ErrorCategory_CAT4 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 820 BMS_ErrorCategory_CAT5 500;
+BA_ "GenSigStartValue" SG_ 820 BMS_ErrorCategory_CAT5 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 820 BMS_ErrorCategory_CAT6 500;
+BA_ "GenSigStartValue" SG_ 820 BMS_ErrorCategory_CAT6 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 820 BMS_ErrorCategory_CAT7 500;
+BA_ "GenSigStartValue" SG_ 820 BMS_ErrorCategory_CAT7 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 820 BMS_ErrorCategory_CAT8 500;
+BA_ "GenSigStartValue" SG_ 820 BMS_ErrorCategory_CAT8 0;
+BA_ "GenSigSendType" SG_ 885 Checksum_0x375 0;
+BA_ "GenSigStartValue" SG_ 885 Checksum_0x375 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 885 Checksum_0x375 500;
+BA_ "InvalidValue" SG_ 885 Checksum_0x375 "null";
+BA_ "GenSigSendType" SG_ 885 Rolling_Counter_0x375 0;
+BA_ "GenSigStartValue" SG_ 885 Rolling_Counter_0x375 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 885 Rolling_Counter_0x375 500;
+BA_ "InvalidValue" SG_ 885 Rolling_Counter_0x375 "Fh";
+BA_ "GenSigSendType" SG_ 885 BMS_PreChgRelay_ERR 0;
+BA_ "GenSigStartValue" SG_ 885 BMS_PreChgRelay_ERR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 885 BMS_PreChgRelay_ERR 500;
+BA_ "InvalidValue" SG_ 885 BMS_PreChgRelay_ERR "null";
+BA_ "GenSigSendType" SG_ 885 BMS_TotalNegRelay_ERR 0;
+BA_ "GenSigStartValue" SG_ 885 BMS_TotalNegRelay_ERR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 885 BMS_TotalNegRelay_ERR 500;
+BA_ "InvalidValue" SG_ 885 BMS_TotalNegRelay_ERR "null";
+BA_ "GenSigSendType" SG_ 885 BMS_MainPosRelay_ERR 0;
+BA_ "GenSigStartValue" SG_ 885 BMS_MainPosRelay_ERR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 885 BMS_MainPosRelay_ERR 500;
+BA_ "InvalidValue" SG_ 885 BMS_MainPosRelay_ERR "null";
+BA_ "GenSigSendType" SG_ 885 BMS_MainPosRelay_STS 0;
+BA_ "GenSigStartValue" SG_ 885 BMS_MainPosRelay_STS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 885 BMS_MainPosRelay_STS 500;
+BA_ "InvalidValue" SG_ 885 BMS_MainPosRelay_STS "7h";
+BA_ "GenSigSendType" SG_ 885 BMS_PreChgRelay_STS 0;
+BA_ "GenSigStartValue" SG_ 885 BMS_PreChgRelay_STS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 885 BMS_PreChgRelay_STS 500;
+BA_ "InvalidValue" SG_ 885 BMS_PreChgRelay_STS "7h";
+BA_ "GenSigSendType" SG_ 885 BMS_TotalNegRelay_STS 0;
+BA_ "GenSigStartValue" SG_ 885 BMS_TotalNegRelay_STS 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 885 BMS_TotalNegRelay_STS 500;
+BA_ "InvalidValue" SG_ 885 BMS_TotalNegRelay_STS "7h";
+BA_ "GenSigSendType" SG_ 896 VIN_Byte1 0;
+BA_ "GenSigStartValue" SG_ 896 VIN_Byte1 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 896 VIN_Byte1 5000;
+BA_ "InvalidValue" SG_ 896 VIN_Byte1 "null";
+BA_ "GenSigSendType" SG_ 896 VIN_Byte2 0;
+BA_ "GenSigStartValue" SG_ 896 VIN_Byte2 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 896 VIN_Byte2 5000;
+BA_ "InvalidValue" SG_ 896 VIN_Byte2 "null";
+BA_ "GenSigSendType" SG_ 896 VIN_Byte3 0;
+BA_ "GenSigStartValue" SG_ 896 VIN_Byte3 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 896 VIN_Byte3 5000;
+BA_ "InvalidValue" SG_ 896 VIN_Byte3 "null";
+BA_ "GenSigSendType" SG_ 896 VIN_Byte4 0;
+BA_ "GenSigStartValue" SG_ 896 VIN_Byte4 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 896 VIN_Byte4 5000;
+BA_ "InvalidValue" SG_ 896 VIN_Byte4 "null";
+BA_ "GenSigSendType" SG_ 896 VIN_Byte5 0;
+BA_ "GenSigStartValue" SG_ 896 VIN_Byte5 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 896 VIN_Byte5 5000;
+BA_ "InvalidValue" SG_ 896 VIN_Byte5 "null";
+BA_ "GenSigSendType" SG_ 896 VIN_Byte6 0;
+BA_ "GenSigStartValue" SG_ 896 VIN_Byte6 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 896 VIN_Byte6 5000;
+BA_ "InvalidValue" SG_ 896 VIN_Byte6 "null";
+BA_ "GenSigSendType" SG_ 896 VIN_Byte7 0;
+BA_ "GenSigStartValue" SG_ 896 VIN_Byte7 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 896 VIN_Byte7 5000;
+BA_ "InvalidValue" SG_ 896 VIN_Byte7 "null";
+BA_ "GenSigSendType" SG_ 993 CRC_VCU_HMI_Info 0;
+BA_ "GenSigStartValue" SG_ 993 CRC_VCU_HMI_Info 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 993 CRC_VCU_HMI_Info 500;
+BA_ "InvalidValue" SG_ 993 CRC_VCU_HMI_Info "null";
+BA_ "GenSigSendType" SG_ 993 ALIV_VCU_HMI_Info 0;
+BA_ "GenSigStartValue" SG_ 993 ALIV_VCU_HMI_Info 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 993 ALIV_VCU_HMI_Info 500;
+BA_ "InvalidValue" SG_ 993 ALIV_VCU_HMI_Info "Fh";
+BA_ "GenSigSendType" SG_ 993 VCU_MHU_Ack_TargetSOC 0;
+BA_ "GenSigStartValue" SG_ 993 VCU_MHU_Ack_TargetSOC 100;
+BA_ "GenSigTimeoutTime_ALL" SG_ 993 VCU_MHU_Ack_TargetSOC 500;
+BA_ "InvalidValue" SG_ 993 VCU_MHU_Ack_TargetSOC "7Fh";
+BA_ "GenSigSendType" SG_ 1074 MHU_FOTA_Checksum 0;
+BA_ "GenSigStartValue" SG_ 1074 MHU_FOTA_Checksum 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1074 MHU_FOTA_Checksum 2500;
+BA_ "InvalidValue" SG_ 1074 MHU_FOTA_Checksum "null";
+BA_ "GenSigSendType" SG_ 1074 MHU_FOTA_Alive_Counter 0;
+BA_ "GenSigStartValue" SG_ 1074 MHU_FOTA_Alive_Counter 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1074 MHU_FOTA_Alive_Counter 2500;
+BA_ "InvalidValue" SG_ 1074 MHU_FOTA_Alive_Counter "Fh";
+BA_ "GenSigSendType" SG_ 1074 MHU_FOTA_State 0;
+BA_ "GenSigStartValue" SG_ 1074 MHU_FOTA_State 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1074 MHU_FOTA_State 2500;
+BA_ "InvalidValue" SG_ 1074 MHU_FOTA_State "7h";
+BA_ "GenSigSendType" SG_ 1074 MHU_FOTA_Error_Code 0;
+BA_ "GenSigStartValue" SG_ 1074 MHU_FOTA_Error_Code 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1074 MHU_FOTA_Error_Code 2500;
+BA_ "InvalidValue" SG_ 1074 MHU_FOTA_Error_Code "null";
+BA_ "GenSigSendType" SG_ 1109 Checksum_0x455 0;
+BA_ "GenSigStartValue" SG_ 1109 Checksum_0x455 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1109 Checksum_0x455 500;
+BA_ "InvalidValue" SG_ 1109 Checksum_0x455 "null";
+BA_ "GenSigSendType" SG_ 1109 Rolling_Counter_0x455 0;
+BA_ "GenSigStartValue" SG_ 1109 Rolling_Counter_0x455 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1109 Rolling_Counter_0x455 500;
+BA_ "InvalidValue" SG_ 1109 Rolling_Counter_0x455 "Fh";
+BA_ "GenSigSendType" SG_ 1109 BMS_CellLowVol_ERR 0;
+BA_ "GenSigStartValue" SG_ 1109 BMS_CellLowVol_ERR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1109 BMS_CellLowVol_ERR 500;
+BA_ "InvalidValue" SG_ 1109 BMS_CellLowVol_ERR "null";
+BA_ "GenSigSendType" SG_ 1109 BMS_HVIL_Err 0;
+BA_ "GenSigStartValue" SG_ 1109 BMS_HVIL_Err 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1109 BMS_HVIL_Err 500;
+BA_ "InvalidValue" SG_ 1109 BMS_HVIL_Err "null";
+BA_ "GenSigSendType" SG_ 1109 BMS_PackInsu_ERR 0;
+BA_ "GenSigStartValue" SG_ 1109 BMS_PackInsu_ERR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1109 BMS_PackInsu_ERR 500;
+BA_ "InvalidValue" SG_ 1109 BMS_PackInsu_ERR "null";
+BA_ "GenSigSendType" SG_ 1109 BMS_CellVoltDiff_ERR 0;
+BA_ "GenSigStartValue" SG_ 1109 BMS_CellVoltDiff_ERR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1109 BMS_CellVoltDiff_ERR 500;
+BA_ "InvalidValue" SG_ 1109 BMS_CellVoltDiff_ERR "null";
+BA_ "GenSigSendType" SG_ 1109 BMS_ProbeTempDiff_ERR 0;
+BA_ "GenSigStartValue" SG_ 1109 BMS_ProbeTempDiff_ERR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1109 BMS_ProbeTempDiff_ERR 500;
+BA_ "InvalidValue" SG_ 1109 BMS_ProbeTempDiff_ERR "null";
+BA_ "GenSigSendType" SG_ 1109 BMS_PackHighVol_ERR 0;
+BA_ "GenSigStartValue" SG_ 1109 BMS_PackHighVol_ERR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1109 BMS_PackHighVol_ERR 500;
+BA_ "InvalidValue" SG_ 1109 BMS_PackHighVol_ERR "null";
+BA_ "GenSigSendType" SG_ 1109 BMS_PackLowVol_ERR 0;
+BA_ "GenSigStartValue" SG_ 1109 BMS_PackLowVol_ERR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1109 BMS_PackLowVol_ERR 500;
+BA_ "InvalidValue" SG_ 1109 BMS_PackLowVol_ERR "null";
+BA_ "GenSigSendType" SG_ 1109 BMS_CellHighVol_ERR 0;
+BA_ "GenSigStartValue" SG_ 1109 BMS_CellHighVol_ERR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1109 BMS_CellHighVol_ERR 500;
+BA_ "InvalidValue" SG_ 1109 BMS_CellHighVol_ERR "null";
+BA_ "GenSigSendType" SG_ 1109 BMS_ProbeHighTemp_ERR 0;
+BA_ "GenSigStartValue" SG_ 1109 BMS_ProbeHighTemp_ERR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1109 BMS_ProbeHighTemp_ERR 500;
+BA_ "InvalidValue" SG_ 1109 BMS_ProbeHighTemp_ERR "null";
+BA_ "GenSigSendType" SG_ 1109 BMS_FuseStatus_ERR 0;
+BA_ "GenSigStartValue" SG_ 1109 BMS_FuseStatus_ERR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1109 BMS_FuseStatus_ERR 500;
+BA_ "InvalidValue" SG_ 1109 BMS_FuseStatus_ERR "null";
+BA_ "GenSigSendType" SG_ 1109 BMS_PackOverCurr_ERR 0;
+BA_ "GenSigStartValue" SG_ 1109 BMS_PackOverCurr_ERR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1109 BMS_PackOverCurr_ERR 500;
+BA_ "InvalidValue" SG_ 1109 BMS_PackOverCurr_ERR "null";
+BA_ "GenSigSendType" SG_ 1109 BMS_ProbeLowTemp_ERR 0;
+BA_ "GenSigStartValue" SG_ 1109 BMS_ProbeLowTemp_ERR 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1109 BMS_ProbeLowTemp_ERR 500;
+BA_ "InvalidValue" SG_ 1109 BMS_ProbeLowTemp_ERR "null";
+BA_ "InvalidValue" SG_ 1120 TWV1_N_Position "null";
+BA_ "GenSigTimeoutTime_ALL" SG_ 1120 TWV1_N_Position 0;
+BA_ "GenSigStartValue" SG_ 1120 TWV1_N_Position 0;
+BA_ "GenSigSendType" SG_ 1120 TWV1_N_Position 7;
+BA_ "InvalidValue" SG_ 1120 TWV1_St_Feedback "null";
+BA_ "GenSigTimeoutTime_ALL" SG_ 1120 TWV1_St_Feedback 0;
+BA_ "GenSigStartValue" SG_ 1120 TWV1_St_Feedback 0;
+BA_ "GenSigSendType" SG_ 1120 TWV1_St_Feedback 7;
+BA_ "GenSigStartValue" SG_ 1120 TWV2_N_Position 0;
+BA_ "GenSigStartValue" SG_ 1120 TWV2_St_Feedback 0;
+BA_ "GenSigStartValue" SG_ 1121 TMM_EXV_PositionRequest 0;
+BA_ "GenSigStartValue" SG_ 1121 EXV_CurrentPosition 0;
+BA_ "GenSigStartValue" SG_ 1121 CLMTWV1_N_TWVPosReq 0;
+BA_ "GenSigStartValue" SG_ 1121 CLMTWV2_N_TWVPosReq 0;
+BA_ "GenSigStartValue" SG_ 1122 HV_PTC_heating_rq 0;
+BA_ "GenSigStartValue" SG_ 1122 HV_PTC_InternalPCBTemp 0;
+BA_ "GenSigStartValue" SG_ 1122 HV_PTC_InternalWaterTemp1 0;
+BA_ "GenSigStartValue" SG_ 1122 EAC_CompElecPwr 0;
+BA_ "GenSigStartValue" SG_ 1122 EAC_CompElecCurr 0;
+BA_ "GenSigStartValue" SG_ 1122 EAC_CompIGBTTemp 0;
+BA_ "GenSigStartValue" SG_ 1122 ECM_TargetPosReq_1 100;
+BA_ "GenSigStartValue" SG_ 1123 CompSpdReq 0;
+BA_ "GenSigStartValue" SG_ 1123 AGM_1_ActualPosition 127;
+BA_ "GenSigSendType" SG_ 1171 CHSKM_BMS_WarnMsg 3;
+BA_ "GenSigStartValue" SG_ 1171 CHSKM_BMS_WarnMsg 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 CHSKM_BMS_WarnMsg 5000;
+BA_ "InvalidValue" SG_ 1171 CHSKM_BMS_WarnMsg "null";
+BA_ "GenSigSendType" SG_ 1171 ALV_BMS_WarnMsg 3;
+BA_ "GenSigStartValue" SG_ 1171 ALV_BMS_WarnMsg 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 ALV_BMS_WarnMsg 5000;
+BA_ "InvalidValue" SG_ 1171 ALV_BMS_WarnMsg "Fh";
+BA_ "GenSigSendType" SG_ 1171 BMS_PackTempSts 4;
+BA_ "GenSigStartValue" SG_ 1171 BMS_PackTempSts 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 BMS_PackTempSts 5000;
+BA_ "InvalidValue" SG_ 1171 BMS_PackTempSts "null";
+BA_ "GenSigSendType" SG_ 1171 BMS_ThermalRunaway 4;
+BA_ "GenSigStartValue" SG_ 1171 BMS_ThermalRunaway 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 BMS_ThermalRunaway 5000;
+BA_ "InvalidValue" SG_ 1171 BMS_ThermalRunaway "null";
+BA_ "GenSigSendType" SG_ 1171 BMS_BatteryReplacement 4;
+BA_ "GenSigStartValue" SG_ 1171 BMS_BatteryReplacement 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 BMS_BatteryReplacement 5000;
+BA_ "InvalidValue" SG_ 1171 BMS_BatteryReplacement "null";
+BA_ "GenSigSendType" SG_ 1171 BMS_Warning_PowerDegrade 4;
+BA_ "GenSigStartValue" SG_ 1171 BMS_Warning_PowerDegrade 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 BMS_Warning_PowerDegrade 5000;
+BA_ "InvalidValue" SG_ 1171 BMS_Warning_PowerDegrade "null";
+BA_ "GenSigSendType" SG_ 1171 BMS_Warning_DeltaSoC 4;
+BA_ "GenSigStartValue" SG_ 1171 BMS_Warning_DeltaSoC 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 BMS_Warning_DeltaSoC 5000;
+BA_ "InvalidValue" SG_ 1171 BMS_Warning_DeltaSoC "null";
+BA_ "GenSigSendType" SG_ 1171 BMS_Warning_HVILSts 4;
+BA_ "GenSigStartValue" SG_ 1171 BMS_Warning_HVILSts 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 BMS_Warning_HVILSts 5000;
+BA_ "InvalidValue" SG_ 1171 BMS_Warning_HVILSts "null";
+BA_ "GenSigSendType" SG_ 1171 BMS_Warning_Isolation 4;
+BA_ "GenSigStartValue" SG_ 1171 BMS_Warning_Isolation 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 BMS_Warning_Isolation 5000;
+BA_ "InvalidValue" SG_ 1171 BMS_Warning_Isolation "null";
+BA_ "GenSigSendType" SG_ 1171 BMS_Warning_CoolantLeakage 4;
+BA_ "GenSigStartValue" SG_ 1171 BMS_Warning_CoolantLeakage 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 BMS_Warning_CoolantLeakage 5000;
+BA_ "InvalidValue" SG_ 1171 BMS_Warning_CoolantLeakage "null";
+BA_ "GenSigSendType" SG_ 1171 BMS_MalfunctionSts 4;
+BA_ "GenSigStartValue" SG_ 1171 BMS_MalfunctionSts 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 BMS_MalfunctionSts 5000;
+BA_ "InvalidValue" SG_ 1171 BMS_MalfunctionSts "null";
+BA_ "GenSigSendType" SG_ 1171 BMS_LowBattery 4;
+BA_ "GenSigStartValue" SG_ 1171 BMS_LowBattery 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 BMS_LowBattery 5000;
+BA_ "InvalidValue" SG_ 1171 BMS_LowBattery "null";
+BA_ "GenSigSendType" SG_ 1171 BMS_Warning_DeltaTemperature 4;
+BA_ "GenSigStartValue" SG_ 1171 BMS_Warning_DeltaTemperature 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 BMS_Warning_DeltaTemperature 5000;
+BA_ "InvalidValue" SG_ 1171 BMS_Warning_DeltaTemperature "null";
+BA_ "GenSigSendType" SG_ 1171 BMS_Warning_BDUTemperatureSts 4;
+BA_ "GenSigStartValue" SG_ 1171 BMS_Warning_BDUTemperatureSts 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 BMS_Warning_BDUTemperatureSts 5000;
+BA_ "InvalidValue" SG_ 1171 BMS_Warning_BDUTemperatureSts "null";
+BA_ "GenSigSendType" SG_ 1171 BMS_Reserved_signal3 4;
+BA_ "GenSigStartValue" SG_ 1171 BMS_Reserved_signal3 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 BMS_Reserved_signal3 5000;
+BA_ "InvalidValue" SG_ 1171 BMS_Reserved_signal3 "null";
+BA_ "GenSigSendType" SG_ 1171 BMS_Reserved_signal4 4;
+BA_ "GenSigStartValue" SG_ 1171 BMS_Reserved_signal4 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 BMS_Reserved_signal4 5000;
+BA_ "InvalidValue" SG_ 1171 BMS_Reserved_signal4 "null";
+BA_ "GenSigSendType" SG_ 1171 BMS_Reserved_signal5 4;
+BA_ "GenSigStartValue" SG_ 1171 BMS_Reserved_signal5 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1171 BMS_Reserved_signal5 5000;
+BA_ "InvalidValue" SG_ 1171 BMS_Reserved_signal5 "null";
+BA_ "GenSigSendType" SG_ 1282 XGW_srcNodeID 0;
+BA_ "GenSigStartValue" SG_ 1282 XGW_srcNodeID 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1282 XGW_srcNodeID 2000;
+BA_ "InvalidValue" SG_ 1282 XGW_srcNodeID "FFh";
+BA_ "GenSigSendType" SG_ 1282 XGW_CtrlBitVector 0;
+BA_ "GenSigStartValue" SG_ 1282 XGW_CtrlBitVector 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1282 XGW_CtrlBitVector 2000;
+BA_ "InvalidValue" SG_ 1282 XGW_CtrlBitVector "null";
+BA_ "GenSigSendType" SG_ 1282 XGW_usrData0 0;
+BA_ "GenSigStartValue" SG_ 1282 XGW_usrData0 255;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1282 XGW_usrData0 2000;
+BA_ "InvalidValue" SG_ 1282 XGW_usrData0 "null";
+BA_ "GenSigSendType" SG_ 1282 XGW_usrData1 0;
+BA_ "GenSigStartValue" SG_ 1282 XGW_usrData1 255;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1282 XGW_usrData1 2000;
+BA_ "InvalidValue" SG_ 1282 XGW_usrData1 "null";
+BA_ "GenSigSendType" SG_ 1282 XGW_usrData2 0;
+BA_ "GenSigStartValue" SG_ 1282 XGW_usrData2 255;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1282 XGW_usrData2 2000;
+BA_ "InvalidValue" SG_ 1282 XGW_usrData2 "null";
+BA_ "GenSigSendType" SG_ 1282 XGW_usrData3 0;
+BA_ "GenSigStartValue" SG_ 1282 XGW_usrData3 255;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1282 XGW_usrData3 2000;
+BA_ "InvalidValue" SG_ 1282 XGW_usrData3 "null";
+BA_ "GenSigSendType" SG_ 1282 XGW_usrData4 0;
+BA_ "GenSigStartValue" SG_ 1282 XGW_usrData4 255;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1282 XGW_usrData4 2000;
+BA_ "InvalidValue" SG_ 1282 XGW_usrData4 "null";
+BA_ "GenSigSendType" SG_ 1282 XGW_usrData5 0;
+BA_ "GenSigStartValue" SG_ 1282 XGW_usrData5 255;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1282 XGW_usrData5 2000;
+BA_ "InvalidValue" SG_ 1282 XGW_usrData5 "null";
+BA_ "GenSigSendType" SG_ 1299 BMS_srcNodeID 0;
+BA_ "GenSigStartValue" SG_ 1299 BMS_srcNodeID 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1299 BMS_srcNodeID 2000;
+BA_ "InvalidValue" SG_ 1299 BMS_srcNodeID "FFh";
+BA_ "GenSigSendType" SG_ 1299 BMS_CtrlBitVector 0;
+BA_ "GenSigStartValue" SG_ 1299 BMS_CtrlBitVector 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1299 BMS_CtrlBitVector 2000;
+BA_ "InvalidValue" SG_ 1299 BMS_CtrlBitVector "null";
+BA_ "GenSigSendType" SG_ 1299 BMS_usrData0 0;
+BA_ "GenSigStartValue" SG_ 1299 BMS_usrData0 255;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1299 BMS_usrData0 2000;
+BA_ "InvalidValue" SG_ 1299 BMS_usrData0 "null";
+BA_ "GenSigSendType" SG_ 1299 BMS_usrData1 0;
+BA_ "GenSigStartValue" SG_ 1299 BMS_usrData1 255;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1299 BMS_usrData1 2000;
+BA_ "InvalidValue" SG_ 1299 BMS_usrData1 "null";
+BA_ "GenSigSendType" SG_ 1299 BMS_usrData2 0;
+BA_ "GenSigStartValue" SG_ 1299 BMS_usrData2 255;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1299 BMS_usrData2 2000;
+BA_ "InvalidValue" SG_ 1299 BMS_usrData2 "null";
+BA_ "GenSigSendType" SG_ 1299 BMS_usrData3 0;
+BA_ "GenSigStartValue" SG_ 1299 BMS_usrData3 255;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1299 BMS_usrData3 2000;
+BA_ "InvalidValue" SG_ 1299 BMS_usrData3 "null";
+BA_ "GenSigSendType" SG_ 1299 BMS_usrData4 0;
+BA_ "GenSigStartValue" SG_ 1299 BMS_usrData4 255;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1299 BMS_usrData4 2000;
+BA_ "InvalidValue" SG_ 1299 BMS_usrData4 "null";
+BA_ "GenSigSendType" SG_ 1299 BMS_usrData5 0;
+BA_ "GenSigStartValue" SG_ 1299 BMS_usrData5 255;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1299 BMS_usrData5 2000;
+BA_ "InvalidValue" SG_ 1299 BMS_usrData5 "null";
+BA_ "GenSigSendType" SG_ 1555 BMS_DiagRespData0 7;
+BA_ "GenSigStartValue" SG_ 1555 BMS_DiagRespData0 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1555 BMS_DiagRespData0 0;
+BA_ "InvalidValue" SG_ 1555 BMS_DiagRespData0 "null";
+BA_ "GenSigSendType" SG_ 1555 BMS_DiagRespData1 7;
+BA_ "GenSigStartValue" SG_ 1555 BMS_DiagRespData1 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1555 BMS_DiagRespData1 0;
+BA_ "InvalidValue" SG_ 1555 BMS_DiagRespData1 "null";
+BA_ "GenSigSendType" SG_ 1555 BMS_DiagRespData2 7;
+BA_ "GenSigStartValue" SG_ 1555 BMS_DiagRespData2 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1555 BMS_DiagRespData2 0;
+BA_ "InvalidValue" SG_ 1555 BMS_DiagRespData2 "null";
+BA_ "GenSigSendType" SG_ 1555 BMS_DiagRespData3 7;
+BA_ "GenSigStartValue" SG_ 1555 BMS_DiagRespData3 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1555 BMS_DiagRespData3 0;
+BA_ "InvalidValue" SG_ 1555 BMS_DiagRespData3 "null";
+BA_ "GenSigSendType" SG_ 1555 BMS_DiagRespData4 7;
+BA_ "GenSigStartValue" SG_ 1555 BMS_DiagRespData4 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1555 BMS_DiagRespData4 0;
+BA_ "InvalidValue" SG_ 1555 BMS_DiagRespData4 "null";
+BA_ "GenSigSendType" SG_ 1555 BMS_DiagRespData5 7;
+BA_ "GenSigStartValue" SG_ 1555 BMS_DiagRespData5 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1555 BMS_DiagRespData5 0;
+BA_ "InvalidValue" SG_ 1555 BMS_DiagRespData5 "null";
+BA_ "GenSigSendType" SG_ 1555 BMS_DiagRespData6 7;
+BA_ "GenSigStartValue" SG_ 1555 BMS_DiagRespData6 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1555 BMS_DiagRespData6 0;
+BA_ "InvalidValue" SG_ 1555 BMS_DiagRespData6 "null";
+BA_ "GenSigSendType" SG_ 1555 BMS_DiagRespData7 7;
+BA_ "GenSigStartValue" SG_ 1555 BMS_DiagRespData7 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1555 BMS_DiagRespData7 0;
+BA_ "InvalidValue" SG_ 1555 BMS_DiagRespData7 "null";
+BA_ "GenSigSendType" SG_ 1683 BMS_DiagReqData0 7;
+BA_ "GenSigStartValue" SG_ 1683 BMS_DiagReqData0 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1683 BMS_DiagReqData0 0;
+BA_ "InvalidValue" SG_ 1683 BMS_DiagReqData0 "null";
+BA_ "GenSigSendType" SG_ 1683 BMS_DiagReqData1 7;
+BA_ "GenSigStartValue" SG_ 1683 BMS_DiagReqData1 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1683 BMS_DiagReqData1 0;
+BA_ "InvalidValue" SG_ 1683 BMS_DiagReqData1 "null";
+BA_ "GenSigSendType" SG_ 1683 BMS_DiagReqData2 7;
+BA_ "GenSigStartValue" SG_ 1683 BMS_DiagReqData2 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1683 BMS_DiagReqData2 0;
+BA_ "InvalidValue" SG_ 1683 BMS_DiagReqData2 "null";
+BA_ "GenSigSendType" SG_ 1683 BMS_DiagReqData3 7;
+BA_ "GenSigStartValue" SG_ 1683 BMS_DiagReqData3 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1683 BMS_DiagReqData3 0;
+BA_ "InvalidValue" SG_ 1683 BMS_DiagReqData3 "null";
+BA_ "GenSigSendType" SG_ 1683 BMS_DiagReqData4 7;
+BA_ "GenSigStartValue" SG_ 1683 BMS_DiagReqData4 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1683 BMS_DiagReqData4 0;
+BA_ "InvalidValue" SG_ 1683 BMS_DiagReqData4 "null";
+BA_ "GenSigSendType" SG_ 1683 BMS_DiagReqData5 7;
+BA_ "GenSigStartValue" SG_ 1683 BMS_DiagReqData5 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1683 BMS_DiagReqData5 0;
+BA_ "InvalidValue" SG_ 1683 BMS_DiagReqData5 "null";
+BA_ "GenSigSendType" SG_ 1683 BMS_DiagReqData6 7;
+BA_ "GenSigStartValue" SG_ 1683 BMS_DiagReqData6 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1683 BMS_DiagReqData6 0;
+BA_ "InvalidValue" SG_ 1683 BMS_DiagReqData6 "null";
+BA_ "GenSigSendType" SG_ 1683 BMS_DiagReqData7 7;
+BA_ "GenSigStartValue" SG_ 1683 BMS_DiagReqData7 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1683 BMS_DiagReqData7 0;
+BA_ "InvalidValue" SG_ 1683 BMS_DiagReqData7 "null";
+BA_ "GenSigSendType" SG_ 1775 DiagReqAllCANData0 7;
+BA_ "GenSigStartValue" SG_ 1775 DiagReqAllCANData0 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1775 DiagReqAllCANData0 0;
+BA_ "InvalidValue" SG_ 1775 DiagReqAllCANData0 "null";
+BA_ "GenSigSendType" SG_ 1775 DiagReqAllCANData1 7;
+BA_ "GenSigStartValue" SG_ 1775 DiagReqAllCANData1 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1775 DiagReqAllCANData1 0;
+BA_ "InvalidValue" SG_ 1775 DiagReqAllCANData1 "null";
+BA_ "GenSigSendType" SG_ 1775 DiagReqAllCANData2 7;
+BA_ "GenSigStartValue" SG_ 1775 DiagReqAllCANData2 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1775 DiagReqAllCANData2 0;
+BA_ "InvalidValue" SG_ 1775 DiagReqAllCANData2 "null";
+BA_ "GenSigSendType" SG_ 1775 DiagReqAllCANData3 7;
+BA_ "GenSigStartValue" SG_ 1775 DiagReqAllCANData3 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1775 DiagReqAllCANData3 0;
+BA_ "InvalidValue" SG_ 1775 DiagReqAllCANData3 "null";
+BA_ "GenSigSendType" SG_ 1775 DiagReqAllCANData4 7;
+BA_ "GenSigStartValue" SG_ 1775 DiagReqAllCANData4 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1775 DiagReqAllCANData4 0;
+BA_ "InvalidValue" SG_ 1775 DiagReqAllCANData4 "null";
+BA_ "GenSigSendType" SG_ 1775 DiagReqAllCANData5 7;
+BA_ "GenSigStartValue" SG_ 1775 DiagReqAllCANData5 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1775 DiagReqAllCANData5 0;
+BA_ "InvalidValue" SG_ 1775 DiagReqAllCANData5 "null";
+BA_ "GenSigSendType" SG_ 1775 DiagReqAllCANData6 7;
+BA_ "GenSigStartValue" SG_ 1775 DiagReqAllCANData6 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1775 DiagReqAllCANData6 0;
+BA_ "InvalidValue" SG_ 1775 DiagReqAllCANData6 "null";
+BA_ "GenSigSendType" SG_ 1775 DiagReqAllCANData7 7;
+BA_ "GenSigStartValue" SG_ 1775 DiagReqAllCANData7 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1775 DiagReqAllCANData7 0;
+BA_ "InvalidValue" SG_ 1775 DiagReqAllCANData7 "null";
+BA_ "GenSigSendType" SG_ 1791 DiagReqAllEcuData0 7;
+BA_ "GenSigStartValue" SG_ 1791 DiagReqAllEcuData0 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1791 DiagReqAllEcuData0 0;
+BA_ "InvalidValue" SG_ 1791 DiagReqAllEcuData0 "null";
+BA_ "GenSigSendType" SG_ 1791 DiagReqAllEcuData1 7;
+BA_ "GenSigStartValue" SG_ 1791 DiagReqAllEcuData1 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1791 DiagReqAllEcuData1 0;
+BA_ "InvalidValue" SG_ 1791 DiagReqAllEcuData1 "null";
+BA_ "GenSigSendType" SG_ 1791 DiagReqAllEcuData2 7;
+BA_ "GenSigStartValue" SG_ 1791 DiagReqAllEcuData2 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1791 DiagReqAllEcuData2 0;
+BA_ "InvalidValue" SG_ 1791 DiagReqAllEcuData2 "null";
+BA_ "GenSigSendType" SG_ 1791 DiagReqAllEcuData3 7;
+BA_ "GenSigStartValue" SG_ 1791 DiagReqAllEcuData3 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1791 DiagReqAllEcuData3 0;
+BA_ "InvalidValue" SG_ 1791 DiagReqAllEcuData3 "null";
+BA_ "GenSigSendType" SG_ 1791 DiagReqAllEcuData4 7;
+BA_ "GenSigStartValue" SG_ 1791 DiagReqAllEcuData4 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1791 DiagReqAllEcuData4 0;
+BA_ "InvalidValue" SG_ 1791 DiagReqAllEcuData4 "null";
+BA_ "GenSigSendType" SG_ 1791 DiagReqAllEcuData5 7;
+BA_ "GenSigStartValue" SG_ 1791 DiagReqAllEcuData5 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1791 DiagReqAllEcuData5 0;
+BA_ "InvalidValue" SG_ 1791 DiagReqAllEcuData5 "null";
+BA_ "GenSigSendType" SG_ 1791 DiagReqAllEcuData6 7;
+BA_ "GenSigStartValue" SG_ 1791 DiagReqAllEcuData6 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1791 DiagReqAllEcuData6 0;
+BA_ "InvalidValue" SG_ 1791 DiagReqAllEcuData6 "null";
+BA_ "GenSigSendType" SG_ 1791 DiagReqAllEcuData7 7;
+BA_ "GenSigStartValue" SG_ 1791 DiagReqAllEcuData7 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1791 DiagReqAllEcuData7 0;
+BA_ "InvalidValue" SG_ 1791 DiagReqAllEcuData7 "null";
+BA_ "GenSigSendType" SG_ 1825 SEED_CAN_Req12 7;
+BA_ "GenSigStartValue" SG_ 1825 SEED_CAN_Req12 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1825 SEED_CAN_Req12 0;
+BA_ "InvalidValue" SG_ 1825 SEED_CAN_Req12 "null";
+BA_ "GenSigSendType" SG_ 1849 SEED_CAN_Req24 7;
+BA_ "GenSigStartValue" SG_ 1849 SEED_CAN_Req24 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1849 SEED_CAN_Req24 0;
+BA_ "InvalidValue" SG_ 1849 SEED_CAN_Req24 "null";
+BA_ "GenSigSendType" SG_ 1939 BMS_XCPTxData 7;
+BA_ "GenSigStartValue" SG_ 1939 BMS_XCPTxData 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1939 BMS_XCPTxData 0;
+BA_ "InvalidValue" SG_ 1939 BMS_XCPTxData "null";
+BA_ "GenSigSendType" SG_ 1986 BMS_XCPRxData 7;
+BA_ "GenSigStartValue" SG_ 1986 BMS_XCPRxData 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 1986 BMS_XCPRxData 0;
+BA_ "InvalidValue" SG_ 1986 BMS_XCPRxData "null";
+BA_ "GenSigSendType" SG_ 2015 Diag_Request_ECU_Data0 7;
+BA_ "GenSigStartValue" SG_ 2015 Diag_Request_ECU_Data0 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 2015 Diag_Request_ECU_Data0 0;
+BA_ "InvalidValue" SG_ 2015 Diag_Request_ECU_Data0 "null";
+BA_ "GenSigSendType" SG_ 2015 Diag_Request_ECU_Data1 7;
+BA_ "GenSigStartValue" SG_ 2015 Diag_Request_ECU_Data1 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 2015 Diag_Request_ECU_Data1 0;
+BA_ "InvalidValue" SG_ 2015 Diag_Request_ECU_Data1 "null";
+BA_ "GenSigSendType" SG_ 2015 Diag_Request_ECU_Data2 7;
+BA_ "GenSigStartValue" SG_ 2015 Diag_Request_ECU_Data2 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 2015 Diag_Request_ECU_Data2 0;
+BA_ "InvalidValue" SG_ 2015 Diag_Request_ECU_Data2 "null";
+BA_ "GenSigSendType" SG_ 2015 Diag_Request_ECU_Data3 7;
+BA_ "GenSigStartValue" SG_ 2015 Diag_Request_ECU_Data3 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 2015 Diag_Request_ECU_Data3 0;
+BA_ "InvalidValue" SG_ 2015 Diag_Request_ECU_Data3 "null";
+BA_ "GenSigSendType" SG_ 2015 Diag_Request_ECU_Data4 7;
+BA_ "GenSigStartValue" SG_ 2015 Diag_Request_ECU_Data4 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 2015 Diag_Request_ECU_Data4 0;
+BA_ "InvalidValue" SG_ 2015 Diag_Request_ECU_Data4 "null";
+BA_ "GenSigSendType" SG_ 2015 Diag_Request_ECU_Data5 7;
+BA_ "GenSigStartValue" SG_ 2015 Diag_Request_ECU_Data5 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 2015 Diag_Request_ECU_Data5 0;
+BA_ "InvalidValue" SG_ 2015 Diag_Request_ECU_Data5 "null";
+BA_ "GenSigSendType" SG_ 2015 Diag_Request_ECU_Data6 7;
+BA_ "GenSigStartValue" SG_ 2015 Diag_Request_ECU_Data6 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 2015 Diag_Request_ECU_Data6 0;
+BA_ "InvalidValue" SG_ 2015 Diag_Request_ECU_Data6 "null";
+BA_ "GenSigSendType" SG_ 2015 Diag_Request_ECU_Data7 7;
+BA_ "GenSigStartValue" SG_ 2015 Diag_Request_ECU_Data7 0;
+BA_ "GenSigTimeoutTime_ALL" SG_ 2015 Diag_Request_ECU_Data7 0;
+BA_ "InvalidValue" SG_ 2015 Diag_Request_ECU_Data7 "null";
+
+
+VAL_ 133 ACM_Crash_Sts 0 "No_Event" 1 "Crash_Detected"; 
+VAL_ 133 ACM_Airbag_Deployment_Status 0 "No_Airbag_Deployment" 1 "Airbag_Deployment"; 
+VAL_ 133 ACM_Crash_Intensity 0 "No_Crash" 1 "Crash_Intensity_1" 2 "Crash_Intensity_2" 3 "Crash_Intensity_3"; 
+VAL_ 133 ACM_Front_Crash 0 "No_Event" 1 "Front_Crash_Detected"; 
+VAL_ 133 ACM_DriverSide_Crash 0 "No_Event" 1 "Driverside_Crash_Detected"; 
+VAL_ 133 ACM_PassSide_Crash 0 "No_Event" 1 "PasSide_Crash_Detected"; 
+VAL_ 133 ACM_Rear_Crash 0 "No_Event" 1 "Rear_Crash_Detected"; 
+VAL_ 133 ACM_Rollover_Crash 0 "No_Event" 1 "Rollover_Crash_Detected"; 
+VAL_ 274 RemoteFunctionState 0 "Normal function" 1 "Remote function" 2 "Reserved" 3 "Signal Invalid"; 
+VAL_ 274 STAT_BLS 0 "BLS not pressed" 1 "BLS pressed" 2 "Reserved" 3 "Signal invalid"; 
+VAL_ 274 STAT_CL_50_L 0 "OFF" 1 "ON" 2 "Failure" 3 "Signal invalid"; 
+VAL_ 274 Clamp50AdviceRemoteStart 0 "Engine Start announcement not active" 1 "Engine Start announcement active" 2 "Reserved" 3 "Invalid"; 
+VAL_ 274 Clamp50AdviceESS 0 "Engine Start announcement not active" 1 "Engine Start announcement active" 2 "Reserved" 3 "Invalid"; 
+VAL_ 274 STAT_CL_R_L 0 "OFF" 1 "ON" 2 "Failure" 3 "Signal invalid"; 
+VAL_ 274 STAT_CL_15_1_L 0 "OFF" 1 "ON" 2 "Failure" 3 "Signal invalid"; 
+VAL_ 274 STAT_CL_15_1_DME_L 0 "OFF" 1 "ON" 2 "Failure" 3 "Signal invalid"; 
+VAL_ 274 FobId 0 "Key not available" 1 "FOB_1" 2 "FOB_2" 3 "Signal invalid"; 
+VAL_ 274 STAT_Terminal 0 "OFF(Comfort Enable)" 1 "ACC (Park)" 2 "ON (Driver Present)" 3 "Engine start (eMotor running)" 4 "SW Update OTA" 5 "Reserved" 6 "Reserved" 7 "Signal Invalid"; 
+VAL_ 274 STAT_CL30_C_BEV 0 "OFF" 1 "ON" 2 "Failure" 3 "Signal invalid"; 
+VAL_ 274 BCM_Clamp_Transport 0 "Transport Disabled" 1 "Transport E-Motor Running" 2 "Transport Driver Present" 3 "Ttransport ACC" 4 "Transport OFF" 5 "Init" 6 "Reserved " 7 "Reserved "; 
+VAL_ 357 VCU_AcChgGunIn 0 "disconnect" 1 "connect"; 
+VAL_ 357 VCU_DCChgGunIn 0 "disconnect" 1 "connect"; 
+VAL_ 372 BMS_StartOfMeasument_STS 0 "Not start" 1 "Started"; 
+VAL_ 409 VCU_BMS_HVOnOff_REQ 0 "forbid" 1 "allow"; 
+VAL_ 417 DVCO_VEH 0 "Vehicle is stationary" 1 "Vehicle is moving forward" 2 "Vehicle is reversing" 3 "Vehicle is moving " 4 "Vehicle is stationary rear axle rol" 5 "Vehicle is stationary all axle roll" 6 "Vehicle is stationary Front axle roll" 7 "Signal invalid"; 
+VAL_ 417 QU_V_VEH_COG 1 "Signal value is valid and secured and plausible" 2 "Reserved" 3 "Reserved" 4 "Reserved" 6 "Reserved" 7 "Reserved" 8 "Init" 9 "Reserved" 10 "Signal value is valid" 11 "Signal quality or monitoring limited" 12 "Reserved" 14 "Signal value is invalid" 15 "Signal invalid"; 
+VAL_ 504 EDS_Work_STS_FR 0 "default" 1 "init" 2 "standby" 3 "precharge" 4 "normal" 5 "HVReady" 6 "6SO" 11 "shut down" 12 "after run" 13 "Failure" 14 "power off" 15 "invaild"; 
+VAL_ 504 EDS_output_trqValid_FR 0 "invalid" 1 "valid"; 
+VAL_ 504 EDS_MotorDriveSts_FR 0 "Zero control" 1 "Drive control" 2 "regen control" 3 "Invaild"; 
+VAL_ 504 EDS_powoff_req_FR 0 "(No request)" 1 "(Request high voltage power down)"; 
+VAL_ 504 EDS_SpdValid_FR 0 "invalid" 1 "valid"; 
+VAL_ 504 EDS_VCU_6SO_flag_FWD 0 "OFF" 1 "ON"; 
+VAL_ 505 EDS_Work_STS_RR 0 "default" 1 "init" 2 "standby" 3 "precharge" 4 "normal" 5 "HVReady" 6 "6SO" 11 "shut down" 12 "after run" 13 "Failure" 14 "power off" 15 "invaild"; 
+VAL_ 505 EDS_output_trqValid_RR 0 "invalid" 1 "valid"; 
+VAL_ 505 EDS_MotorDriveSts_RR 0 "Zero control" 1 "Drive control" 2 "regen control" 3 "Invaild"; 
+VAL_ 505 EDS_powoff_req_RR 0 "(No request)" 1 "(Request high voltage power down)"; 
+VAL_ 505 EDS_SpdValid_RR 0 "invalid" 1 "valid"; 
+VAL_ 505 EDS_VCU_6SO_flag_RWD 0 "OFF" 1 "ON"; 
+VAL_ 533 BMS_BatBalance_ERR 0 "Error" 1 "normal"; 
+VAL_ 533 BMS_Balance_STS 0 "Inactive" 1 "active"; 
+VAL_ 533 BMS_IGN_Sts 0 "OFF" 1 "ON"; 
+VAL_ 533 BMS_HWCrash_Sts 0 "No Crash" 1 "Crash"; 
+VAL_ 533 BMS_HVIL_STS 0 "Closed" 1 "Open & short to battery" 2 "short to ground"; 
+VAL_ 533 BMS_HVOnOff_STS 0 "HV Off" 1 "Precharge" 2 "HV On" 3 "Fail to HV on"; 
+VAL_ 533 BMS_ERR_LEV 0 "No error" 1 "Warning" 2 "Limp Home" 3 "Power down without FTTI" 4 "Delay power down with FTTI" 5 "Emergency off condition" 6 "Fault, needs to shutdown and wakeup" 7 "Battery locked - reserved"; 
+VAL_ 533 BMS_Sys_STS 0 "Initialization of power on, self-checking" 1 "Self-check passes, can be high-voltage" 2 "Successful High Voltage Power Up" 3 "Successful Power Down of HV" 4 "Power Down process" 5 "Successful Power Down" 6 "BCU Sleep mode" 7 "Failure, unable to operate" 8 "Invalid"; 
+VAL_ 533 BMS_ISU_Status 0 "Normal (> 250 kOhms)" 1 "Level1 (<250 kOhms ~ >100 kOhms)" 3 "Level3 (<100 kOhms)"; 
+VAL_ 533 BMS_HV_Sts 0 "HV Off" 1 "Pre Charge" 2 "HV On" 3 "Super_Fast_Charge" 4 "AC Charge" 5 "Undefined" 6 "Undefined" 7 "Undefined" 8 "Undefined" 9 "Undefined"; 
+VAL_ 535 VCU_DCChargeRelayP 0 "Open" 1 "Close"; 
+VAL_ 535 VCU_DCChargeRelayN 0 "Open" 1 "Close"; 
+VAL_ 535 VCU_BMS_Insulation_Mon_Req 0 "ON" 1 "OFF"; 
+VAL_ 537 VCU_ChargeAllow 0 "Not allow" 1 "Allow"; 
+VAL_ 544 VCU_BMS_PTCOnOff_Sts 0 "off" 1 "on"; 
+VAL_ 544 VCU_BMS_ValveOnOff_Sts 0 "close" 1 "open"; 
+VAL_ 544 VCU_BMS_PumpFB 0 "OFF" 1 "ON" 2 "Fault" 3 "Reserve"; 
+VAL_ 549 CDM_bAcvCanComStblMon 0 "No error" 1 "Error"; 
+VAL_ 549 FRMo_bErrHvbatStReqExtMon 0 "No error" 1 "Error"; 
+VAL_ 549 FRMo_bErrChrgnAllwdExtMon 0 "No error" 1 "Error"; 
+VAL_ 549 FRMo_bErrVehCrashStExtMon 0 "No error" 1 "Error"; 
+VAL_ 549 CDM_bErrComctnLossCanMon 0 "No error" 1 "Error"; 
+VAL_ 549 CTCMon_bErrCtctrSopcMon 0 "No error" 1 "Error"; 
+VAL_ 549 CTCMon_bInvldCtctrHisdIFbMon 0 "No error" 1 "Error"; 
+VAL_ 549 CTCMon_bInvldCtctrLosdUFbMon 0 "No error" 1 "Error"; 
+VAL_ 549 CTM_bErrCellTDifMaxMon 0 "No error" 1 "Error"; 
+VAL_ 549 CTM_bErrCellTMaxMon 0 "No error" 1 "Error"; 
+VAL_ 549 CTM_bErrCellTMinMon 0 "No error" 1 "Error"; 
+VAL_ 549 CTM_bErrThrwyPredMon 0 "No error" 1 "Error"; 
+VAL_ 549 CUM_bErrCellUDifMaxMon 0 "No error" 1 "Error"; 
+VAL_ 549 CUM_bErrCellUMaxMon 0 "No error" 1 "Error"; 
+VAL_ 549 CUM_bErrCellUMinMon 0 "No error" 1 "Error"; 
+VAL_ 549 CUM_bErrCellUProtnMaxNvMon 0 "No error" 1 "Error"; 
+VAL_ 549 CUM_bErrCellUProtnMinNvMon 0 "No error" 1 "Error"; 
+VAL_ 549 CUM_bErrPackUImplyMon 0 "No error" 1 "Error"; 
+VAL_ 549 EHPMon_bRdyHvilMon 0 "No error" 1 "Error"; 
+VAL_ 549 EHPMon_bErrWlddNegNvMon 0 "No error" 1 "Error"; 
+VAL_ 549 EHPMon_bErrWlddPosNvMon 0 "No error" 1 "Error"; 
+VAL_ 549 EHPMon_bErrWlddPrechNvMon 0 "No error" 1 "Error"; 
+VAL_ 549 EHPMon_bErrHvilMon 0 "No error" 1 "Error"; 
+VAL_ 549 EHPMon_bErrHvilShoMon 0 "No error" 1 "Error"; 
+VAL_ 549 EHPMon_bErrPackIslnRNvMon 0 "No error" 1 "Error"; 
+VAL_ 549 EHPMon_bErrVehCrashNvMon 0 "No error" 1 "Error"; 
+VAL_ 549 EHPMon_bErrVehIslnRNvMon 0 "No error" 1 "Error"; 
+VAL_ 549 FRMo_bErrMemStorgNvMon 0 "No error" 1 "Error"; 
+VAL_ 549 L1IM_bErrClmp30MaxMonInp 0 "No error" 1 "Error"; 
+VAL_ 549 L1IM_bErrClmp30MinMonInp 0 "No error" 1 "Error"; 
+VAL_ 549 L1IM_bErrCtctrDtrtMonInp 0 "No error" 1 "Error"; 
+VAL_ 549 L1IM_bErrUActImplyMonInp 0 "No error" 1 "Error"; 
+VAL_ 549 MCCM_bAcvMdulCtlrStsMon 0 "No error" 1 "Error"; 
+VAL_ 549 MCCM_bErrLntecSngFltMon 0 "No error" 1 "Error"; 
+VAL_ 549 MCCM_bErrLntecLtntFltMon 0 "No error" 1 "Error"; 
+VAL_ 549 MCCM_bErrMdulCellSnsrCfgMon 0 "No error" 1 "Error"; 
+VAL_ 549 MCCM_bErrMdulCtlrComMon 0 "No error" 1 "Error"; 
+VAL_ 549 MCCM_bErrSnsrTEltlMon 0 "No error" 1 "Error"; 
+VAL_ 549 MCCM_bWarnSnsrTEltlMon 0 "No error" 1 "Error"; 
+VAL_ 549 PCM_bRdySnsrIMon 0 "No error" 1 "Error"; 
+VAL_ 549 PCM_bErrPackEFlowMaxLimMon 0 "No error" 1 "Error"; 
+VAL_ 549 PCM_bErrPackIChDchaMaxLimMon 0 "No error" 1 "Error"; 
+VAL_ 549 PCM_bErrSnsrIImplyMon 0 "No error" 1 "Error"; 
+VAL_ 549 FRMo_bErrSnsrI1ExtMon 0 "No error" 1 "Error"; 
+VAL_ 549 PCM_bInvldSnsrI1Mon 0 "No error" 1 "Error"; 
+VAL_ 549 PCM_bInvldSnsrI2Mon 0 "No error" 1 "Error"; 
+VAL_ 549 FRMo_bErrSopcLvl3Mon 0 "No error" 1 "Error"; 
+VAL_ 549 BMS_FRMo_Reserved_1 0 "No error" 1 "Error"; 
+VAL_ 549 BMS_FRMo_Reserved_2 0 "No error" 1 "Error"; 
+VAL_ 549 BMS_FRMo_Reserved_3 0 "No error" 1 "Error"; 
+VAL_ 549 BMS_FRMo_Reserved_4 0 "No error" 1 "Error"; 
+VAL_ 549 BMS_FRMo_Reserved_5 0 "No error" 1 "Error"; 
+VAL_ 550 BMS_QMMo_Reserved_0 0 "No error" 1 "Error"; 
+VAL_ 550 BMS_QMMo_Reserved_1 0 "No error" 1 "Error"; 
+VAL_ 550 BMS_QMMo_Reserved_2 0 "No error" 1 "Error"; 
+VAL_ 550 BMS_QMMo_Reserved_3 0 "No error" 1 "Error"; 
+VAL_ 550 BMS_QMMo_Reserved_4 0 "No error" 1 "Error"; 
+VAL_ 550 BMS_QMMo_Reserved_5 0 "No error" 1 "Error"; 
+VAL_ 550 BMS_QMMo_Reserved_6 0 "No error" 1 "Error"; 
+VAL_ 550 BMS_QMMo_Reserved_7 0 "No error" 1 "Error"; 
+VAL_ 550 BMS_QMMo_Reserved_8 0 "No error" 1 "Error"; 
+VAL_ 550 BMS_QMMo_Reserved_9 0 "No error" 1 "Error"; 
+VAL_ 550 BMS_QMMo_Reserved_10 0 "No error" 1 "Error"; 
+VAL_ 550 BMS_QMMo_Reserved_11 0 "No error" 1 "Error"; 
+VAL_ 581 BMS_ProbeNumMaxCellTemp 0 "Invalid" 62 "Error" 63 "Invalid"; 
+VAL_ 581 BMS_ProbeNumMinCellTemp 0 "Invalid" 62 "Error" 63 "Invalid"; 
+VAL_ 584 BMS_VCU_PTCOnOff_Req 0 "OFF" 1 "ON"; 
+VAL_ 584 BMS_VCU_ValveOnOff_Req 0 "close" 1 "open"; 
+VAL_ 584 BMS_PreHeatCoolReq 0 "Precondition OFF" 1 "Precondition Heating ON" 2 "Precondition Cooling ON" 3 "Invalid value"; 
+VAL_ 714 MHU_STAT_CoolantLevelStatus 0 "Normal condition" 1 "Low level condition" 2 "Reserved" 3 "Signal Invalid"; 
+VAL_ 760 DISP_DATE_WDAY 1 "Monday" 2 "Tuesday" 3 "Wednesday" 4 "Thursday" 5 "Friday" 6 "Saturday" 7 "Sunday" 15 "Signal invalid"; 
+VAL_ 760 ST_DISP_CTI_DATE 0 "data not valid" 1 "data valid" 3 "UTC" 5 "winter time" 6 "Manually set time" 7 "summer time" 15 "signal invalid"; 
+VAL_ 773 BMS_VCU_Insulation_Mon_Sts 0 "ON" 1 "OFF"; 
+VAL_ 775 BMS_Start_Stop_DM13 0 "Stop" 1 "Start" 2 "Reserved" 3 "Don't care/take no action"; 
+VAL_ 816 BMS_ContactorAging 0 "Normal" 1 "Warning counter reach 90%" 2 "Fault counter reach 98%"; 
+VAL_ 820 BMS_ErrorCategory_CAT0 0 "CATOK" 1 "CATFailure" ;
+VAL_ 820 BMS_ErrorCategory_CAT1 0 "CATOK" 1 "CATFailure" ;
+VAL_ 820 BMS_ErrorCategory_CAT2 0 "CATOK" 1 "CATFailure" ;
+VAL_ 820 BMS_ErrorCategory_CAT3 0 "CATOK" 1 "CATFailure" ;
+VAL_ 820 BMS_ErrorCategory_CAT4 0 "CATOK" 1 "CATFailure" ;
+VAL_ 820 BMS_ErrorCategory_CAT5 0 "CATOK" 1 "CATFailure" ;
+VAL_ 820 BMS_ErrorCategory_CAT6 0 "CATOK" 1 "CATFailure" ;
+VAL_ 820 BMS_ErrorCategory_CAT7 0 "CATOK" 1 "CATFailure" ;
+VAL_ 820 BMS_ErrorCategory_CAT8 0 "CATOK" 1 "CATFailure" ;
+VAL_ 885 BMS_PreChgRelay_ERR 0 "error" 1 "normal"; 
+VAL_ 885 BMS_TotalNegRelay_ERR 0 "Error" 1 "normal"; 
+VAL_ 885 BMS_MainPosRelay_ERR 0 "Error" 1 "normal"; 
+VAL_ 885 BMS_MainPosRelay_STS 0 "reserved" 1 "open" 2 "closed" 3 "stuck closed" 4 "stuck open"; 
+VAL_ 885 BMS_PreChgRelay_STS 0 "reserved" 1 "open" 2 "closed" 3 "stuck closed" 4 "stuck open"; 
+VAL_ 885 BMS_TotalNegRelay_STS 0 "reserved" 1 "open" 2 "closed" 3 "stuck closed" 4 "stuck open"; 
+VAL_ 1074 MHU_FOTA_State 0 "INIT" 1 "NORMAL" 2 "FOTA FLASHING" 3 "FOTA-SUSPENDED" 4 "FAIL-SAFE-ERROR" 5 "SHUTDOWN" 6 "REMOTE DIAGNOSTICS" 7 "Invalid"; 
+VAL_ 1109 BMS_CellLowVol_ERR 0 "Normal" 1 "Warning" 2 "Error" 3 "Safety Error"; 
+VAL_ 1109 BMS_HVIL_Err 0 "Normal" 1 "Level1" 2 "Level2" 3 "Level3"; 
+VAL_ 1109 BMS_PackInsu_ERR 0 "Lv0-No Err" 1 "Lv1 - Short to ground" 2 "Lv2-Short to vbat and open line"; 
+VAL_ 1109 BMS_CellVoltDiff_ERR 0 "Normal" 1 "Warning" 2 "Error" 3 "Safety Error"; 
+VAL_ 1109 BMS_ProbeTempDiff_ERR 0 "Normal" 1 "Warning" 2 "Error" 3 "Safety Error"; 
+VAL_ 1109 BMS_PackHighVol_ERR 0 "Normal" 1 "Warning" 2 "Error" 3 "Safety Error"; 
+VAL_ 1109 BMS_PackLowVol_ERR 0 "Normal" 1 "Warning" 2 "Error" 3 "Safety Error"; 
+VAL_ 1109 BMS_CellHighVol_ERR 0 "Normal" 1 "Warning" 2 "Error" 3 "Safety Error"; 
+VAL_ 1109 BMS_ProbeHighTemp_ERR 0 "Normal" 1 "Warning" 2 "Error" 3 "Safety Error"; 
+VAL_ 1109 BMS_FuseStatus_ERR 0 "Normal" 1 "Fuse blow"; 
+VAL_ 1109 BMS_PackOverCurr_ERR 0 "Normal" 1 "Warning" 2 "Error" 3 "Safety Error"; 
+VAL_ 1109 BMS_ProbeLowTemp_ERR 0 "Normal" 1 "Warning" 2 "Error" 3 "Safety Error"; 
+VAL_ 1120 TWV1_St_Feedback 0 "Over Voltage" 1 "Under Voltage" 2 "OverTemp_Warning" 3 "OverTemp_ShutDown" 4 "Over Current" 5 "Stall" 6 "OpenLoad" 7 "Communication_Error" 8 "WTREST" 9 "POR" 10 "SensorOVR" 11 "Reserved" 12 "Reserved" 13 "Reserved" 14 "Reserved" 15 "TrgPosDone" ;
+VAL_ 1120 TWV2_St_Feedback 0 "Over Voltage" 1 "Under Voltage" 2 "OverTemp_Warning" 3 "OverTemp_ShutDown" 4 "Over Current" 5 "Stall" 6 "OpenLoad" 7 "Communication_Error" 8 "WTREST" 9 "POR" 10 "SensorOVR" 11 "Reserved" 12 "Reserved" 13 "Reserved" 14 "Reserved" 15 "TrgPosDone" ;
+VAL_ 1122 ECM_TargetPosReq_1 0 "Open Position" 100 "Close position" ;
+VAL_ 1123 AGM_1_ActualPosition 0 "Open Position" 100 "Close Position" 127 "Initial Value" ;
+VAL_ 1171 BMS_PackTempSts 0 "No warning" 1 "Over Temperature Warning" 2 "Under Temperature Warning"; 
+VAL_ 1171 BMS_ThermalRunaway 0 "No Warning" 1 "Warning"; 
+VAL_ 1171 BMS_BatteryReplacement 0 "No Warning" 1 "Warning"; 
+VAL_ 1171 BMS_Warning_PowerDegrade 0 "Normal" 1 "Pack Power Degrade"; 
+VAL_ 1171 BMS_Warning_DeltaSoC 0 "Normal" 1 "Delta SOC high"; 
+VAL_ 1171 BMS_Warning_HVILSts 0 "Normal" 1 "HVIL error detected"; 
+VAL_ 1171 BMS_Warning_Isolation 0 "Normal" 1 "Isolation reached level 3"; 
+VAL_ 1171 BMS_Warning_CoolantLeakage 0 "Normal" 1 "Coolant leakage detected"; 
+VAL_ 1171 BMS_MalfunctionSts 0 "No Warning" 1 "Warning"; 
+VAL_ 1171 BMS_LowBattery 0 "No warning" 1 "Low level" 2 "Extremely low level"; 
+VAL_ 1171 BMS_Warning_DeltaTemperature 0 "Normal" 1 "Level 1 warning" 2 "Level 2 extreme"; 
+VAL_ 1171 BMS_Warning_BDUTemperatureSts 0 "Normal" 1 "BDU temp warning" 2 "BDU hot" 3 "BDU extreme hot"; 
+
+SIG_GROUP_  532 SG_BMS_2_MHU 1 : BMS_Display_SOC Checksum_0x214 Rolling_Counter_0x214;
+
+
+

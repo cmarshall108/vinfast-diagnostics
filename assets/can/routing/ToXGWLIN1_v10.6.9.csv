@@ -1,0 +1,4 @@
+RoutingID,RoutingType,DesNetwork,DesMsgID,DesMsgName,DesSigName,DesSigStartbit,DesSigLength,DesMuxedValue,SrcNetwork,SrcMsgID,SrcMsgName,SrcSigName,SrcSigStartbit,SrcSigLength,SrcMuxedValue,SigConversionID
+XL10102408_BOD1110708,Sig,XGW_LIN1,0x10,XGW_Information,BCM_Stat_SwitchLightBrightness,24,8,,Body_CAN,0x111,BCM_Stat_SwitchLightBrightness,BCM_Stat_SwitchLightBrightness,7,8,,SCF0
+XL10150002_INF3240702,Sig,XGW_LIN1,0x15,XGW_Input,Steering_HeatingControl,0,2,,Info_CAN,0x324,HOD_Heating,Steering_HeatingControl,7,2,,SCF0
+XL10150902_BOD45B5702,Sig,XGW_LIN1,0x15,XGW_Input,ADAS_HOD_state_requesting,9,2,,Body_CAN,0x45b,ADAS_HOD,ADAS_HOD_state_requesting,57,2,,SCF0

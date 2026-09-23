@@ -85,7 +85,7 @@ extern const std::vector<VF8Ecu> kVF8Ecus;
 // ---- Reference DTC scan (Autel MaxiCOM, 2026-03-30) -------------------------
 struct VF8RefDtc {
     const char* dtc;     // e.g. "U110887"
-    const char* status;  // "Current" or "History"
+    const char* status;  // status as reported by the source scan
     const char* desc;    // textual description, or "" when none was provided
 };
 
@@ -97,9 +97,55 @@ struct VF8RefSystem {
 
 extern const std::vector<VF8RefSystem> kVF8ReferenceScan;
 
-// Returns a known textual description for an Autel-form DTC string
-// (e.g. "U110887"), or nullptr if none is known.
-const char* vf8DtcLookup(const std::string& autelCode);
+struct VF8DealerSystem {
+    const char* code;
+    const char* name;
+    bool        responded;
+    std::vector<VF8RefDtc> dtcs;
+};
+
+struct VF8DealerDtcReport {
+    const char* createdAt;
+    const char* vin;
+    const char* mileageKm;
+    const char* user;
+    const char* vdsaVersion;
+    const char* model;
+    const char* modelCode;
+    const char* market;
+    const char* modelYear;
+    const char* softwareVersion;
+    const char* latestFrs;
+    const char* engine;
+    const char* drive;
+    const char* exterior;
+    const char* imei;
+    int         printedDtcCount;
+    std::vector<VF8DealerSystem> systems;
+};
+
+struct VF8BatteryHealthItem {
+    const char* description;
+    const char* value;
+    const char* unit;
+    const char* threshold;
+};
+
+struct VF8BatteryHealthReport {
+    const char* createdAt;
+    const char* vin;
+    const char* mileageKm;
+    const char* user;
+    const char* vdsaVersion;
+    std::vector<VF8BatteryHealthItem> items;
+};
+
+extern const VF8DealerDtcReport kVF8DealerDtcReport;
+extern const VF8BatteryHealthReport kVF8BatteryHealthReport;
+
+// Returns a known textual description for an Autel- or dealer-form DTC string
+// (e.g. "U110887" or "B0073-1B"), or nullptr if none is known.
+const char* vf8DtcLookup(const std::string& code);
 
 // ---- Standardized decoders (ISO 14229-1 / SAE J2012-DA) --------------------
 // These are protocol-standardized and therefore high-confidence regardless of

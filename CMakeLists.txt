@@ -174,6 +174,7 @@ set(_app_sources
   src/Elm327Client.cpp
   src/CanClient.cpp
   src/UDSClient.cpp
+  src/DbcCatalog.cpp
   src/VF8Data.cpp
   src/CloudData.cpp
   src/CloudClient.cpp
@@ -253,6 +254,15 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING AND (APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux"))
+  add_executable(test_vf8data
+    tests/test_vf8data.cpp
+    src/DbcCatalog.cpp
+    src/VF8Data.cpp)
+  target_sources(test_vf8data PRIVATE assets/resources.qrc)
+  target_include_directories(test_vf8data PRIVATE src)
+  target_link_libraries(test_vf8data PRIVATE Qt6::Core)
+  add_test(NAME vf8_can_dbc_decode COMMAND test_vf8data)
+
   add_executable(test_elm327
     tests/test_elm327.cpp
     src/Elm327Client.cpp)

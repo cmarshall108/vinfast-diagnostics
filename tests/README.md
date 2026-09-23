@@ -1,5 +1,17 @@
 # Test Utilities
 
+## Automated ELM327 serial exchange
+
+`test_elm327.cpp` uses a pseudo-terminal ELM327 emulator to verify HS-CAN
+500 kbit/s, MS-CAN 250 kbit/s, protocol-B MS-CAN 125 kbit/s, physical UDS
+responses, and functional multi-ECU responses without vehicle hardware.
+
+```bash
+cmake -S . -B build -DBUILD_TESTING=ON
+cmake --build build --target test_elm327
+ctest --test-dir build -R elm327_serial_exchange --output-on-failure
+```
+
 ## J2534 CAN 500 kbit/s scan
 
 File: `tests/tests_j2534_can500k_scan.py`

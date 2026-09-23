@@ -483,10 +483,12 @@ static int classify(int raw, uint8_t nrc) {
 }
 
 int UDSClient::probeDID(uint16_t target, uint16_t did,
-                        std::vector<uint8_t>& resp, std::string& err, int timeoutMs) {
+                        std::vector<uint8_t>& resp, std::string& err, int timeoutMs,
+                        uint8_t* nrcOut) {
     std::vector<uint8_t> req = {0x22, (uint8_t)((did >> 8) & 0xFF), (uint8_t)(did & 0xFF)};
     uint8_t nrc = 0;
     int result = classify(rawRequest(target, req, resp, nrc, err, timeoutMs), nrc);
+    if (nrcOut) *nrcOut = nrc;
     if (result == 1 && (resp.size() < 3 || resp[1] != req[1] || resp[2] != req[2])) {
         err = "Positive RDBI response did not echo requested DID";
         return -1;
@@ -495,12 +497,14 @@ int UDSClient::probeDID(uint16_t target, uint16_t did,
 }
 
 int UDSClient::probeRoutine(uint16_t target, uint16_t rid,
-                            std::vector<uint8_t>& resp, std::string& err, int timeoutMs) {
+                            std::vector<uint8_t>& resp, std::string& err, int timeoutMs,
+                            uint8_t* nrcOut) {
     // 0x31 0x03 = requestRoutineResults: read-only, does NOT start a routine.
     std::vector<uint8_t> req = {0x31, 0x03,
                                 (uint8_t)((rid >> 8) & 0xFF), (uint8_t)(rid & 0xFF)};
     uint8_t nrc = 0;
     int result = classify(rawRequest(target, req, resp, nrc, err, timeoutMs), nrc);
+    if (nrcOut) *nrcOut = nrc;
     if (result == 1 && (resp.size() < 4 || resp[1] != req[1] ||
                         resp[2] != req[2] || resp[3] != req[3])) {
         err = "Positive RoutineControl response did not echo requested routine";
@@ -510,17 +514,77 @@ int UDSClient::probeRoutine(uint16_t target, uint16_t rid,
 }
 
 int UDSClient::probeIOControl(uint16_t target, uint16_t did,
-                              std::vector<uint8_t>& resp, std::string& err, int timeoutMs) {
+                              std::vector<uint8_t>& resp, std::string& err, int timeoutMs,
+                              uint8_t* nrcOut) {
     // 0x2F <DID> 0x00 = returnControlToECU: restorative, never seizes control.
     std::vector<uint8_t> req = {0x2F, (uint8_t)((did >> 8) & 0xFF),
                                 (uint8_t)(did & 0xFF), 0x00};
     uint8_t nrc = 0;
     int result = classify(rawRequest(target, req, resp, nrc, err, timeoutMs), nrc);
+    if (nrcOut) *nrcOut = nrc;
     if (result == 1 && (resp.size() < 3 || resp[1] != req[1] || resp[2] != req[2])) {
         err = "Positive IOControl response did not echo requested DID";
         return -1;
     }
     return result;
+}
+
+int UDSClient::probeDiagnosticSession(uint16_t target, UdsSession session,
+                                      std::vector<uint8_t>& resp, uint8_t& nrc,
+                                      std::string& err, int timeoutMs) {
+    const std::vector<uint8_t> request = {0x10, static_cast<uint8_t>(session)};
+    return rawRequest(target, request, resp, nrc, err, timeoutMs);
+}
+
+std::vector<UDSClient::ServiceCapability>
+UDSClient::fingerprintSafeServices(uint16_t target, int timeoutMs) {
+    struct Probe {
+        uint8_t service;
+        int subFunction;
+        int identifier;
+        const char* name;
+        std::vector<uint8_t> request;
+    };
+    const std::vector<Probe> probes = {
+        {0x3E, 0x00,     -1, "TesterPresent",                 {0x3E, 0x00}},
+        {0x19, 0x01,     -1, "Report DTC count",              {0x19, 0x01, 0xFF}},
+        {0x22,   -1, 0xF190, "ReadDataByIdentifier",          {0x22, 0xF1, 0x90}},
+        {0x31, 0x03, 0xFFFF, "Request routine results",       {0x31, 0x03, 0xFF, 0xFF}},
+        {0x2F, 0x00, 0xFFFF, "Return I/O control to ECU",     {0x2F, 0xFF, 0xFF, 0x00}},
+        {0x83, 0x01,     -1, "Read extended timing limits",   {0x83, 0x01}},
+    };
+
+    std::vector<ServiceCapability> results;
+    results.reserve(probes.size());
+    for (const auto& probe : probes) {
+        ServiceCapability capability;
+        capability.service = probe.service;
+        capability.subFunction = probe.subFunction;
+        capability.identifier = probe.identifier;
+        capability.name = probe.name;
+        capability.request = probe.request;
+
+        std::string error;
+        uint8_t nrc = 0;
+        int raw = rawRequest(target, probe.request, capability.response,
+                             nrc, error, timeoutMs);
+        capability.nrc = nrc;
+        if (raw == 1) {
+            capability.status = 1;
+            capability.detail = "positive response";
+        } else if (raw == 0 && nrc != 0x11) {
+            capability.status = 0;
+            capability.detail = "recognized: NRC 0x" + byteHex(nrc) +
+                                " (" + nrcText(nrc) + ")";
+        } else {
+            capability.status = -1;
+            capability.detail = raw == 0
+                ? "unsupported: NRC 0x11 (serviceNotSupported)"
+                : (error.empty() ? "no response" : error);
+        }
+        results.push_back(std::move(capability));
+    }
+    return results;
 }
 
 bool UDSClient::ioReturnControlToECU(uint16_t target, uint16_t did, std::string& err) {
@@ -1098,8 +1162,6 @@ void UDSClient::restoreSafeState(uint16_t target,
     for (uint16_t did : touchedIoDids) {
         if (ioReturnControlToECU(target, did, e)) ++returned;
     }
-    // Re-enable DTC logging (in case discovery suspended it).
-    bool dtcOn = controlDTCSetting(target, true, e);
     // Drop back to the default session so no extended state lingers.
     bool sess = diagnosticSessionControl(target, UdsSession::Default, e);
     // A final TesterPresent confirms the link is still alive.
@@ -1107,8 +1169,7 @@ void UDSClient::restoreSafeState(uint16_t target,
     testerPresent(target, te, /*suppress=*/false);
 
     summary = "Returned control of " + std::to_string(returned) + "/" +
-              std::to_string(touchedIoDids.size()) + " I/O DID(s); DTC logging " +
-              (dtcOn ? "ON" : "(unchanged)") + "; session " +
+              std::to_string(touchedIoDids.size()) + " I/O DID(s); session " +
               (sess ? "Default" : "(unchanged)");
     Logger::instance().log(LogLevel::Info, "Safe-state restore: " + summary);
 }
